@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Compras</title>
+    <style>
+        .header-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            background: white;
+            margin-top: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 10px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        tr:hover td {
+            background: #f8fafc;
+        }
+        .btn-accion {
+            padding: 4px 12px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.75rem;
+        }
+        .btn-accion.warning { background: #f59e0b; color: white; }
+        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
+        .modal-content {
+            max-width: 720px;
+        }
+        .modal-content .input-group {
+            margin-bottom: 14px;
+        }
+        .modal-content .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .modal-content .input-group input,
+        .modal-content .input-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-content .input-group input:focus,
+        .modal-content .input-group select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .modal-content .input-group input:read-only {
+            background: #f1f5f9;
+        }
+        .producto-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 12px;
+        }
+        .producto-row select {
+            flex: 2;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .producto-row input {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .producto-row .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .producto-row .btn-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+        .flex-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .total-orden {
+            background: #eef2ff;
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+            text-align: right;
+        }
+        @media (max-width: 640px) {
+            th, td { font-size: 0.75rem; padding: 6px 4px; }
+            .producto-row { flex-direction: column; align-items: stretch; }
+            .producto-row select, .producto-row input { width: 100%; }
+            .modal-content { padding: 16px; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="active admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <div class="header-box">
+            <h2 style="font-weight:700;">📦 Órdenes de Compra</h2>
+            <button class="btn-primary" id="btnNuevaOrden">+ Nueva Orden</button>
+        </div>
+
+        <div class="table-container">
+            <table id="tablaOrdenes">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Fecha</th>
+                        <th>Proveedor</th>
+                        <th>Total USD</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-ordenes">
+                    <tr><td colspan="6" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para nueva orden de compra -->
+<div id="modalOrden" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:720px; width:95%; padding:24px; border-radius:28px; max-height:80vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModalOrden()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">Nueva Orden de Compra</h3>
+        <form id="formOrden">
+            <div class="input-group">
+                <label>🏭 Proveedor</label>
+                <select id="proveedorId" required></select>
+            </div>
+            <h4 style="font-weight:600; margin:16px 0 8px;">Productos</h4>
+            <div id="productosContainer"></div>
+            <button type="button" class="btn-primary" id="btnAgregarProducto" style="margin-top:8px;">+ Agregar Producto</button>
+            <div class="total-orden">
+                <span>Total USD: </span>
+                <strong id="totalUsd">0.00</strong>
+            </div>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">Registrar Compra</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalOrden()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let productos = [];
+    let proveedores = [];
+    let ordenProductos = [];
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            if (data.role !== 'admin') {
+                alert('Acceso denegado. Solo administradores.');
+                window.location.href = 'index.html';
+                return null;
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarProveedores() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/proveedores`, { headers: { 'Authorization': `Bearer ${token}` } });
+        proveedores = await res.json();
+        const select = document.getElementById('proveedorId');
+        select.innerHTML = '<option value="">-- Seleccionar proveedor --</option>';
+        proveedores.forEach(p => {
+            select.innerHTML += `<option value="${p.id}">${escapeHtml(p.nombre)} (${escapeHtml(p.rif || '')})</option>`;
+        });
+    }
+
+    async function cargarProductos() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const all = await res.json();
+        // Solo productos normales o ingredientes (no recetas ni kits)
+        productos = all.filter(p => p.tipo_producto !== 'receta' && p.tipo_producto !== 'kit_padre');
+    }
+
+    async function cargarOrdenes() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/ordenes-compra`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const ordenes = await res.json();
+        const tbody = document.getElementById('tbody-ordenes');
+        tbody.innerHTML = '';
+        if (ordenes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:#94a3b8;">No hay órdenes de compra</td></tr>';
+            return;
+        }
+        ordenes.forEach(o => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${o.id}</td>
+                    <td>${escapeHtml(o.fecha)}</td>
+                    <td>${escapeHtml(o.proveedor_nombre)}</td>
+                    <td>$${toNum(o.total_usd).toFixed(2)}</td>
+                    <td><span style="display:inline-block; background:#d1fae5; color:#065f46; padding:2px 12px; border-radius:40px; font-size:0.7rem; font-weight:600;">${escapeHtml(o.estado)}</span></td>
+                    <td><button class="btn-accion warning" onclick="verDetalle(${o.id})">Ver</button></td>
+                </tr>
+            `;
+        });
+    }
+
+    function agregarProducto() {
+        const container = document.getElementById('productosContainer');
+        const idx = ordenProductos.length;
+        const div = document.createElement('div');
+        div.className = 'producto-row';
+        div.innerHTML = `
+            <select class="prod-codigo" data-idx="${idx}">
+                <option value="">-- Seleccionar producto --</option>
+                ${productos.map(p => `<option value="${escapeHtml(p.codigo)}" data-precio="${p.costo}">${escapeHtml(p.nombre)} (${escapeHtml(p.codigo)}) - Costo: $${p.costo}</option>`).join('')}
+            </select>
+            <input type="number" step="any" class="prod-cantidad" placeholder="Cantidad" value="0">
+            <input type="number" step="0.01" class="prod-precio" placeholder="Precio unitario USD" value="0">
+            <button type="button" class="btn-remove" onclick="this.parentElement.remove(); recalcularTotal();">✖</button>
+        `;
+        container.appendChild(div);
+        ordenProductos.push({ codigo: '', cantidad: 0, precio: 0, div: div });
+
+        const select = div.querySelector('.prod-codigo');
+        const cantidad = div.querySelector('.prod-cantidad');
+        const precio = div.querySelector('.prod-precio');
+        select.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            ordenProductos[i].codigo = e.target.value;
+            const selectedOpt = e.target.options[e.target.selectedIndex];
+            const precioCosto = parseFloat(selectedOpt.getAttribute('data-precio') || 0);
+            if (precioCosto > 0 && !ordenProductos[i].precio) {
+                precio.value = precioCosto;
+                ordenProductos[i].precio = precioCosto;
+            }
+            recalcularTotal();
+        });
+        cantidad.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            ordenProductos[i].cantidad = parseFloat(e.target.value) || 0;
+            recalcularTotal();
+        });
+        precio.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            ordenProductos[i].precio = parseFloat(e.target.value) || 0;
+            recalcularTotal();
+        });
+    }
+
+    function recalcularTotal() {
+        let total = 0;
+        ordenProductos.forEach(p => { total += (p.cantidad * p.precio); });
+        document.getElementById('totalUsd').innerText = total.toFixed(2);
+    }
+
+    window.verDetalle = function(id) {
+        alert('📄 Detalle de la orden #' + id + '. Puedes ver los productos en la consola del backend o en la base de datos.');
+        // Podríamos abrir un modal, pero por simplicidad dejamos el alert.
+    };
+
+    document.getElementById('btnNuevaOrden').onclick = () => {
+        ordenProductos = [];
+        document.getElementById('productosContainer').innerHTML = '';
+        document.getElementById('proveedorId').value = '';
+        document.getElementById('totalUsd').innerText = '0.00';
+        document.getElementById('modalOrden').style.display = 'flex';
+        // Agregar una fila por defecto
+        agregarProducto();
+    };
+
+    document.getElementById('btnAgregarProducto').onclick = agregarProducto;
+
+    document.getElementById('formOrden').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const proveedor_id = document.getElementById('proveedorId').value;
+        if (!proveedor_id) {
+            alert('Seleccione un proveedor');
+            return;
+        }
+        const detalle = ordenProductos
+            .filter(p => p.codigo && p.cantidad > 0 && p.precio > 0)
+            .map(p => ({
+                codigo: p.codigo,
+                cantidad: p.cantidad,
+                precio: p.precio,
+                subtotal: p.cantidad * p.precio
+            }));
+        if (detalle.length === 0) {
+            alert('Agregue al menos un producto válido (con código, cantidad > 0 y precio > 0)');
+            return;
+        }
+        const total_usd = detalle.reduce((s, d) => s + d.subtotal, 0);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/ordenes-compra`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ proveedor_id, detalle, total_usd })
+            });
+            if (res.ok) {
+                alert('✅ Orden registrada y stock actualizado');
+                cerrarModalOrden();
+                cargarOrdenes();
+                cargarProductos(); // refrescar productos para mostrar stock actualizado
+            } else {
+                const err = await res.json();
+                alert('❌ Error: ' + (err.error || 'Error al registrar orden'));
+            }
+        } catch (err) {
+            alert('❌ Error de conexión: ' + err.message);
+        }
+    });
+
+    function cerrarModalOrden() {
+        document.getElementById('modalOrden').style.display = 'none';
+    }
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => Promise.all([cargarProveedores(), cargarProductos(), cargarOrdenes()]));
+    window.cerrarModalOrden = cerrarModalOrden;
+</script>
+</body>
+</html>

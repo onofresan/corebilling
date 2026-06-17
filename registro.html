@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Registro de Empresa</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .register-container {
+            width: 100%;
+            max-width: 520px;
+        }
+        .register-card {
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            padding: 32px 28px;
+        }
+        .register-card h2 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+        .register-card .subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+        .register-card hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid #e2e8f0;
+        }
+        .btn-register {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(90deg, #10b981, #059669);
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 10px rgba(16,185,129,0.3);
+        }
+        .btn-register:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(16,185,129,0.4);
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .register-link a {
+            color: #4f46e5;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .message-success {
+            color: #10b981;
+            text-align: center;
+            margin-top: 12px;
+            font-weight: 600;
+        }
+        .message-error {
+            color: #ef4444;
+            text-align: center;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="register-container">
+    <div class="register-card">
+        <h2>Registrar nueva empresa</h2>
+        <p class="subtitle">Crea tu negocio y obtén acceso como administrador</p>
+        <form id="registroForm">
+            <div class="input-group">
+                <label>🏪 Nombre del establecimiento</label>
+                <input type="text" id="nombre_establecimiento" required>
+            </div>
+            <div class="input-group">
+                <label>📄 RIF</label>
+                <input type="text" id="rif" required>
+            </div>
+            <div class="input-group">
+                <label>📧 Correo electrónico</label>
+                <input type="email" id="correo" required>
+            </div>
+            <div class="input-group">
+                <label>📞 Teléfono</label>
+                <input type="tel" id="telefono" placeholder="ej: +584141234567" required>
+            </div>
+            <div class="input-group">
+                <label>📍 Dirección</label>
+                <input type="text" id="direccion">
+            </div>
+            <hr>
+            <div class="input-group">
+                <label>👤 Usuario administrador</label>
+                <input type="text" id="usuario" required>
+            </div>
+            <div class="input-group">
+                <label>🔒 Contraseña</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit" class="btn-register">Registrar empresa</button>
+            <div id="errorMsg" class="message-error"></div>
+            <div id="successMsg" class="message-success"></div>
+        </form>
+        <div class="register-link">
+            <a href="login.html">Volver al login</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+
+    document.getElementById('registroForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            nombre_establecimiento: document.getElementById('nombre_establecimiento').value,
+            rif: document.getElementById('rif').value,
+            correo: document.getElementById('correo').value,
+            telefono: document.getElementById('telefono').value,
+            direccion: document.getElementById('direccion').value,
+            usuario: document.getElementById('usuario').value,
+            contrasena: document.getElementById('password').value
+        };
+        const errorDiv = document.getElementById('errorMsg');
+        const successDiv = document.getElementById('successMsg');
+        errorDiv.innerText = '';
+        successDiv.innerText = '';
+
+        try {
+            const res = await fetch(`${API_URL}/registro-empresa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error en registro');
+
+            successDiv.innerText = '✅ Empresa creada. Redirigiendo al login...';
+            setTimeout(() => window.location.href = 'login.html', 2000);
+        } catch (err) {
+            errorDiv.innerText = '❌ ' + err.message;
+        }
+    });
+</script>
+</body>
+</html>

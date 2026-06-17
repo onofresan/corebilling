@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <title>CoreBilling - Proveedores</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#f8fafc; font-family:'Segoe UI', sans-serif; display:flex; flex-direction:column; min-height:100vh; }
+        .sidebar { position:fixed; top:0; left:-260px; width:260px; height:100%; background:#0f172a; transition:0.3s; z-index:1000; overflow-y:auto; box-shadow:2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar.open { left:0; }
+        .sidebar h4 { color:#6366f1; text-align:center; padding:24px 0; font-size:1.5rem; }
+        .sidebar a { display:block; color:#94a3b8; padding:12px 20px; text-decoration:none; transition:0.2s; }
+        .sidebar a:hover, .sidebar a.active { background:#1e293b; color:white; }
+        .sidebar .salir { color:#f87171 !important; margin-top:20px; }
+        .main-content { flex:1; padding:16px; transition:0.3s; }
+        .menu-toggle { background:#4f46e5; color:white; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; margin-bottom:15px; display:inline-block; font-size:1rem; }
+        @media (min-width:768px) {
+            .sidebar { left:0; }
+            .main-content { margin-left:260px; }
+            .menu-toggle { display:none; }
+        }
+        .card { background:white; border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .btn-primary { background:#4f46e5; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; }
+        .btn-danger { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+        .btn-warning { background:#f59e0b; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+        .table-container { overflow-x:auto; margin-top:20px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:12px; border-bottom:1px solid #e2e8f0; text-align:left; }
+        th { background:#f8fafc; }
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1100; }
+        .modal-content { background:white; max-width:500px; width:90%; padding:20px; border-radius:16px; }
+        .form-group { margin-bottom:12px; }
+        .form-group label { display:block; font-weight:600; margin-bottom:4px; }
+        .form-group input { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
+        .flex-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+        @media (max-width:640px) {
+            th, td { padding:8px; font-size:12px; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="active admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <h2>🏭 Proveedores</h2>
+            <button class="btn-primary" id="btnNuevoProveedor">+ Nuevo Proveedor</button>
+        </div>
+        <div class="table-container">
+            <table id="tablaProveedores">
+                <thead><tr><th>ID</th><th>Nombre</th><th>RIF</th><th>Teléfono</th><th>Email</th><th>Dirección</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-proveedores"><tr><td colspan="7">Cargando...<\/td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para nuevo/editar proveedor -->
+<div id="modalProveedor" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModal()">&times;</span>
+        <h3 id="modalTitle">Nuevo Proveedor</h3>
+        <form id="formProveedor">
+            <input type="hidden" id="proveedorId">
+            <div class="form-group"><label>Nombre *</label><input type="text" id="nombre" required></div>
+            <div class="form-group"><label>RIF</label><input type="text" id="rif"></div>
+            <div class="form-group"><label>Teléfono</label><input type="text" id="telefono"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="email"></div>
+            <div class="form-group"><label>Dirección</label><input type="text" id="direccion"></div>
+            <div class="flex-btns">
+                <button type="submit" class="btn-primary">Guardar</button>
+                <button type="button" class="btn-danger" onclick="cerrarModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:5000/api';
+    let proveedores = [];
+    let socket = null, empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m; }); }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            if (data.role !== 'admin') { alert('Acceso denegado'); window.location.href = 'index.html'; return null; }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.style.position='fixed'; toast.style.bottom='20px'; toast.style.right='20px';
+        toast.style.background='#1e293b'; toast.style.color='white'; toast.style.padding='12px 20px';
+        toast.style.borderRadius='12px'; toast.style.zIndex='1100';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(()=>toast.remove(),5000);
+    }
+    async function cargarProveedores() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/proveedores`, { headers: { 'Authorization': `Bearer ${token}` } });
+        proveedores = await res.json();
+        const tbody = document.getElementById('tbody-proveedores');
+        tbody.innerHTML = '';
+        proveedores.forEach(p => {
+            tbody.innerHTML += `<tr>
+                <td>${p.id}</td>
+                <td>${escapeHtml(p.nombre)}</td><td>${escapeHtml(p.rif||'')}</td>
+                <td>${escapeHtml(p.telefono||'')}</td><td>${escapeHtml(p.email||'')}</td>
+                <td>${escapeHtml(p.direccion||'')}</td>
+                <td><button class="btn-warning" onclick="editarProveedor(${p.id})">✏️</button>
+                    <button class="btn-danger" onclick="eliminarProveedor(${p.id})">🗑️</button></td>
+            </tr>`;
+        });
+        if(proveedores.length===0) tbody.innerHTML='<tr><td colspan="7">No hay proveedores registrados</td></tr>';
+    }
+    function abrirModal(proveedor=null) {
+        document.getElementById('modalTitle').innerText = proveedor ? 'Editar Proveedor' : 'Nuevo Proveedor';
+        document.getElementById('proveedorId').value = proveedor ? proveedor.id : '';
+        document.getElementById('nombre').value = proveedor ? proveedor.nombre : '';
+        document.getElementById('rif').value = proveedor ? proveedor.rif : '';
+        document.getElementById('telefono').value = proveedor ? proveedor.telefono : '';
+        document.getElementById('email').value = proveedor ? proveedor.email : '';
+        document.getElementById('direccion').value = proveedor ? proveedor.direccion : '';
+        document.getElementById('modalProveedor').style.display = 'flex';
+    }
+    function cerrarModal() { document.getElementById('modalProveedor').style.display = 'none'; }
+    window.editarProveedor = (id) => {
+        const prov = proveedores.find(p => p.id === id);
+        if(prov) abrirModal(prov);
+    };
+    window.eliminarProveedor = async (id) => {
+        if(!confirm('¿Eliminar este proveedor? Se eliminarán sus órdenes de compra asociadas.')) return;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/proveedores/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if(res.ok) { alert('Proveedor eliminado'); cargarProveedores(); }
+        else { const err = await res.json(); alert('Error: '+err.error); }
+    };
+    document.getElementById('formProveedor').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('proveedorId').value;
+        const payload = {
+            nombre: document.getElementById('nombre').value,
+            rif: document.getElementById('rif').value,
+            telefono: document.getElementById('telefono').value,
+            email: document.getElementById('email').value,
+            direccion: document.getElementById('direccion').value
+        };
+        const token = localStorage.getItem('token');
+        const url = id ? `${API_URL}/proveedores/${id}` : `${API_URL}/proveedores`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
+        if(res.ok) { cerrarModal(); cargarProveedores(); }
+        else alert('Error al guardar');
+    });
+    document.getElementById('btnNuevoProveedor').onclick = () => abrirModal();
+    document.getElementById('menuToggle').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
+    document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); localStorage.removeItem('token'); window.location.href='login.html'; });
+    verificarSesion().then(() => cargarProveedores());
+</script>
+</body>
+</html>

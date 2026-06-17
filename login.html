@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>CoreBilling - Iniciar Sesión</title>
+    <link rel="stylesheet" href="estilos.css">
+    <style>
+        /* Estilos exclusivos del login */
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 440px;
+        }
+        .login-card {
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .login-header {
+            background: linear-gradient(120deg, #4f46e5, #7c3aed);
+            padding: 32px 24px;
+            text-align: center;
+        }
+        .login-header h2 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .login-header p {
+            color: rgba(255,255,255,0.85);
+            margin-top: 8px;
+            font-size: 0.9rem;
+        }
+        .login-body {
+            padding: 32px 28px 36px;
+        }
+        .input-group {
+            margin-bottom: 24px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            transition: all 0.2s;
+            background-color: #f8fafc;
+            outline: none;
+        }
+        .input-group input:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.2);
+            background-color: white;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 10px rgba(79,70,229,0.3);
+        }
+        .btn-login:hover {
+            transform: scale(1.02);
+            background: linear-gradient(90deg, #4338ca, #6d28d9);
+            box-shadow: 0 8px 20px rgba(79,70,229,0.4);
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.9rem;
+        }
+        .register-link a {
+            color: #4f46e5;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .register-link a:hover {
+            color: #7c3aed;
+            text-decoration: underline;
+        }
+        .error-message {
+            background-color: #fee2e2;
+            border-left: 4px solid #ef4444;
+            color: #b91c1c;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            margin-top: 16px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h2>CoreBilling</h2>
+            <p>Sistema de facturación profesional</p>
+        </div>
+        <div class="login-body">
+            <form id="loginForm">
+                <div class="input-group">
+                    <label>📧 Usuario</label>
+                    <input type="text" id="usuario" placeholder="Ingresa tu usuario" required autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>🔒 Contraseña</label>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-login">Ingresar</button>
+                <div id="errorMsg" class="error-message"></div>
+            </form>
+            <div class="register-link">
+                ¿No tienes una empresa? <a href="registro.html">Regístrate aquí</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // URL dinámica para funcionar en PC (localhost) y en móvil (IP)
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const usuario = document.getElementById('usuario').value;
+        const contrasena = document.getElementById('password').value;
+        const errorDiv = document.getElementById('errorMsg');
+        errorDiv.style.display = 'none';
+        errorDiv.innerText = '';
+
+        try {
+            const res = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario, contrasena })
+            });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Credenciales inválidas');
+
+            localStorage.setItem('token', data.token);
+
+            if (data.role === 'super_admin') {
+                window.location.href = 'super_admin.html';
+            } else {
+                window.location.href = 'index.html';
+            }
+        } catch (err) {
+            errorDiv.innerText = err.message;
+            errorDiv.style.display = 'block';
+        }
+    });
+</script>
+</body>
+</html>

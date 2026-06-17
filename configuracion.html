@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Configuración Empresa</title>
+    <style>
+        .config-card {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .logo-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 16px;
+        }
+        .logo-preview {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex: 1;
+        }
+        .logo-preview img {
+            max-width: 100px;
+            max-height: 100px;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            padding: 4px;
+            background: white;
+            object-fit: contain;
+        }
+        .logo-preview .no-logo {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        .logo-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .logo-actions .btn-file {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .logo-actions .btn-file:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+        .logo-actions .btn-danger {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .logo-actions .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+        .logo-actions input[type="file"] {
+            display: none;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+            background: white;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .btn-save {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1rem;
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16,185,129,0.3);
+        }
+        .message {
+            margin-top: 16px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .message.success { color: #10b981; }
+        .message.error { color: #ef4444; }
+        hr {
+            border: none;
+            border-top: 2px dashed #e2e8f0;
+            margin: 24px 0;
+        }
+        @media (max-width: 640px) {
+            .logo-section { flex-direction: column; align-items: stretch; }
+            .logo-preview { flex-direction: column; align-items: center; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="active admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card config-card">
+        <h2 style="font-weight:700;">⚙️ Configuración de la Empresa</h2>
+
+        <!-- Sección del logo -->
+        <h3 style="font-weight:600; margin:20px 0 12px;">Logo de la Empresa</h3>
+        <div class="logo-section">
+            <div class="logo-preview">
+                <img id="logoPreview" src="#" alt="Logo actual" style="display:none;">
+                <div id="noLogoText" class="no-logo">No hay logo cargado</div>
+            </div>
+            <div class="logo-actions">
+                <label class="btn-file" for="logoFile">📤 Subir Logo</label>
+                <input type="file" id="logoFile" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+                <button class="btn-danger" id="btnEliminarLogo">🗑️ Eliminar Logo</button>
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- Datos de la empresa -->
+        <h3 style="font-weight:600; margin:0 0 16px;">Datos de la Empresa</h3>
+        <form id="formEmpresa">
+            <div class="form-group">
+                <label>🏪 Nombre del establecimiento</label>
+                <input type="text" id="nombre" required>
+            </div>
+            <div class="form-group">
+                <label>📄 RIF</label>
+                <input type="text" id="rif" required>
+            </div>
+            <div class="form-group">
+                <label>📧 Correo electrónico</label>
+                <input type="email" id="correo" required>
+            </div>
+            <div class="form-group">
+                <label>📞 Teléfono</label>
+                <input type="text" id="telefono" required>
+            </div>
+            <div class="form-group">
+                <label>📍 Dirección</label>
+                <textarea id="direccion" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>💱 Tasa de cambio (Bs/$)</label>
+                <input type="number" step="0.01" id="tasa_cambio" required>
+            </div>
+            <button type="submit" class="btn-save">💾 Guardar Cambios</button>
+        </form>
+        <div id="msg" class="message"></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            if (data.role !== 'admin') {
+                alert('Acceso denegado. Solo administradores.');
+                window.location.href = 'index.html';
+                return null;
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarEmpresa() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const emp = await res.json();
+        document.getElementById('nombre').value = emp.nombre || '';
+        document.getElementById('rif').value = emp.rif || '';
+        document.getElementById('correo').value = emp.correo || '';
+        document.getElementById('telefono').value = emp.telefono || '';
+        document.getElementById('direccion').value = emp.direccion || '';
+        document.getElementById('tasa_cambio').value = emp.tasa_cambio || 544.58;
+
+        const img = document.getElementById('logoPreview');
+        const noLogo = document.getElementById('noLogoText');
+        if (emp.logo_url && emp.logo_url !== '') {
+            img.src = `http://localhost:5000${emp.logo_url}`;
+            img.style.display = 'block';
+            noLogo.style.display = 'none';
+        } else {
+            img.style.display = 'none';
+            noLogo.style.display = 'block';
+        }
+    }
+
+    document.getElementById('btnEliminarLogo').onclick = async () => {
+        if (!confirm('¿Eliminar el logo de la empresa?')) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/empresa/logo`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                alert('Logo eliminado');
+                cargarEmpresa();
+            } else {
+                alert('Error al eliminar el logo');
+            }
+        } catch (err) {
+            alert('Error de conexión: ' + err.message);
+        }
+    };
+
+    document.getElementById('logoFile').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('logo', file);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/empresa/logo`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            if (res.ok) {
+                alert('Logo subido correctamente');
+                cargarEmpresa();
+            } else {
+                const err = await res.json();
+                alert('Error: ' + (err.error || 'No se pudo subir el logo'));
+            }
+        } catch (err) {
+            alert('Error de conexión: ' + err.message);
+        }
+        e.target.value = '';
+    });
+
+    document.getElementById('formEmpresa').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            nombre: document.getElementById('nombre').value,
+            rif: document.getElementById('rif').value,
+            correo: document.getElementById('correo').value,
+            telefono: document.getElementById('telefono').value,
+            direccion: document.getElementById('direccion').value,
+            tasa_cambio: parseFloat(document.getElementById('tasa_cambio').value)
+        };
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/empresa`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        const msg = document.getElementById('msg');
+        if (res.ok) {
+            msg.innerHTML = '✅ Datos actualizados correctamente';
+            msg.className = 'message success';
+            setTimeout(() => { msg.innerHTML = ''; msg.className = 'message'; }, 4000);
+        } else {
+            const err = await res.json();
+            msg.innerHTML = '❌ Error al guardar: ' + (err.error || 'Error desconocido');
+            msg.className = 'message error';
+        }
+    });
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => cargarEmpresa());
+</script>
+</body>
+</html>

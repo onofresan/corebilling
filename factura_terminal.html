@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="stylesheet" href="estilos.css">
+    <title>POS Térmico - Facturación Profesional</title>
+    <style>
+        body {
+            background: #0f172a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            margin: 0;
+        }
+        .pos-container {
+            max-width: 480px;
+            width: 100%;
+            background: white;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        .ticket {
+            background: white;
+            padding: 20px 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            border-bottom: 3px solid #e2e8f0;
+        }
+        .ticket-header {
+            text-align: center;
+            border-bottom: 1px dashed #222;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+        }
+        .empresa-nombre {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .empresa-datos {
+            font-size: 10px;
+            line-height: 1.4;
+            color: #475569;
+        }
+        .factura-num {
+            text-align: center;
+            font-weight: 700;
+            font-size: 14px;
+            margin: 10px 0;
+            background: #f1f5f9;
+            padding: 6px;
+            border-radius: 8px;
+        }
+        .cliente {
+            border-bottom: 1px dotted #94a3b8;
+            padding: 6px 0;
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
+        .productos-tabla {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+        }
+        .productos-tabla th, .productos-tabla td {
+            text-align: left;
+            padding: 4px 2px;
+            border-bottom: 1px dotted #e2e8f0;
+            font-size: 11px;
+        }
+        .productos-tabla th {
+            border-bottom: 1px solid #0f172a;
+            font-weight: 700;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .col-cant { width: 18%; text-align: center; }
+        .col-desc { width: 42%; }
+        .col-precio { width: 20%; text-align: right; }
+        .col-total { width: 20%; text-align: right; }
+        .totales {
+            text-align: right;
+            margin-top: 12px;
+            border-top: 1px dashed #0f172a;
+            padding-top: 8px;
+            font-size: 12px;
+        }
+        .totales .total-final {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .metodo-pago {
+            text-align: center;
+            font-weight: 600;
+            margin: 12px 0;
+            padding: 6px;
+            background: #f8fafc;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+        .gracias {
+            text-align: center;
+            font-size: 10px;
+            margin-top: 12px;
+            border-top: 1px dotted #cbd5e1;
+            padding-top: 10px;
+            color: #475569;
+        }
+        .form-panel {
+            background: #f8fafc;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .campo {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .campo label {
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #334155;
+        }
+        .campo input, .campo select {
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            background: white;
+        }
+        .campo input:focus, .campo select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .btn-pos {
+            padding: 12px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+        .btn-agregar {
+            background: #4f46e5;
+            color: white;
+        }
+        .btn-agregar:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+        }
+        .btn-procesar {
+            background: #10b981;
+            color: white;
+        }
+        .btn-procesar:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+        }
+        .btn-imprimir {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-imprimir:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+        }
+        .lista-productos {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+        }
+        .item-producto {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .item-producto:last-child {
+            border-bottom: none;
+        }
+        .eliminar-prod {
+            color: #ef4444;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: 0.2s;
+        }
+        .eliminar-prod:hover {
+            color: #dc2626;
+            transform: scale(1.1);
+        }
+        .mensaje-exito {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 10px 16px;
+            border-radius: 16px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: none;
+        }
+        .flex-row {
+            display: flex;
+            gap: 8px;
+        }
+        .flex-row .campo {
+            flex: 1;
+        }
+        @media (max-width: 480px) {
+            .pos-container { border-radius: 20px; }
+            .ticket { padding: 12px; font-size: 10px; }
+            .form-panel { padding: 12px; }
+            .productos-tabla th, .productos-tabla td { font-size: 9px; }
+            .flex-row { flex-direction: column; }
+            .flex-row .campo { flex: 1; }
+        }
+    </style>
+</head>
+<body>
+<div class="pos-container">
+    <!-- Vista previa del ticket -->
+    <div class="ticket" id="ticketPreview">
+        <!-- Se llena con JavaScript -->
+    </div>
+
+    <div class="form-panel">
+        <div class="campo">
+            <label>🧑‍🤝‍🧑 Cliente</label>
+            <input type="text" id="clienteInput" value="Consumidor Final">
+        </div>
+
+        <div class="flex-row">
+            <div class="campo">
+                <label>📦 Producto</label>
+                <input type="text" id="productoNombre" placeholder="Ej: Arroz 1kg">
+            </div>
+        </div>
+        <div class="flex-row">
+            <div class="campo">
+                <label>Cantidad</label>
+                <input type="number" id="productoCantidad" value="1" min="1">
+            </div>
+            <div class="campo">
+                <label>Precio Unit.</label>
+                <input type="number" id="productoPrecio" step="0.01" value="0.00">
+            </div>
+        </div>
+        <button class="btn-pos btn-agregar" id="btnAgregar">➕ Agregar producto</button>
+
+        <div class="lista-productos">
+            <strong>🛒 Productos cargados:</strong>
+            <div id="listaItems">(ninguno)</div>
+        </div>
+
+        <div class="campo">
+            <label>💳 Método de pago</label>
+            <select id="metodoPagoSelect">
+                <option value="Efectivo">💵 Efectivo</option>
+                <option value="Tarjeta Débito/Crédito">💳 Tarjeta</option>
+                <option value="Transferencia Bancaria">🏦 Transferencia</option>
+                <option value="Mercado Pago">📱 Mercado Pago</option>
+            </select>
+        </div>
+
+        <button class="btn-pos btn-procesar" id="btnProcesar">✅ Procesar factura (cerrar venta)</button>
+        <button class="btn-pos btn-imprimir" id="btnImprimir">🖨️ Imprimir / Guardar PDF</button>
+        <div id="mensaje" class="mensaje-exito"></div>
+    </div>
+</div>
+
+<script>
+    // Configuración de la empresa (se puede personalizar)
+    const empresa = {
+        nombre: "SUPERMERCADO EL AHORRO",
+        ruc: "RUC: 2-12345678-0",
+        direccion: "Calle Principal 123, Local 5",
+        telefono: "TEL: 2600-7777"
+    };
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m);
+    }
+
+    // Estado global
+    let productos = [];
+    let numeroFactura = 17;
+
+    // Elementos del DOM
+    const ticketDiv = document.getElementById("ticketPreview");
+    const clienteInput = document.getElementById("clienteInput");
+    const metodoSelect = document.getElementById("metodoPagoSelect");
+    const prodNombre = document.getElementById("productoNombre");
+    const prodCantidad = document.getElementById("productoCantidad");
+    const prodPrecio = document.getElementById("productoPrecio");
+    const listaItemsDiv = document.getElementById("listaItems");
+    const btnAgregar = document.getElementById("btnAgregar");
+    const btnProcesar = document.getElementById("btnProcesar");
+    const btnImprimir = document.getElementById("btnImprimir");
+    const mensajeDiv = document.getElementById("mensaje");
+
+    // Calcular totales
+    function calcularTotales() {
+        let subtotal = 0;
+        for (let p of productos) {
+            subtotal += p.cantidad * p.precioUnitario;
+        }
+        let iva = subtotal * 0.21; // 21% IVA
+        let total = subtotal + iva;
+        return { subtotal, iva, total };
+    }
+
+    // Actualizar lista visual de productos (con botón eliminar)
+    function actualizarListaUI() {
+        if (productos.length === 0) {
+            listaItemsDiv.innerHTML = "(ningún producto)";
+            return;
+        }
+        let html = "";
+        productos.forEach((prod, index) => {
+            let totalLinea = (prod.cantidad * prod.precioUnitario).toFixed(2);
+            html += `
+                <div class="item-producto">
+                    <span><strong>${prod.cantidad}x</strong> ${escapeHtml(prod.nombre)}</span>
+                    <span>$${totalLinea} 
+                        <span class="eliminar-prod" data-idx="${index}">[✖]</span>
+                    </span>
+                </div>
+            `;
+        });
+        listaItemsDiv.innerHTML = html;
+        document.querySelectorAll(".eliminar-prod").forEach(el => {
+            el.addEventListener("click", (e) => {
+                const idx = parseInt(el.getAttribute("data-idx"));
+                if (!isNaN(idx)) {
+                    productos.splice(idx, 1);
+                    actualizarListaUI();
+                    actualizarTicket();
+                }
+                e.stopPropagation();
+            });
+        });
+    }
+
+    // Actualizar la vista previa del ticket
+    function actualizarTicket() {
+        const cliente = escapeHtml(clienteInput.value.trim()) || "Consumidor Final";
+        const metodo = escapeHtml(metodoSelect.value);
+        const { subtotal, iva, total } = calcularTotales();
+
+        let html = `
+            <div class="ticket-header">
+                <div class="empresa-nombre">${escapeHtml(empresa.nombre)}</div>
+                <div class="empresa-datos">${escapeHtml(empresa.ruc)}<br>${escapeHtml(empresa.direccion)}<br>${escapeHtml(empresa.telefono)}</div>
+            </div>
+            <div class="factura-num">FACTURA N° ${numeroFactura}</div>
+            <div class="cliente"><strong>CLIENTE:</strong> ${cliente}</div>
+            <table class="productos-tabla">
+                <thead>
+                    <tr>
+                        <th class="col-cant">CANT</th>
+                        <th class="col-desc">DESCRIPCIÓN</th>
+                        <th class="col-precio">P.UNIT</th>
+                        <th class="col-total">TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        if (productos.length === 0) {
+            html += `<tr><td colspan="4" style="text-align:center; color:#94a3b8;">--- SIN PRODUCTOS ---</td></tr>`;
+        } else {
+            for (let p of productos) {
+                const totalLinea = (p.cantidad * p.precioUnitario).toFixed(2);
+                html += `
+                    <tr>
+                        <td class="col-cant">${p.cantidad}</td>
+                        <td class="col-desc">${escapeHtml(p.nombre)}</td>
+                        <td class="col-precio">$${p.precioUnitario.toFixed(2)}</td>
+                        <td class="col-total">$${totalLinea}</td>
+                    </tr>
+                `;
+            }
+        }
+        html += `
+                </tbody>
+            </table>
+            <div class="totales">
+                SUBTOTAL: $${subtotal.toFixed(2)}<br>
+                IVA 21%: $${iva.toFixed(2)}<br>
+                <span class="total-final">TOTAL: $${total.toFixed(2)}</span>
+            </div>
+            <div class="metodo-pago">🧾 MÉTODO DE PAGO: ${metodo}</div>
+            <div class="gracias">¡GRACIAS POR SU COMPRA!<br>Ticket emitido por sistema térmico</div>
+        `;
+        ticketDiv.innerHTML = html;
+    }
+
+    // Agregar producto
+    function agregarProducto() {
+        const nombre = prodNombre.value.trim();
+        const cantidad = parseInt(prodCantidad.value);
+        let precio = parseFloat(prodPrecio.value);
+
+        if (!nombre) {
+            alert("❌ Escribe el nombre del producto");
+            return;
+        }
+        if (isNaN(cantidad) || cantidad <= 0) {
+            alert("❌ Cantidad inválida (debe ser mayor a 0)");
+            return;
+        }
+        if (isNaN(precio) || precio < 0) {
+            alert("❌ Precio inválido");
+            return;
+        }
+
+        productos.push({
+            nombre: nombre,
+            cantidad: cantidad,
+            precioUnitario: precio
+        });
+
+        prodNombre.value = "";
+        prodPrecio.value = "0.00";
+        prodCantidad.value = "1";
+        prodNombre.focus();
+
+        actualizarListaUI();
+        actualizarTicket();
+    }
+
+    // Procesar factura (simulación)
+    function procesarFactura() {
+        if (productos.length === 0) {
+            alert("⚠️ No hay productos. Agrega al menos un producto para procesar la factura.");
+            return;
+        }
+        const cliente = clienteInput.value.trim() || "Consumidor Final";
+        const metodo = metodoSelect.value;
+        const { total } = calcularTotales();
+
+        console.log(`=== FACTURA #${numeroFactura} CERRADA ===`);
+        console.log(`Cliente: ${cliente} | Total: $${total.toFixed(2)} | Pago: ${metodo}`);
+        console.log("Productos:", JSON.parse(JSON.stringify(productos)));
+
+        mensajeDiv.style.display = "block";
+        mensajeDiv.innerHTML = `✅ Factura N° ${numeroFactura} procesada. Total: $${total.toFixed(2)}. Se abre nueva factura.`;
+        setTimeout(() => { mensajeDiv.style.display = "none"; }, 3000);
+
+        numeroFactura++;
+        productos = [];
+        clienteInput.value = "Consumidor Final";
+        metodoSelect.value = "Efectivo";
+        prodNombre.value = "";
+        prodCantidad.value = "1";
+        prodPrecio.value = "0.00";
+
+        actualizarListaUI();
+        actualizarTicket();
+    }
+
+    // Imprimir/PDF
+    function imprimirTicket() {
+        const ticketActual = document.getElementById("ticketPreview").cloneNode(true);
+        const ventanaPrint = window.open("", "_blank");
+        if (!ventanaPrint) {
+            alert("Por favor, permite ventanas emergentes para poder imprimir.");
+            return;
+        }
+        ventanaPrint.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Factura_${numeroFactura}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0 auto; padding: 8px; background: white; }
+                    .ticket { width: 100%; }
+                    .productos-tabla { width: 100%; border-collapse: collapse; }
+                    .productos-tabla th, .productos-tabla td { text-align: left; padding: 3px 1px; }
+                    .col-cant, .col-precio, .col-total { text-align: right; }
+                    .totales { text-align: right; margin-top: 10px; border-top: 1px dashed #000; padding-top: 6px; }
+                    .total-final { font-size: 14px; font-weight: bold; }
+                    .ticket-header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; }
+                    .empresa-nombre { font-size: 16px; font-weight: bold; }
+                    .factura-num { text-align: center; font-weight: bold; margin: 8px 0; background: #f0f0f0; padding: 4px; }
+                </style>
+            </head>
+            <body>
+                <div class="ticket">
+                    ${ticketActual.innerHTML}
+                </div>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() { window.close(); }, 1000);
+                    };
+                <\/script>
+            </body>
+            </html>
+        `);
+        ventanaPrint.document.close();
+    }
+
+    // Eventos
+    btnAgregar.addEventListener("click", agregarProducto);
+    btnProcesar.addEventListener("click", procesarFactura);
+    btnImprimir.addEventListener("click", imprimirTicket);
+
+    clienteInput.addEventListener("input", () => actualizarTicket());
+    metodoSelect.addEventListener("change", () => actualizarTicket());
+
+    const camposProducto = [prodNombre, prodCantidad, prodPrecio];
+    camposProducto.forEach(campo => {
+        campo.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                agregarProducto();
+            }
+        });
+    });
+
+    actualizarListaUI();
+    actualizarTicket();
+</script>
+</body>
+</html>

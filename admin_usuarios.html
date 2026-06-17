@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Administrar Usuarios</title>
+    <style>
+        .users-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+        .users-grid .form-section {
+            flex: 1;
+            min-width: 280px;
+        }
+        .users-grid .list-section {
+            flex: 2;
+            min-width: 320px;
+        }
+        .input-group {
+            margin-bottom: 14px;
+        }
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+            background: white;
+        }
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .table-container {
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            background: white;
+            margin-top: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 10px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        tr:hover td {
+            background: #f8fafc;
+        }
+        .btn-accion {
+            padding: 4px 12px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 2px;
+            font-size: 0.75rem;
+        }
+        .btn-accion.warning { background: #f59e0b; color: white; }
+        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
+        .btn-accion.danger { background: #ef4444; color: white; }
+        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
+        .modal-content {
+            max-width: 440px;
+        }
+        .modal-content .input-group {
+            margin-bottom: 14px;
+        }
+        .modal-content .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .modal-content .input-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-content .input-group input:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .flex-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        h3 {
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 640px) {
+            .users-grid { flex-direction: column; }
+            th, td { font-size: 0.75rem; padding: 6px 4px; }
+            .modal-content { padding: 16px; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="active admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <h2 style="font-weight:700;">👥 Gestión de Usuarios</h2>
+
+        <div class="users-grid">
+            <!-- Formulario de creación -->
+            <div class="form-section">
+                <h3>Crear nuevo usuario</h3>
+                <form id="formUsuario">
+                    <div class="input-group">
+                        <label>👤 Usuario</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="input-group">
+                        <label>🔒 Contraseña</label>
+                        <input type="password" id="password" required>
+                    </div>
+                    <div class="input-group">
+                        <label>📧 Correo</label>
+                        <input type="email" id="email">
+                    </div>
+                    <div class="input-group">
+                        <label>🎯 Rol</label>
+                        <select id="role">
+                            <option value="cajero">Cajero</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-success" style="width:100%;">Crear Usuario</button>
+                </form>
+            </div>
+
+            <!-- Lista de usuarios -->
+            <div class="list-section">
+                <h3>Lista de usuarios</h3>
+                <div class="table-container">
+                    <table id="tablaUsuarios">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Usuario</th>
+                                <th>Rol</th>
+                                <th>Email</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-usuarios">
+                            <tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar usuario -->
+<div id="modalEditar" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:440px; width:95%; padding:24px; border-radius:28px;">
+        <span class="close-modal" onclick="cerrarModalEditar()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">Editar Usuario</h3>
+        <form id="formEditar">
+            <input type="hidden" id="editUserId">
+            <div class="input-group">
+                <label>Nuevo nombre de usuario</label>
+                <input type="text" id="editUsername" placeholder="Dejar vacío para no cambiar">
+            </div>
+            <div class="input-group">
+                <label>Nueva contraseña</label>
+                <input type="password" id="editPassword" placeholder="Dejar vacío para no cambiar">
+            </div>
+            <div class="input-group">
+                <label>Confirmar contraseña</label>
+                <input type="password" id="editConfirmPassword" placeholder="Repite la nueva contraseña">
+            </div>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">Guardar cambios</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalEditar()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            if (data.role !== 'admin') {
+                alert('Acceso denegado. Solo administradores.');
+                window.location.href = 'index.html';
+                return null;
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarUsuarios() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const usuarios = await res.json();
+        const tbody = document.getElementById('tbody-usuarios');
+        tbody.innerHTML = '';
+        if (usuarios.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No hay usuarios registrados</td></tr>';
+            return;
+        }
+        usuarios.forEach(u => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${u.id}</td>
+                    <td>${escapeHtml(u.username)}</td>
+                    <td><span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 12px; border-radius:40px; font-size:0.7rem; font-weight:600;">${escapeHtml(u.role)}</span></td>
+                    <td>${escapeHtml(u.email || '')}</td>
+                    <td>
+                        <button class="btn-accion warning" onclick="abrirModalEditar(${u.id}, '${escapeHtml(u.username)}')">✏️</button>
+                        <button class="btn-accion danger" onclick="eliminarUsuario(${u.id})">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    async function eliminarUsuario(id) {
+        if (!confirm('¿Eliminar este usuario?')) return;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/usuarios/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+            alert('Usuario eliminado');
+            cargarUsuarios();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + (err.error || 'No se pudo eliminar'));
+        }
+    }
+
+    window.abrirModalEditar = function(id, username) {
+        document.getElementById('editUserId').value = id;
+        document.getElementById('editUsername').value = '';
+        document.getElementById('editPassword').value = '';
+        document.getElementById('editConfirmPassword').value = '';
+        document.getElementById('modalEditar').style.display = 'flex';
+    };
+
+    function cerrarModalEditar() {
+        document.getElementById('modalEditar').style.display = 'none';
+        document.getElementById('formEditar').reset();
+    }
+
+    document.getElementById('formUsuario').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            usuario: document.getElementById('username').value,
+            contrasena: document.getElementById('password').value,
+            correo: document.getElementById('email').value,
+            role: document.getElementById('role').value
+        };
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/usuarios`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            alert('Usuario creado');
+            document.getElementById('formUsuario').reset();
+            cargarUsuarios();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + (err.error || 'No se pudo crear el usuario'));
+        }
+    });
+
+    document.getElementById('formEditar').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('editUserId').value;
+        const username = document.getElementById('editUsername').value.trim();
+        const password = document.getElementById('editPassword').value;
+        const confirm = document.getElementById('editConfirmPassword').value;
+        if (password && password !== confirm) {
+            alert('Las contraseñas no coinciden');
+            return;
+        }
+        const payload = {};
+        if (username) payload.username = username;
+        if (password) payload.password = password;
+        if (Object.keys(payload).length === 0) {
+            alert('No se ingresaron cambios');
+            return;
+        }
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/usuarios/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            alert('Usuario actualizado');
+            cerrarModalEditar();
+            cargarUsuarios();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + (err.error || 'No se pudo actualizar'));
+        }
+    });
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => cargarUsuarios());
+    window.cerrarModalEditar = cerrarModalEditar;
+</script>
+</body>
+</html>

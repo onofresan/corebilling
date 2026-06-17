@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Despiece (Kits)</title>
+    <style>
+        .header-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            background: white;
+            margin-top: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 10px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        tr:hover td {
+            background: #f8fafc;
+        }
+        .btn-accion {
+            padding: 4px 12px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 2px;
+            font-size: 0.75rem;
+        }
+        .btn-accion.warning { background: #f59e0b; color: white; }
+        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
+        .btn-accion.danger { background: #ef4444; color: white; }
+        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
+        .hr-divider {
+            margin: 24px 0;
+            border: none;
+            border-top: 2px dashed #e2e8f0;
+        }
+        .despiece-section {
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 16px;
+            margin-top: 16px;
+        }
+        .despiece-section .input-group {
+            margin-bottom: 14px;
+        }
+        .despiece-section .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .despiece-section .input-group select,
+        .despiece-section .input-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .despiece-section .input-group select:focus,
+        .despiece-section .input-group input:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .despiece-section .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .selectivo-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .selectivo-row select {
+            flex: 2;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .selectivo-row input {
+            flex: 1;
+            min-width: 100px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .selectivo-row .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .selectivo-row .btn-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+        .hijo-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .hijo-row select {
+            flex: 2;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .hijo-row input {
+            flex: 1;
+            min-width: 100px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .hijo-row .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .hijo-row .btn-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+        .modal-content {
+            max-width: 800px;
+        }
+        .modal-content .input-group {
+            margin-bottom: 14px;
+        }
+        .modal-content .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .modal-content .input-group input,
+        .modal-content .input-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-content .input-group input:focus,
+        .modal-content .input-group select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .flex-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+        .msg-success { color: #10b981; font-weight: 600; margin-top: 8px; }
+        .msg-error { color: #ef4444; font-weight: 600; margin-top: 8px; }
+        @media (max-width: 640px) {
+            th, td { font-size: 0.75rem; padding: 6px 4px; }
+            .hijo-row, .selectivo-row { flex-direction: column; align-items: stretch; }
+            .hijo-row select, .hijo-row input,
+            .selectivo-row select, .selectivo-row input { width: 100%; }
+            .modal-content { padding: 16px; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html" class="active">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <div class="header-box">
+            <h2 style="font-weight:700;">🔪 Kits de Despiece</h2>
+            <button class="btn-primary" id="btnNuevoKit">+ Nuevo Kit</button>
+        </div>
+
+        <div class="table-container">
+            <table id="tablaKits">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Producto Padre</th>
+                        <th>Hijos (cortes)</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-kits">
+                    <tr><td colspan="4" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <hr class="hr-divider">
+
+        <h3 style="font-weight:600;">Realizar Despiece Completo (todos los hijos)</h3>
+        <div class="despiece-section">
+            <div class="input-group">
+                <label>Seleccionar Kit</label>
+                <select id="kitDespieceSelect"></select>
+            </div>
+            <div class="input-group">
+                <label>Cantidad del producto padre a despiezar (kg / unidades)</label>
+                <input type="number" step="any" id="cantidadDespiece" placeholder="Ej: 10">
+            </div>
+            <button class="btn-success" id="btnRealizarDespiece">Realizar Despiece Completo</button>
+            <div id="resultadoDespiece" class="msg-success" style="margin-top:10px;"></div>
+        </div>
+
+        <hr class="hr-divider">
+
+        <h3 style="font-weight:600;">🎯 Despiece Selectivo (elige qué cortes y cuánto obtener)</h3>
+        <div class="despiece-section">
+            <div class="input-group">
+                <label>Seleccionar Kit</label>
+                <select id="kitSelectivoSelect"></select>
+            </div>
+            <div id="selectivoHijosContainer">
+                <p style="color:#64748b; margin:8px 0;">Selecciona un kit para ver sus cortes.</p>
+            </div>
+            <div id="selectivoFilasContainer"></div>
+            <div class="btn-group">
+                <button class="btn-primary" id="btnAgregarHijoSelectivo">+ Agregar corte a procesar</button>
+                <button class="btn-success" id="btnRealizarDespieceSelectivo">Procesar Selección</button>
+            </div>
+            <div id="resultadoSelectivo" class="msg-success" style="margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para nuevo/editar kit -->
+<div id="modalKit" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:800px; width:95%; padding:24px; border-radius:28px; max-height:80vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModalKit()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 id="modalTitle" style="margin-bottom:16px;">Nuevo Kit</h3>
+        <form id="formKit">
+            <input type="hidden" id="kitId">
+            <div class="input-group">
+                <label>Nombre del Kit</label>
+                <input type="text" id="kitNombre" required>
+            </div>
+            <div class="input-group">
+                <label>Producto Padre (tipo 'kit_padre')</label>
+                <select id="productoPadreSelect" required></select>
+            </div>
+            <h4 style="font-weight:600; margin:16px 0 8px;">Productos Hijos (cortes) - cada uno debe ser tipo 'kit_hijo'</h4>
+            <div id="hijosContainer"></div>
+            <button type="button" class="btn-primary" id="btnAgregarHijo" style="margin-top:8px;">+ Agregar Corte</button>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">Guardar Kit</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalKit()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let productos = [];
+    let kits = [];
+    let selectivoHijos = [];
+    let userRole = null;
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            userRole = data.role;
+            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            if (data.role !== 'admin') {
+                alert('Acceso denegado. Solo administradores.');
+                window.location.href = 'index.html';
+                return null;
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarProductos() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+        productos = await res.json();
+        const padreSelect = document.getElementById('productoPadreSelect');
+        padreSelect.innerHTML = '<option value="">-- Seleccionar --</option>';
+        productos.forEach(p => {
+            if (p.tipo_producto === 'kit_padre') {
+                padreSelect.innerHTML += `<option value="${escapeHtml(p.codigo)}">${escapeHtml(p.nombre)} (${escapeHtml(p.codigo)}) - Stock: ${toNum(p.stock)} ${escapeHtml(p.unidad_medida)}</option>`;
+            }
+        });
+    }
+
+    async function cargarKits() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/kits`, { headers: { 'Authorization': `Bearer ${token}` } });
+        kits = await res.json();
+        const tbody = document.getElementById('tbody-kits');
+        tbody.innerHTML = '';
+        if (kits.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:30px; color:#94a3b8;">No hay kits registrados</td></tr>';
+        } else {
+            kits.forEach(kit => {
+                const hijosHtml = kit.detalle.map(h => `${escapeHtml(h.hijo_nombre)} (${toNum(h.cantidad_estimada)})`).join(', ');
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${escapeHtml(kit.nombre)}</td>
+                        <td>${escapeHtml(kit.padre_nombre)}</td>
+                        <td>${escapeHtml(hijosHtml)}</td>
+                        <td>
+                            <button class="btn-accion warning" onclick="editarKit(${kit.id})">✏️</button>
+                            <button class="btn-accion danger" onclick="eliminarKit(${kit.id})">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+        llenarSelectDespiece();
+        llenarSelectSelectivo();
+    }
+
+    function llenarSelectDespiece() {
+        const select = document.getElementById('kitDespieceSelect');
+        select.innerHTML = '<option value="">-- Seleccionar kit --</option>';
+        kits.forEach(kit => {
+            select.innerHTML += `<option value="${kit.id}">${escapeHtml(kit.nombre)} (Padre: ${escapeHtml(kit.padre_nombre)})</option>`;
+        });
+    }
+
+    function llenarSelectSelectivo() {
+        const select = document.getElementById('kitSelectivoSelect');
+        select.innerHTML = '<option value="">-- Seleccionar kit --</option>';
+        kits.forEach(kit => {
+            select.innerHTML += `<option value="${kit.id}">${escapeHtml(kit.nombre)} (Padre: ${escapeHtml(kit.padre_nombre)})</option>`;
+        });
+    }
+
+    function cargarSelectivoHijos() {
+        const kitId = document.getElementById('kitSelectivoSelect').value;
+        const container = document.getElementById('selectivoHijosContainer');
+        const filasContainer = document.getElementById('selectivoFilasContainer');
+        filasContainer.innerHTML = '';
+        selectivoHijos = [];
+
+        if (!kitId) {
+            container.innerHTML = '<p style="color:#64748b; margin:8px 0;">Selecciona un kit para ver sus cortes.</p>';
+            return;
+        }
+        const kit = kits.find(k => k.id == kitId);
+        if (!kit) return;
+
+        let html = '<p><strong>Hijos disponibles en este kit:</strong></p><ul style="margin:8px 0 12px 20px; list-style:disc; color:#475569;">';
+        kit.detalle.forEach(h => {
+            const stock = productos.find(p => p.codigo === h.producto_hijo_codigo)?.stock || 0;
+            html += `<li>${escapeHtml(h.hijo_nombre)} (factor: ${toNum(h.cantidad_estimada)}) - Stock actual: ${stock}</li>`;
+        });
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    function agregarFilaSelectiva() {
+        const kitId = document.getElementById('kitSelectivoSelect').value;
+        if (!kitId) {
+            alert('Primero selecciona un kit');
+            return;
+        }
+        const kit = kits.find(k => k.id == kitId);
+        if (!kit) return;
+
+        const container = document.getElementById('selectivoFilasContainer');
+        const idx = selectivoHijos.length;
+        const div = document.createElement('div');
+        div.className = 'selectivo-row';
+        div.innerHTML = `
+            <select class="selectivo-hijo" data-idx="${idx}">
+                <option value="">-- Seleccionar corte --</option>
+                ${kit.detalle.map(h => `<option value="${escapeHtml(h.producto_hijo_codigo)}">${escapeHtml(h.hijo_nombre)} (factor: ${toNum(h.cantidad_estimada)})</option>`).join('')}
+            </select>
+            <input type="number" step="any" class="selectivo-cantidad" placeholder="Cantidad a producir (kg/uds)">
+            <button type="button" class="btn-remove" onclick="eliminarFilaSelectiva(this, ${idx})">✖</button>
+        `;
+        container.appendChild(div);
+        selectivoHijos.push({ codigo: '', cantidad: 0, div: div });
+
+        const select = div.querySelector('.selectivo-hijo');
+        const input = div.querySelector('.selectivo-cantidad');
+        select.addEventListener('change', (e) => {
+            selectivoHijos[idx].codigo = e.target.value;
+        });
+        input.addEventListener('input', (e) => {
+            selectivoHijos[idx].cantidad = parseFloat(e.target.value) || 0;
+        });
+    }
+
+    window.eliminarFilaSelectiva = function(btn, idx) {
+        selectivoHijos[idx].div.remove();
+        selectivoHijos.splice(idx, 1);
+        document.querySelectorAll('.selectivo-row').forEach((row, newIdx) => {
+            row.querySelector('.selectivo-hijo').setAttribute('data-idx', newIdx);
+        });
+    };
+
+    async function realizarDespieceSelectivo() {
+        const kitId = document.getElementById('kitSelectivoSelect').value;
+        const resultadoDiv = document.getElementById('resultadoSelectivo');
+        if (!kitId) {
+            resultadoDiv.innerHTML = '<span class="msg-error">❌ Seleccione un kit</span>';
+            return;
+        }
+        const hijos = selectivoHijos
+            .filter(h => h.codigo && h.cantidad > 0)
+            .map(h => ({ codigo: h.codigo, cantidad: h.cantidad }));
+        if (hijos.length === 0) {
+            resultadoDiv.innerHTML = '<span class="msg-error">❌ Agregue al menos un corte con cantidad positiva</span>';
+            return;
+        }
+
+        resultadoDiv.innerHTML = '⏳ Procesando...';
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/despiece-selectivo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ kit_id: parseInt(kitId), hijos: hijos })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                resultadoDiv.innerHTML = `<span class="msg-success">✅ ${escapeHtml(data.mensaje)}</span>`;
+                cargarKits();
+                cargarProductos();
+                document.getElementById('selectivoFilasContainer').innerHTML = '';
+                selectivoHijos = [];
+                cargarSelectivoHijos();
+            } else {
+                resultadoDiv.innerHTML = `<span class="msg-error">❌ Error: ${escapeHtml(data.error)}</span>`;
+            }
+        } catch (err) {
+            resultadoDiv.innerHTML = `<span class="msg-error">❌ Error de conexión: ${escapeHtml(err.message)}</span>`;
+        }
+    }
+
+    async function realizarDespiece() {
+        const kitId = document.getElementById('kitDespieceSelect').value;
+        const cantidad = parseFloat(document.getElementById('cantidadDespiece').value);
+        const resultadoDiv = document.getElementById('resultadoDespiece');
+        if (!kitId) {
+            resultadoDiv.innerHTML = '<span class="msg-error">❌ Seleccione un kit</span>';
+            return;
+        }
+        if (isNaN(cantidad) || cantidad <= 0) {
+            resultadoDiv.innerHTML = '<span class="msg-error">❌ Ingrese una cantidad válida mayor a cero</span>';
+            return;
+        }
+        resultadoDiv.innerHTML = '⏳ Procesando...';
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/despiece`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ kit_id: parseInt(kitId), cantidad: cantidad })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                resultadoDiv.innerHTML = `<span class="msg-success">✅ ${escapeHtml(data.mensaje)}</span>`;
+                cargarKits();
+                cargarProductos();
+                document.getElementById('cantidadDespiece').value = '';
+            } else {
+                resultadoDiv.innerHTML = `<span class="msg-error">❌ Error: ${escapeHtml(data.error)}</span>`;
+            }
+        } catch (err) {
+            resultadoDiv.innerHTML = `<span class="msg-error">❌ Error de conexión: ${escapeHtml(err.message)}</span>`;
+        }
+    }
+
+    function abrirModalNuevoKit() {
+        document.getElementById('kitId').value = '';
+        document.getElementById('kitNombre').value = '';
+        document.getElementById('productoPadreSelect').value = '';
+        document.getElementById('hijosContainer').innerHTML = '';
+        document.getElementById('modalTitle').innerText = 'Nuevo Kit';
+        document.getElementById('modalKit').style.display = 'flex';
+    }
+
+    function cerrarModalKit() {
+        document.getElementById('modalKit').style.display = 'none';
+    }
+
+    function agregarHijo() {
+        const container = document.getElementById('hijosContainer');
+        const div = document.createElement('div');
+        div.className = 'hijo-row';
+        div.innerHTML = `
+            <select class="hijo-codigo" required>
+                <option value="">-- Seleccionar corte (kit_hijo) --</option>
+                ${productos.filter(p => p.tipo_producto === 'kit_hijo').map(p => `<option value="${escapeHtml(p.codigo)}">${escapeHtml(p.nombre)} (${escapeHtml(p.codigo)}) - ${escapeHtml(p.unidad_medida)}</option>`).join('')}
+            </select>
+            <input type="number" step="any" class="hijo-cantidad" placeholder="Cantidad estimada" required>
+            <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✖</button>
+        `;
+        container.appendChild(div);
+    }
+
+    function obtenerHijosFromForm() {
+        const hijos = [];
+        document.querySelectorAll('.hijo-row').forEach(row => {
+            const codigo = row.querySelector('.hijo-codigo').value;
+            const cantidad = parseFloat(row.querySelector('.hijo-cantidad').value);
+            if (codigo && !isNaN(cantidad) && cantidad > 0) {
+                hijos.push({ codigo, cantidad });
+            }
+        });
+        return hijos;
+    }
+
+    window.editarKit = async function(id) {
+        const kit = kits.find(k => k.id === id);
+        if (!kit) return;
+        document.getElementById('kitId').value = kit.id;
+        document.getElementById('kitNombre').value = kit.nombre;
+        document.getElementById('productoPadreSelect').value = kit.producto_padre_codigo;
+        const container = document.getElementById('hijosContainer');
+        container.innerHTML = '';
+        for (const hijo of kit.detalle) {
+            const div = document.createElement('div');
+            div.className = 'hijo-row';
+            div.innerHTML = `
+                <select class="hijo-codigo" required>
+                    <option value="">-- Seleccionar corte --</option>
+                    ${productos.filter(p => p.tipo_producto === 'kit_hijo').map(p => `<option value="${escapeHtml(p.codigo)}" ${p.codigo === hijo.producto_hijo_codigo ? 'selected' : ''}>${escapeHtml(p.nombre)} (${escapeHtml(p.codigo)})</option>`).join('')}
+                </select>
+                <input type="number" step="any" class="hijo-cantidad" value="${hijo.cantidad_estimada}" required>
+                <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✖</button>
+            `;
+            container.appendChild(div);
+        }
+        document.getElementById('modalTitle').innerText = 'Editar Kit';
+        document.getElementById('modalKit').style.display = 'flex';
+    };
+
+    window.eliminarKit = async function(id) {
+        if (!confirm('¿Eliminar este kit? Se perderán las relaciones.')) return;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/kits/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+            alert('Kit eliminado');
+            cargarKits();
+            cargarProductos();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + err.error);
+        }
+    };
+
+    async function guardarKit(e) {
+        e.preventDefault();
+        const kitId = document.getElementById('kitId').value;
+        const nombre = document.getElementById('kitNombre').value.trim();
+        const productoPadre = document.getElementById('productoPadreSelect').value;
+        const hijos = obtenerHijosFromForm();
+        if (!nombre || !productoPadre) {
+            alert('Debe completar nombre y producto padre');
+            return;
+        }
+        if (hijos.length === 0) {
+            alert('Debe agregar al menos un producto hijo (corte)');
+            return;
+        }
+        const payload = { nombre, producto_padre_codigo: productoPadre, detalle: hijos };
+        const token = localStorage.getItem('token');
+        const url = kitId ? `${API_URL}/kits/${kitId}` : `${API_URL}/kits`;
+        const method = kitId ? 'PUT' : 'POST';
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert(kitId ? 'Kit actualizado' : 'Kit creado');
+                cerrarModalKit();
+                cargarKits();
+                cargarProductos();
+            } else {
+                const err = await res.json();
+                alert('Error: ' + (err.error || JSON.stringify(err)));
+            }
+        } catch (error) {
+            alert('Error de red: ' + error.message);
+        }
+    }
+
+    document.getElementById('btnNuevoKit').onclick = abrirModalNuevoKit;
+    document.getElementById('btnRealizarDespiece').onclick = realizarDespiece;
+    document.getElementById('btnRealizarDespieceSelectivo').onclick = realizarDespieceSelectivo;
+    document.getElementById('btnAgregarHijo').onclick = agregarHijo;
+    document.getElementById('btnAgregarHijoSelectivo').onclick = agregarFilaSelectiva;
+    document.getElementById('formKit').addEventListener('submit', guardarKit);
+    document.getElementById('kitSelectivoSelect').addEventListener('change', cargarSelectivoHijos);
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => cargarProductos().then(() => cargarKits()));
+    window.cerrarModalKit = cerrarModalKit;
+</script>
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Dashboard</title>
+    <style>
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .metric-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .metric-card .label {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .metric-card .icon {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+        .filtros {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+        .filtros select, .filtros button {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: white;
+        }
+        .filtros button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        canvas {
+            max-height: 300px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .alert-badge {
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html" class="active">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+    <div style="margin-top:10px; text-align:center; font-size:12px;"><span>🔔</span> <span id="alertas-badge" class="alert-badge">0</span></div>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="metric-grid" id="metricGrid">
+        <div class="metric-card"><div class="icon">💰</div><div class="value" id="total-hoy">$0.00</div><div class="label">Ventas Hoy</div></div>
+        <div class="metric-card"><div class="icon">📈</div><div class="value" id="total-semana">$0.00</div><div class="label">Ventas Semana</div></div>
+        <div class="metric-card"><div class="icon">📦</div><div class="value" id="total-productos">0</div><div class="label">Productos</div></div>
+        <div class="metric-card"><div class="icon">👥</div><div class="value" id="total-clientes">0</div><div class="label">Clientes</div></div>
+    </div>
+
+    <div class="card">
+        <h3>📊 Ventas últimos 7 días (Bs)</h3>
+        <canvas id="ventasChart"></canvas>
+    </div>
+    <div class="card">
+        <h3>📈 Predicción ventas próximos 7 días (USD)</h3>
+        <canvas id="prediccionChart"></canvas>
+    </div>
+    <div class="card">
+        <h3>🏆 Top 5 productos más vendidos</h3>
+        <div class="filtros">
+            <select id="topPeriodo">
+                <option value="hoy">Hoy</option>
+                <option value="semana" selected>Últimos 7 días</option>
+                <option value="mes">Último mes</option>
+            </select>
+            <select id="topOrden">
+                <option value="cantidad" selected>Por cantidad</option>
+                <option value="monto">Por monto (USD)</option>
+            </select>
+            <button id="btnActualizarTop">Actualizar</button>
+        </div>
+        <canvas id="topProductosChart" style="max-height:400px;"></canvas>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let topChart = null, ventasChart = null, prediccionChart = null;
+    let socket = null, empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m; }); }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            conectarWebSocket();
+            cargarAlertas();
+            setInterval(cargarAlertas, 30000);
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); cargarAlertas(); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarAlertas() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/alertas`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) return;
+            const alertas = await res.json();
+            document.getElementById('alertas-badge').innerText = alertas.length;
+        } catch(e) {}
+    }
+
+    async function cargarMetricas() {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/sales-stats`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            // Calcular total hoy y semana desde los datos reales (esto es una mejora visual)
+            // Para simplificar, solo mostramos valores placeholder o podemos calcular
+            document.getElementById('total-productos').innerText = '0'; // Se actualizará con otro endpoint
+            document.getElementById('total-clientes').innerText = '0';
+        } catch(e) {}
+        // Cargar productos y clientes por separado si se quiere
+        try {
+            const resP = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const prods = await resP.json();
+            document.getElementById('total-productos').innerText = prods.length;
+        } catch(e) {}
+        try {
+            const resC = await fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const clis = await resC.json();
+            document.getElementById('total-clientes').innerText = clis.length;
+        } catch(e) {}
+    }
+
+    async function cargarGraficos() {
+        const token = localStorage.getItem('token');
+        const resPred = await fetch(`${API_URL}/dashboard-predictivo`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const predData = await resPred.json();
+        const reales = predData.reales || [];
+        const prediccion = predData.prediccion || [];
+
+        if (ventasChart) ventasChart.destroy();
+        ventasChart = new Chart(document.getElementById('ventasChart'), {
+            type: 'line',
+            data: { labels: reales.map(d => d.dia), datasets: [{ label: 'Ventas (Bs)', data: reales.map(d => d.total_bs || 0), borderColor: '#4f46e5', fill: false }] }
+        });
+
+        if (prediccionChart) prediccionChart.destroy();
+        prediccionChart = new Chart(document.getElementById('prediccionChart'), {
+            type: 'bar',
+            data: { labels: prediccion.map(d => d.dia), datasets: [{ label: 'Pronóstico USD', data: prediccion.map(d => d.prediccion_usd || 0), backgroundColor: '#10b981' }] }
+        });
+
+        await cargarTopProductos();
+    }
+
+    async function cargarTopProductos() {
+        const periodo = document.getElementById('topPeriodo').value;
+        const orden = document.getElementById('topOrden').value;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/top-productos?periodo=${periodo}&orden=${orden}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        const labels = data.map(p => escapeHtml(p.nombre));
+        let valores, labelY;
+        if (orden === 'cantidad') { valores = data.map(p => p.total_cantidad); labelY = 'Unidades vendidas'; }
+        else { valores = data.map(p => p.total_usd); labelY = 'Ventas (USD)'; }
+        if (topChart) topChart.destroy();
+        topChart = new Chart(document.getElementById('topProductosChart'), {
+            type: 'bar',
+            data: { labels, datasets: [{ label: labelY, data: valores, backgroundColor: '#10b981', borderColor: '#059669', borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    document.getElementById('btnActualizarTop').addEventListener('click', cargarTopProductos);
+    document.getElementById('menuToggle').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
+    document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); localStorage.removeItem('token'); window.location.href = 'login.html'; });
+
+    verificarSesion().then(() => { cargarMetricas(); cargarGraficos(); });
+</script>
+</body>
+</html>

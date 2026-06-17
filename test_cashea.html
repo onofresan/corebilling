@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="stylesheet" href="estilos.css">
+    <title>Prueba Cashea - CoreBilling</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .cashea-container {
+            width: 100%;
+            max-width: 440px;
+        }
+        .cashea-card {
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .cashea-header {
+            background: linear-gradient(120deg, #4f46e5, #7c3aed);
+            padding: 28px 24px;
+            text-align: center;
+        }
+        .cashea-header h2 {
+            color: white;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .cashea-header p {
+            color: rgba(255,255,255,0.85);
+            margin-top: 6px;
+            font-size: 0.9rem;
+        }
+        .cashea-body {
+            padding: 28px;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .btn-pct {
+            background: #e2e8f0;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: 48px;
+            text-align: center;
+        }
+        .btn-pct:hover {
+            background: #cbd5e1;
+            transform: translateY(-2px);
+        }
+        .input-group {
+            margin-bottom: 16px;
+        }
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 1rem;
+            transition: all 0.2s;
+            background: #f8fafc;
+            outline: none;
+        }
+        .input-group input:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.2);
+            background: white;
+        }
+        .btn-calcular {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 10px rgba(79,70,229,0.3);
+        }
+        .btn-calcular:hover {
+            transform: scale(1.02);
+            background: linear-gradient(90deg, #4338ca, #6d28d9);
+            box-shadow: 0 8px 20px rgba(79,70,229,0.4);
+        }
+        .resultado {
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 16px;
+            margin-top: 20px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            border-left: 4px solid #4f46e5;
+            line-height: 1.8;
+        }
+        .resultado strong {
+            color: #0f172a;
+        }
+        .resultado .valor-inicial { color: #4f46e5; }
+        .resultado .valor-financiado { color: #f59e0b; }
+        .resultado .valor-total { color: #10b981; }
+        .footer-note {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 16px;
+        }
+        @media (max-width: 480px) {
+            .cashea-body { padding: 20px; }
+            .btn-pct { padding: 6px 12px; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="cashea-container">
+    <div class="cashea-card">
+        <div class="cashea-header">
+            <h2>🧪 Financiamiento Cashea</h2>
+            <p>Simulador de pago inicial y saldo financiado</p>
+        </div>
+        <div class="cashea-body">
+            <div class="btn-group">
+                <button class="btn-pct" data-pct="25">25%</button>
+                <button class="btn-pct" data-pct="30">30%</button>
+                <button class="btn-pct" data-pct="35">35%</button>
+                <button class="btn-pct" data-pct="40">40%</button>
+                <button class="btn-pct" data-pct="45">45%</button>
+                <button class="btn-pct" data-pct="50">50%</button>
+                <button class="btn-pct" data-pct="60">60%</button>
+                <button class="btn-pct" data-pct="75">75%</button>
+            </div>
+
+            <div class="input-group">
+                <label>💰 Total de la factura (USD)</label>
+                <input type="number" id="total" value="100" step="0.01">
+            </div>
+            <div class="input-group">
+                <label>💵 Monto Inicial (USD)</label>
+                <input type="number" id="inicial" value="0" step="0.01">
+            </div>
+
+            <button class="btn-calcular" id="calcularBtn">Calcular financiamiento</button>
+
+            <div class="resultado" id="resultado">
+                <div><span class="valor-inicial">💰 Inicial: $0.00</span></div>
+                <div><span class="valor-financiado">📆 Financiado: $0.00</span></div>
+                <div><span class="valor-total">🧾 Total: $0.00</span></div>
+            </div>
+
+            <p class="footer-note">Calcula el saldo financiado para el método de pago Cashea.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    function calcular() {
+        let total = parseFloat(document.getElementById('total').value) || 0;
+        let inicial = parseFloat(document.getElementById('inicial').value) || 0;
+        let financiado = total - inicial;
+        if (financiado < 0) financiado = 0;
+
+        document.getElementById('resultado').innerHTML = `
+            <div><span class="valor-inicial">💰 Inicial: $${inicial.toFixed(2)}</span></div>
+            <div><span class="valor-financiado">📆 Financiado: $${financiado.toFixed(2)}</span></div>
+            <div><span class="valor-total">🧾 Total: $${total.toFixed(2)}</span></div>
+        `;
+    }
+
+    document.querySelectorAll('.btn-pct').forEach(btn => {
+        btn.addEventListener('click', () => {
+            let pct = parseFloat(btn.getAttribute('data-pct'));
+            let total = parseFloat(document.getElementById('total').value) || 0;
+            let inicial = total * (pct / 100);
+            document.getElementById('inicial').value = inicial.toFixed(2);
+            calcular();
+        });
+    });
+
+    document.getElementById('total').addEventListener('input', calcular);
+    document.getElementById('inicial').addEventListener('input', calcular);
+    document.getElementById('calcularBtn').addEventListener('click', calcular);
+
+    calcular();
+</script>
+</body>
+</html>

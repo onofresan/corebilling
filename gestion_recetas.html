@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Gestión de Recetas</title>
+    <style>
+        .header-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            background: white;
+            margin-top: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 10px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        tr:hover td {
+            background: #f8fafc;
+        }
+        .btn-accion {
+            padding: 4px 12px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 2px;
+            font-size: 0.75rem;
+        }
+        .btn-accion.warning { background: #f59e0b; color: white; }
+        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
+        .btn-accion.danger { background: #ef4444; color: white; }
+        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
+        .modal-content {
+            max-width: 700px;
+        }
+        .modal-content .input-group {
+            margin-bottom: 14px;
+        }
+        .modal-content .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .modal-content .input-group input,
+        .modal-content .input-group select,
+        .modal-content .input-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-content .input-group input:focus,
+        .modal-content .input-group select:focus,
+        .modal-content .input-group textarea:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .ingrediente-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+        .ingrediente-row select {
+            flex: 2;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .ingrediente-row input {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .ingrediente-row .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .ingrediente-row .btn-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+        .flex-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+        @media (max-width: 640px) {
+            th, td { font-size: 0.75rem; padding: 6px 4px; }
+            .ingrediente-row { flex-direction: column; align-items: stretch; }
+            .ingrediente-row select, .ingrediente-row input { width: 100%; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html" class="active">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <div class="header-box">
+            <h2 style="font-weight:700;">🍽️ Recetas</h2>
+            <button class="btn-primary" id="btnNuevaReceta">+ Nueva Receta</button>
+        </div>
+
+        <div class="table-container">
+            <table id="tablaRecetas">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Precio Venta</th>
+                        <th>Tiempo (min)</th>
+                        <th>Disponible</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-recetas">
+                    <tr><td colspan="6" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar/crear receta -->
+<div id="modalReceta" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:700px; width:95%; padding:24px; border-radius:28px; max-height:80vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModal()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 id="modalTitle" style="margin-bottom:16px;">Nueva Receta</h3>
+        <form id="formReceta">
+            <input type="hidden" id="recetaId">
+            <div class="input-group">
+                <label>Código</label>
+                <input type="text" id="codigo" required>
+            </div>
+            <div class="input-group">
+                <label>Nombre</label>
+                <input type="text" id="nombre" required>
+            </div>
+            <div class="input-group">
+                <label>Descripción</label>
+                <textarea id="descripcion" rows="2"></textarea>
+            </div>
+            <div class="input-group">
+                <label>Precio Venta (USD)</label>
+                <input type="number" step="0.01" id="precio_venta" required>
+            </div>
+            <div class="input-group">
+                <label>Tiempo Preparación (min)</label>
+                <input type="number" id="tiempo" value="0">
+            </div>
+            <div class="input-group">
+                <label>Disponible</label>
+                <select id="disponible">
+                    <option value="1">Sí</option>
+                    <option value="0">No</option>
+                </select>
+            </div>
+            <h4 style="font-weight:600; margin:16px 0 8px;">Ingredientes</h4>
+            <div id="ingredientes-list"></div>
+            <button type="button" class="btn-primary" id="btnAgregarIngrediente" style="margin-top:8px;">+ Agregar Ingrediente</button>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">Guardar</button>
+                <button type="button" class="btn-danger" onclick="cerrarModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let userRole = null;
+    let ingredientesDisponibles = [];
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            userRole = data.role;
+            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            if (data.role !== 'admin') {
+                alert('Acceso denegado. Solo administradores.');
+                window.location.href = 'index.html';
+                return null;
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarIngredientes() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const prods = await res.json();
+        ingredientesDisponibles = prods.filter(p => p.tipo_producto === 'ingrediente');
+    }
+
+    async function cargarRecetas() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/recetas`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const recetas = await res.json();
+        const tbody = document.getElementById('tbody-recetas');
+        tbody.innerHTML = '';
+        if (recetas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:#94a3b8;">No hay recetas registradas</td></tr>';
+            return;
+        }
+        recetas.forEach(r => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${escapeHtml(r.codigo)}</td>
+                    <td>${escapeHtml(r.nombre)}</td>
+                    <td>$${parseFloat(r.precio_venta).toFixed(2)}</td>
+                    <td>${r.tiempo_preparacion}</td>
+                    <td>${r.disponible ? '✅ Sí' : '❌ No'}</td>
+                    <td>
+                        <button class="btn-accion warning" onclick="editarReceta(${r.id})">✏️</button>
+                        <button class="btn-accion danger" onclick="eliminarReceta(${r.id})">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function agregarIngrediente() {
+        const container = document.getElementById('ingredientes-list');
+        const idx = container.children.length;
+        const div = document.createElement('div');
+        div.className = 'ingrediente-row';
+        div.innerHTML = `
+            <select class="ing-codigo" required>
+                <option value="">-- Seleccionar ingrediente --</option>
+                ${ingredientesDisponibles.map(i => `<option value="${escapeHtml(i.codigo)}">${escapeHtml(i.nombre)} (${escapeHtml(i.unidad_medida)})</option>`).join('')}
+            </select>
+            <input type="number" step="any" class="ing-cantidad" placeholder="Cantidad" value="0" required>
+            <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✖</button>
+        `;
+        container.appendChild(div);
+    }
+
+    function obtenerIngredientesFromForm() {
+        const ingredientes = [];
+        document.querySelectorAll('.ingrediente-row').forEach(row => {
+            const codigo = row.querySelector('.ing-codigo').value;
+            const cantidad = parseFloat(row.querySelector('.ing-cantidad').value);
+            if (codigo && cantidad > 0) ingredientes.push({ codigo, cantidad });
+        });
+        return ingredientes;
+    }
+
+    function cargarIngredientesEnForm(ingredientes) {
+        const container = document.getElementById('ingredientes-list');
+        container.innerHTML = '';
+        ingredientes.forEach((ing, idx) => {
+            const div = document.createElement('div');
+            div.className = 'ingrediente-row';
+            div.innerHTML = `
+                <select class="ing-codigo" required>
+                    <option value="">-- Seleccionar ingrediente --</option>
+                    ${ingredientesDisponibles.map(i => `<option value="${escapeHtml(i.codigo)}" ${i.codigo === ing.codigo ? 'selected' : ''}>${escapeHtml(i.nombre)} (${escapeHtml(i.unidad_medida)})</option>`).join('')}
+                </select>
+                <input type="number" step="any" class="ing-cantidad" value="${ing.cantidad}" required>
+                <button type="button" class="btn-remove" onclick="this.parentElement.remove()">✖</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    window.editarReceta = async (id) => {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/recetas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const receta = await res.json();
+        document.getElementById('recetaId').value = receta.id;
+        document.getElementById('codigo').value = receta.codigo;
+        document.getElementById('nombre').value = receta.nombre;
+        document.getElementById('descripcion').value = receta.descripcion || '';
+        document.getElementById('precio_venta').value = receta.precio_venta;
+        document.getElementById('tiempo').value = receta.tiempo_preparacion;
+        document.getElementById('disponible').value = receta.disponible ? '1' : '0';
+        cargarIngredientesEnForm(receta.ingredientes || []);
+        document.getElementById('modalTitle').innerText = 'Editar Receta';
+        document.getElementById('modalReceta').style.display = 'flex';
+    };
+
+    window.eliminarReceta = async (id) => {
+        if (!confirm('¿Eliminar esta receta?')) return;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/recetas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+            alert('Receta eliminada');
+            cargarRecetas();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + err.error);
+        }
+    };
+
+    function abrirModalNueva() {
+        document.getElementById('recetaId').value = '';
+        document.getElementById('codigo').value = '';
+        document.getElementById('nombre').value = '';
+        document.getElementById('descripcion').value = '';
+        document.getElementById('precio_venta').value = '';
+        document.getElementById('tiempo').value = '0';
+        document.getElementById('disponible').value = '1';
+        document.getElementById('ingredientes-list').innerHTML = '';
+        document.getElementById('modalTitle').innerText = 'Nueva Receta';
+        document.getElementById('modalReceta').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        document.getElementById('modalReceta').style.display = 'none';
+    }
+
+    document.getElementById('formReceta').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('recetaId').value;
+        const data = {
+            codigo: document.getElementById('codigo').value,
+            nombre: document.getElementById('nombre').value,
+            descripcion: document.getElementById('descripcion').value,
+            precio_venta: parseFloat(document.getElementById('precio_venta').value),
+            tiempo_preparacion: parseInt(document.getElementById('tiempo').value) || 0,
+            disponible: document.getElementById('disponible').value === '1',
+            ingredientes: obtenerIngredientesFromForm()
+        };
+        const token = localStorage.getItem('token');
+        const url = id ? `${API_URL}/recetas/${id}` : `${API_URL}/recetas`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(data)
+        });
+        if (res.ok) {
+            alert(id ? 'Receta actualizada' : 'Receta creada');
+            cerrarModal();
+            cargarRecetas();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + err.error);
+        }
+    });
+
+    document.getElementById('btnNuevaReceta').onclick = abrirModalNueva;
+    document.getElementById('btnAgregarIngrediente').onclick = agregarIngrediente;
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => cargarIngredientes().then(() => cargarRecetas()));
+    window.cerrarModal = cerrarModal;
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Dashboard</title>
+</head>
+<body>
+    <h1>Test de token</h1>
+    <pre id="info">Cargando...</pre>
+    <button onclick="logout()">Cerrar sesión</button>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+
+        async function testSession() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                document.getElementById('info').innerText = 'No hay token. Redirigiendo al login...';
+                setTimeout(() => window.location.href = 'login.html', 2000);
+                return;
+            }
+            document.getElementById('info').innerText = 'Token encontrado: ' + token.substring(0, 50) + '...\nVerificando con el backend...';
+            try {
+                const res = await fetch(`${API_URL}/check-session`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (res.ok && data.logged_in) {
+                    document.getElementById('info').innerText = '✅ Sesión válida\n' + JSON.stringify(data, null, 2);
+                } else {
+                    throw new Error('No autenticado');
+                }
+            } catch(e) {
+                document.getElementById('info').innerText = '❌ Error: ' + e.message + '\nToken no válido. Redirigiendo...';
+                localStorage.removeItem('token');
+                setTimeout(() => window.location.href = 'login.html', 2000);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+
+        testSession();
+    </script>
+</body>
+</html>

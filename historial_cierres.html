@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Historial de Cierres Z</title>
+    <style>
+        .filtro {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 16px;
+        }
+        .filtro .input-group {
+            flex: 1;
+            min-width: 150px;
+        }
+        .filtro .input-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 4px;
+        }
+        .filtro select, .filtro button {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1.5px solid #e2e8f0;
+            background: white;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .filtro select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+            outline: none;
+        }
+        .filtro button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filtro button:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+        }
+        .table-container {
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            background: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 10px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        tr:hover td {
+            background: #f8fafc;
+        }
+        .btn-ver {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-ver:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+        }
+        .btn-pdf, .btn-imprimir {
+            padding: 6px 14px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 4px;
+        }
+        .btn-pdf {
+            background: #10b981;
+            color: white;
+        }
+        .btn-pdf:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+        .btn-imprimir {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-imprimir:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+        .modal-content {
+            max-width: 680px;
+        }
+        .detalle-fiscal {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+        }
+        .detalle-fiscal .fila {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 3px 0;
+            flex-wrap: wrap;
+        }
+        .detalle-fiscal .linea {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+        }
+        .detalle-fiscal .doble-linea {
+            border-top: 2px solid #000;
+            margin: 8px 0;
+        }
+        .detalle-fiscal h3, .detalle-fiscal h4 {
+            text-align: center;
+            margin: 8px 0;
+        }
+        .detalle-fiscal .fila span:last-child {
+            font-weight: 600;
+        }
+        @media print {
+            .sidebar, .menu-toggle, .filtro, .btn-ver, .btn-pdf, .btn-imprimir, .close-modal { display: none; }
+            .modal-content { box-shadow: none; padding: 0; }
+            .detalle-fiscal { font-size: 0.75rem; }
+        }
+        @media (max-width: 640px) {
+            .filtro .input-group { min-width: 100%; }
+            th, td { font-size: 0.75rem; padding: 6px 4px; }
+            .detalle-fiscal { font-size: 0.7rem; padding: 10px; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html" class="active">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <h2 style="font-weight:700;">📋 Historial de Cierres de Caja</h2>
+
+        <div class="filtro" id="filtroUsuario" style="display:none;">
+            <div class="input-group">
+                <label>👤 Filtrar por usuario</label>
+                <select id="selectUsuario">
+                    <option value="">Todos los usuarios</option>
+                </select>
+            </div>
+            <div class="input-group" style="flex:0 0 120px;">
+                <label>&nbsp;</label>
+                <button onclick="cargarHistorial()">Filtrar</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="tablaCierres">
+                <thead>
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Usuario</th>
+                        <th>Total USD</th>
+                        <th>Total Bs</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-cierres">
+                    <tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalle fiscal -->
+<div id="modalDetalle" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:680px; width:95%; padding:24px; border-radius:28px; max-height:80vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModal()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <div id="detalle-contenido"></div>
+        <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-pdf" id="btnPDFDetalle">📄 Descargar PDF</button>
+            <button class="btn-imprimir" id="btnImprimirDetalle">🖨️ Imprimir (térmica/fiscal)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let userRole = null;
+    let currentDetalleHtml = null;
+    let currentDetalleData = null;
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            userRole = data.role;
+            if (data.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                document.getElementById('filtroUsuario').style.display = 'flex';
+                cargarUsuarios();
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarUsuarios() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const usuarios = await res.json();
+        const select = document.getElementById('selectUsuario');
+        select.innerHTML = '<option value="">Todos los usuarios</option>';
+        usuarios.forEach(u => {
+            select.innerHTML += `<option value="${u.id}">${escapeHtml(u.username)} (${escapeHtml(u.role)})</option>`;
+        });
+    }
+
+    async function cargarHistorial() {
+        const token = localStorage.getItem('token');
+        const usuarioId = document.getElementById('selectUsuario')?.value || '';
+        let url = `${API_URL}/historial-cierres`;
+        if (usuarioId && userRole === 'admin') url += `?usuario_id=${usuarioId}`;
+        const tbody = document.getElementById('tabla-cierres');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            if (!Array.isArray(data)) throw new Error('Respuesta inválida');
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No hay cierres registrados</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(c => {
+                const datosStr = JSON.stringify(c.datos).replace(/'/g, "&#39;");
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${escapeHtml(c.fecha_cierre)}</td>
+                        <td>${escapeHtml(c.username)}</td>
+                        <td>$${toNum(c.total_usd).toFixed(2)}</td>
+                        <td>Bs ${toNum(c.total_bs).toFixed(2)}</td>
+                        <td><button class="btn-ver" onclick='verDetalle(${datosStr})'>Ver Detalle</button></td>
+                    </tr>
+                `;
+            });
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;">Error: ${escapeHtml(e.message)}</td></tr>`;
+        }
+    }
+
+    window.verDetalle = function(datos) {
+        currentDetalleData = datos;
+        const empresa = datos.empresa || { nombre: '', rif: '', direccion: '' };
+        const pagos = datos.pagos || {};
+        let html = `
+            <div class="detalle-fiscal" id="reporteZParaImprimir">
+                <h3>REPORTE Z FISCAL</h3>
+                <div class="fila"><span>RAZÓN SOCIAL:</span><span>${escapeHtml(empresa.nombre)}</span></div>
+                <div class="fila"><span>RIF:</span><span>${escapeHtml(empresa.rif)}</span></div>
+                <div class="fila"><span>DIRECCIÓN:</span><span>${escapeHtml(empresa.direccion)}</span></div>
+                <div class="fila"><span>FECHA Y HORA:</span><span>${escapeHtml(datos.fecha_hora)}</span></div>
+                <div class="fila"><span>Nº REPORTE Z:</span><span>${escapeHtml(datos.num_reporte)}</span></div>
+                <div class="fila"><span>FACTURAS EMITIDAS:</span><span>${datos.num_transacciones}</span></div>
+                <div class="doble-linea"></div>
+                <h4>INFORME DE VENTAS - RESUMEN Z</h4>
+                <div class="fila"><span>TOTAL DOLARES (facturado):</span><span>$${toNum(datos.total_ventas_usd).toFixed(2)}</span></div>
+                <div class="fila"><span>TOTAL COBRADO (hoy):</span><span>$${toNum(datos.total_cobrado_usd).toFixed(2)}</span></div>
+                <div class="fila"><span>💵 TOTAL SERVICIO:</span><span>$${toNum(datos.total_servicio_usd).toFixed(2)} (Bs ${toNum(datos.total_servicio_bs).toFixed(2)})</span></div>
+                <div class="fila"><span>TOTAL Bs COBRADO:</span><span>Bs ${toNum(datos.total_cobrado_bs).toFixed(2)}</span></div>
+                <div class="fila"><span>ALÍCUOTA GENERAL (16%):</span><span>Bs ${toNum(datos.base_imponible_bs).toFixed(2)}</span></div>
+                <div class="fila"><span>MONTO I.V.A. (16%):</span><span>Bs ${toNum(datos.iva_total_bs).toFixed(2)}</span></div>
+                <div class="linea"></div>
+                <h4>DESGLOSE POR MEDIOS DE PAGO (cobrado)</h4>
+        `;
+        for (const [metodo, montos] of Object.entries(pagos)) {
+            let montoBs = toNum(montos.bs || montos, 0);
+            let montoUsd = toNum(montos.usd || 0, 0);
+            let mostrar = (metodo === 'Divisa')
+                ? `$${montoUsd.toFixed(2)} (Bs ${(montoUsd * datos.tasa).toFixed(2)})`
+                : `Bs ${montoBs.toFixed(2)}`;
+            html += `<div class="fila"><span>${escapeHtml(metodo)}:</span><span>${mostrar}</span></div>`;
+        }
+        if (datos.financiado_cashea_usd && datos.financiado_cashea_usd > 0) {
+            html += `
+                <div class="linea"></div>
+                <div class="fila"><span>TOTAL FINANCIADO CASHEA:</span><span>$${toNum(datos.financiado_cashea_usd).toFixed(2)} (Bs ${(datos.financiado_cashea_usd * datos.tasa).toFixed(2)})</span></div>
+            `;
+        }
+        html += `
+                <div class="doble-linea"></div>
+                <p style="font-size:0.7rem; text-align:center; color:#64748b;">*** Documento fiscal ***</p>
+            </div>
+        `;
+        document.getElementById('detalle-contenido').innerHTML = html;
+        currentDetalleHtml = html;
+        document.getElementById('modalDetalle').style.display = 'flex';
+    };
+
+    window.cerrarModal = function() {
+        document.getElementById('modalDetalle').style.display = 'none';
+        currentDetalleData = null;
+    };
+
+    document.getElementById('btnPDFDetalle').onclick = () => {
+        if (!currentDetalleHtml) return;
+        const element = document.querySelector('#detalle-contenido');
+        const opt = {
+            margin: [0.2, 0.2, 0.2, 0.2],
+            filename: `cierre_z_${currentDetalleData?.num_reporte || 'detalle'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+    };
+
+    document.getElementById('btnImprimirDetalle').onclick = () => {
+        if (!currentDetalleHtml) return;
+        const ventana = window.open('', '_blank');
+        ventana.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Reporte Z</title>
+                <style>
+                    body { font-family: 'Courier New', monospace; margin: 20px; }
+                    .detalle-fiscal { max-width: 100%; }
+                    .fila { display: flex; justify-content: space-between; margin: 5px 0; }
+                    .linea { border-top: 1px dashed #000; margin: 8px 0; }
+                    .doble-linea { border-top: 2px solid #000; margin: 8px 0; }
+                    h3, h4 { text-align: center; }
+                    @media print { body { margin: 0; padding: 10px; } }
+                </style>
+            </head>
+            <body>
+                ${currentDetalleHtml}
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() { window.close(); }, 500);
+                    };
+                <\/script>
+            </body>
+            </html>
+        `);
+        ventana.document.close();
+    };
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => cargarHistorial());
+    window.cargarHistorial = cargarHistorial;
+</script>
+</body>
+</html>

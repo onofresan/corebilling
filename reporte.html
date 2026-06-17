@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Reportes</title>
+    <style>
+        .reporte-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .btn-group .btn {
+            padding: 10px 20px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-group .btn-primary { background: #4f46e5; color: white; }
+        .btn-group .btn-primary:hover { background: #4338ca; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+        .btn-group .btn-danger { background: #ef4444; color: white; }
+        .btn-group .btn-danger:hover { background: #dc2626; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(239,68,68,0.3); }
+        .btn-group .btn-success { background: #10b981; color: white; }
+        .btn-group .btn-success:hover { background: #059669; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+        .btn-group .btn-secondary { background: #64748b; color: white; }
+        .btn-group .btn-secondary:hover { background: #475569; transform: translateY(-2px); }
+        .estado-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .abierta { background: #10b981; color: white; }
+        .cerrada { background: #ef4444; color: white; }
+        .reporte-container {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 20px;
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+        }
+        .reporte-container .header-info {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 16px;
+            border-left: 4px solid #4f46e5;
+            margin-bottom: 16px;
+        }
+        .reporte-container .factura-block {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-left: 4px solid #4f46e5;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .reporte-container .factura-header {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .reporte-container table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .reporte-container th {
+            background: #f8fafc;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .reporte-container td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .reporte-container .total {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-top: 16px;
+        }
+        .reporte-fiscal {
+            font-family: 'Courier New', monospace;
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .reporte-fiscal .fila {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            padding: 4px 0;
+        }
+        .reporte-fiscal .linea {
+            border-top: 1px dashed #000;
+            margin: 10px 0;
+        }
+        .reporte-fiscal .doble-linea {
+            border-top: 2px solid #000;
+            margin: 10px 0;
+        }
+        .reporte-fiscal h3, .reporte-fiscal h4 {
+            text-align: center;
+            margin: 10px 0;
+        }
+        @media (max-width: 640px) {
+            .reporte-container { padding: 12px; }
+            .reporte-container .factura-header { font-size: 0.8rem; }
+            .reporte-container th, .reporte-container td { font-size: 0.75rem; padding: 6px 8px; }
+            .reporte-container .total { font-size: 1rem; padding: 12px 16px; }
+            .reporte-fiscal { font-size: 0.75rem; padding: 16px; }
+            .btn-group .btn { padding: 6px 12px; font-size: 0.8rem; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html" class="active">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <div class="reporte-header">
+            <h2 style="font-weight:700;">📊 Generación de Reportes</h2>
+            <div><span id="estado-caja" class="estado-badge">Cargando...</span></div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" id="btnReporteX">📄 Reporte X (Detallado del día)</button>
+            <button class="btn btn-danger" id="btnCerrarMiCaja">🔒 Cerrar mi caja</button>
+            <button class="btn btn-success" id="btnAbrirCaja" style="display:none;">🔓 Abrir mi caja</button>
+            <button class="btn btn-secondary" id="btnCierreGeneral" style="display:none;">🏢 Cierre General (Admin)</button>
+            <button class="btn btn-secondary" onclick="exportarCSV()">📄 Exportar CSV</button>
+            <button class="btn btn-secondary" onclick="exportarExcel()">📊 Exportar Excel</button>
+            <button class="btn btn-secondary" id="btnPDF">📑 Descargar PDF</button>
+        </div>
+
+        <div id="reporteDisplay" class="reporte-container">
+            <p style="text-align:center; color:#94a3b8; padding:20px;">Selecciona un tipo de reporte para visualizar.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+    let userRole = null;
+    let currentReporteData = null;
+    let socket = null;
+    let empresaId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            userRole = data.role;
+            if (data.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                document.getElementById('btnCierreGeneral').style.display = 'inline-block';
+            }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            conectarWebSocket();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function actualizarEstadoCaja() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        const span = document.getElementById('estado-caja');
+        const btnAbrir = document.getElementById('btnAbrirCaja');
+        const btnCerrar = document.getElementById('btnCerrarMiCaja');
+        if (data.estado === 'abierta') {
+            span.innerText = '🔓 Caja ABIERTA';
+            span.className = 'estado-badge abierta';
+            btnAbrir.style.display = 'none';
+            btnCerrar.style.display = 'inline-block';
+        } else {
+            span.innerText = '🔒 Caja CERRADA';
+            span.className = 'estado-badge cerrada';
+            btnAbrir.style.display = 'inline-block';
+            btnCerrar.style.display = 'none';
+        }
+    }
+
+    async function abrirCaja() {
+        if (!confirm('¿Abrir tu caja?')) return;
+        const token = localStorage.getItem('token');
+        await fetch(`${API_URL}/abrir-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        actualizarEstadoCaja();
+    }
+
+    async function cerrarMiCaja() {
+        if (!confirm('¿Cerrar tu caja? Se generará reporte Z.')) return;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/cerrar-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (res.ok) {
+            alert(`Caja cerrada. Total: $${toNum(data.reporte.total_cobrado_usd).toFixed(2)}`);
+            mostrarReporteZ(data.reporte);
+            actualizarEstadoCaja();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    }
+
+    async function cierreGeneral() {
+        if (!confirm('⚠️ Cerrar TODAS las cajas abiertas?')) return;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/cierre-general`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+            alert('Cierre general completado');
+            actualizarEstadoCaja();
+        } else {
+            alert('Error al realizar cierre general');
+        }
+    }
+
+    async function cargarReporteX() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/reporte-x`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        currentReporteData = data;
+        mostrarReporteX(data);
+    }
+
+    function mostrarReporteX(data) {
+        const empresa = data.empresa || { nombre: '', rif: '', direccion: '' };
+        const detalles = data.detalles || [];
+        let html = `
+            <div class="header-info">
+                <strong>🏪 ${escapeHtml(empresa.nombre)}</strong><br>
+                RIF: ${escapeHtml(empresa.rif)}<br>
+                Fecha: ${data.fecha_hora}<br>
+                Tasa: Bs ${data.tasa_cambio.toFixed(2)}
+            </div>
+        `;
+        if (detalles.length === 0) {
+            html += '<p style="text-align:center; color:#94a3b8; padding:20px;">No hay ventas en el día de hoy.</p>';
+        } else {
+            let facturasMap = new Map();
+            detalles.forEach(d => {
+                let fid = d.factura_id;
+                if (!facturasMap.has(fid)) {
+                    facturasMap.set(fid, {
+                        factura_id: fid,
+                        fecha: d.fecha,
+                        hora: d.fecha?.slice(11, 19),
+                        cliente: d.cliente || 'General',
+                        metodo_pago: d.metodo_pago,
+                        productos: [],
+                        total_factura_usd: 0,
+                        total_servicio_usd: toNum(d.monto_servicio_usd)
+                    });
+                }
+                let fact = facturasMap.get(fid);
+                fact.productos.push(d);
+                fact.total_factura_usd += toNum(d.subtotal_con_iva);
+            });
+            html += `<h3 style="font-weight:600; margin-bottom:16px;">📋 Reporte Detallado del Día</h3>`;
+            let grandTotalUSD = 0;
+            for (let fact of facturasMap.values()) {
+                grandTotalUSD += fact.total_factura_usd;
+                html += `
+                    <div class="factura-block">
+                        <div class="factura-header">
+                            <span><strong>🧾 Factura N° ${fact.factura_id}</strong> | ${fact.hora}</span>
+                            <span>Cliente: ${escapeHtml(fact.cliente)}</span>
+                            <span>Método: ${escapeHtml(fact.metodo_pago)}</span>
+                            <span style="font-weight:700; color:#4f46e5;">Total: $${fact.total_factura_usd.toFixed(2)}</span>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>Producto</th><th>Cant.</th><th>Precio c/IVA</th><th>Descuento</th><th>Subtotal</th></tr>
+                            </thead>
+                            <tbody>
+                `;
+                fact.productos.forEach(p => {
+                    html += `
+                        <tr>
+                            <td>${escapeHtml(p.producto)}</td>
+                            <td>${p.cantidad}</td>
+                            <td>$${toNum(p.precio_unitario).toFixed(2)}</td>
+                            <td>$${toNum(p.descuento).toFixed(2)}</td>
+                            <td>$${toNum(p.subtotal_con_iva).toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            html += `
+                <div class="total">
+                    💰 TOTAL GENERAL DEL DÍA: $${grandTotalUSD.toFixed(2)} USD<br>
+                    Bs: ${(grandTotalUSD * data.tasa_cambio).toFixed(2)}
+                </div>
+            `;
+        }
+        document.getElementById('reporteDisplay').innerHTML = html;
+    }
+
+    function mostrarReporteZ(reporte) {
+        const emp = reporte.empresa || { nombre: '', rif: '', direccion: '' };
+        const pagos = reporte.pagos || {};
+        let html = `
+            <div class="reporte-fiscal" id="reporteZParaImprimir">
+                <h3>REPORTE Z FISCAL</h3>
+                <div class="fila"><span>RAZÓN SOCIAL:</span><span>${escapeHtml(emp.nombre)}</span></div>
+                <div class="fila"><span>RIF:</span><span>${escapeHtml(emp.rif)}</span></div>
+                <div class="fila"><span>DIRECCIÓN:</span><span>${escapeHtml(emp.direccion)}</span></div>
+                <div class="fila"><span>FECHA:</span><span>${reporte.fecha}</span></div>
+                <div class="fila"><span>Nº REPORTE Z:</span><span>${reporte.num_reporte}</span></div>
+                <div class="fila"><span>FACTURAS EMITIDAS:</span><span>${reporte.num_transacciones}</span></div>
+                <div class="doble-linea"></div>
+                <h4>INFORME DE VENTAS - RESUMEN Z</h4>
+                <div class="fila"><span>TOTAL DOLARES (facturado):</span><span>$${toNum(reporte.total_ventas_usd).toFixed(2)}</span></div>
+                <div class="fila"><span>TOTAL COBRADO (hoy):</span><span>$${toNum(reporte.total_cobrado_usd).toFixed(2)}</span></div>
+                <div class="fila"><span>💵 TOTAL SERVICIO:</span><span>$${toNum(reporte.total_servicio_usd).toFixed(2)}</span></div>
+                <div class="fila"><span>TOTAL Bs COBRADO:</span><span>Bs ${toNum(reporte.total_cobrado_bs).toFixed(2)}</span></div>
+                <div class="linea"></div>
+                <h4>DESGLOSE POR MEDIOS DE PAGO</h4>
+        `;
+        for (const [metodo, montos] of Object.entries(pagos)) {
+            let montoBs = toNum(montos.bs || montos, 0);
+            let montoUsd = toNum(montos.usd || 0, 0);
+            let mostrar = (metodo === 'Divisa')
+                ? `$${montoUsd.toFixed(2)} (Bs ${(montoUsd * reporte.tasa).toFixed(2)})`
+                : `Bs ${montoBs.toFixed(2)}`;
+            html += `<div class="fila"><span>${escapeHtml(metodo)}:</span><span>${mostrar}</span></div>`;
+        }
+        html += `
+                <div class="doble-linea"></div>
+                <p style="font-size:0.7rem; text-align:center; color:#64748b;">*** Documento fiscal ***</p>
+            </div>
+        `;
+        document.getElementById('reporteDisplay').innerHTML = html;
+    }
+
+    function exportarCSV() {
+        const container = document.getElementById('reporteDisplay');
+        const tables = container.querySelectorAll('table');
+        if (tables.length === 0) { alert('No hay datos para exportar'); return; }
+        let csv = '';
+        tables.forEach(table => {
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+                const rowData = [];
+                row.querySelectorAll('td, th').forEach(cell => {
+                    rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+                });
+                csv += rowData.join(',') + '\n';
+            });
+            csv += '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'reporte.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
+    function exportarExcel() {
+        const container = document.getElementById('reporteDisplay');
+        const tables = container.querySelectorAll('table');
+        if (tables.length === 0) { alert('No hay datos para exportar'); return; }
+        const workbook = XLSX.utils.book_new();
+        tables.forEach((table, idx) => {
+            const worksheet = XLSX.utils.table_to_sheet(table, { raw: true });
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Reporte_${idx + 1}`);
+        });
+        XLSX.writeFile(workbook, 'reporte.xlsx');
+    }
+
+    function exportarPDF() {
+        const element = document.getElementById('reporteDisplay');
+        if (!element || element.innerText.includes('Selecciona')) {
+            alert('No hay reporte cargado');
+            return;
+        }
+        const opt = {
+            margin: [0.5, 0.5, 0.5, 0.5],
+            filename: 'reporte.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+    }
+
+    document.getElementById('btnReporteX').onclick = cargarReporteX;
+    document.getElementById('btnCerrarMiCaja').onclick = cerrarMiCaja;
+    document.getElementById('btnAbrirCaja').onclick = abrirCaja;
+    document.getElementById('btnCierreGeneral').onclick = cierreGeneral;
+    document.getElementById('btnPDF').onclick = exportarPDF;
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    verificarSesion().then(() => actualizarEstadoCaja());
+    window.exportarCSV = exportarCSV;
+    window.exportarExcel = exportarExcel;
+</script>
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Detalle de Factura</title>
+    <style>
+        body {
+            background: #f1f5f9;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: white;
+            border-radius: 28px;
+            padding: 28px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+        .header .badge-estado {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .badge-activa {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .badge-anulada {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        .info-grid .item {
+            display: flex;
+            flex-direction: column;
+        }
+        .info-grid .item .label {
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .info-grid .item .value {
+            font-weight: 500;
+            color: #0f172a;
+            margin-top: 2px;
+        }
+        .extras-box {
+            background: #fef3c7;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+        .extras-box.casa {
+            background: #e0f2fe;
+        }
+        h3 {
+            font-weight: 600;
+            margin: 20px 0 12px;
+            color: #0f172a;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 14px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: left;
+        }
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:hover td {
+            background: #f8fafc;
+        }
+        .resumen-iva {
+            background: #eef2ff;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin: 16px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-weight: 500;
+        }
+        .resumen-iva span {
+            color: #1e293b;
+        }
+        .total-box {
+            text-align: right;
+            padding: 16px 20px;
+            background: #0f172a;
+            color: white;
+            border-radius: 16px;
+            margin-top: 12px;
+        }
+        .total-box .total-usd {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #34d399;
+        }
+        .total-box .total-bs {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .pagos-table {
+            margin-top: 8px;
+        }
+        .pagos-table table {
+            font-size: 0.85rem;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .action-buttons button {
+            padding: 10px 24px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-pdf {
+            background: #10b981;
+            color: white;
+        }
+        .btn-pdf:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+        }
+        .btn-cerrar {
+            background: #64748b;
+            color: white;
+        }
+        .btn-cerrar:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+        .btn-imprimir {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-imprimir:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; padding: 16px; }
+            .action-buttons { display: none; }
+            .header .badge-estado { border: 1px solid #ccc; }
+        }
+        @media (max-width: 640px) {
+            .container { padding: 16px; }
+            .info-grid { grid-template-columns: 1fr; }
+            .header h1 { font-size: 1.2rem; }
+            th, td { font-size: 0.75rem; padding: 6px 8px; }
+            .total-box .total-usd { font-size: 1.4rem; }
+            .resumen-iva { font-size: 0.8rem; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+<div class="container" id="facturaContainer">
+    <div class="header">
+        <h1>🧾 Detalle de Factura</h1>
+        <span id="estadoBadge" class="badge-estado">Cargando...</span>
+    </div>
+    <div id="detalle">
+        <p style="text-align:center; color:#94a3b8; padding:40px;">Cargando factura...</p>
+    </div>
+</div>
+
+<div class="action-buttons" id="actionButtons" style="display:none;">
+    <button class="btn-pdf" id="btnPDF">📄 Descargar PDF</button>
+    <button class="btn-imprimir" id="btnImprimir">🖨️ Imprimir</button>
+    <button class="btn-cerrar" onclick="window.close()">✖ Cerrar</button>
+</div>
+
+<script>
+    const API_URL = `http://${window.location.hostname}:5000/api`;
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m);
+    }
+    function toNum(v, d = 0) {
+        let n = parseFloat(v);
+        return isNaN(n) ? d : n;
+    }
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return null;
+        }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            return data;
+        } catch(e) {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+            return null;
+        }
+    }
+
+    async function cargarDetalle() {
+        const id = new URLSearchParams(window.location.search).get('id');
+        if (!id) {
+            document.getElementById('detalle').innerHTML = '<p style="color:#ef4444; text-align:center;">No se especificó factura.</p>';
+            return;
+        }
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/facturas/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Error al cargar factura');
+            const data = await res.json();
+            const f = data.factura;
+            if (!f) throw new Error('Factura no encontrada');
+
+            // Estado
+            const badge = document.getElementById('estadoBadge');
+            if (f.estado === 'activa') {
+                badge.innerText = '✅ Activa';
+                badge.className = 'badge-estado badge-activa';
+            } else {
+                badge.innerText = '❌ Anulada';
+                badge.className = 'badge-estado badge-anulada';
+            }
+
+            // Extras Cashea
+            let extrasHtml = '';
+            if (f.metodo_pago === 'Cashea' && f.extras) {
+                try {
+                    const e = JSON.parse(f.extras);
+                    const inicial = toNum(e.inicial, 0);
+                    const financiado = toNum(f.total_usd, 0) - inicial;
+                    const cuotas = parseInt(e.cuotas) || 1;
+                    const montoCuota = financiado / cuotas;
+                    extrasHtml = `
+                        <div class="extras-box">
+                            <div><strong>💰 Pago Inicial:</strong> $${inicial.toFixed(2)} (Bs ${(inicial * toNum(f.tasa_cambio)).toFixed(2)})</div>
+                            <div><strong>📆 Saldo Financiado:</strong> $${financiado.toFixed(2)} (Bs ${(financiado * toNum(f.tasa_cambio)).toFixed(2)})</div>
+                            <div><strong>📅 Número de Cuotas:</strong> ${cuotas}</div>
+                            <div><strong>💵 Monto por Cuota:</strong> $${montoCuota.toFixed(2)} (Bs ${(montoCuota * toNum(f.tasa_cambio)).toFixed(2)})</div>
+                        </div>
+                    `;
+                } catch (e) { console.error(e); }
+            } else if (f.metodo_pago === 'Casa' && f.extras) {
+                try {
+                    const e = JSON.parse(f.extras);
+                    extrasHtml = `<div class="extras-box casa"><strong>🏠 Motivo Casa:</strong> ${escapeHtml(e.nota || '')}</div>`;
+                } catch(e) {}
+            }
+
+            // Productos
+            let productosHtml = `
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th style="text-align:center;">Cant.</th>
+                                <th style="text-align:right;">Precio sin IVA</th>
+                                <th style="text-align:center;">IVA%</th>
+                                <th style="text-align:right;">IVA unit.</th>
+                                <th style="text-align:right;">Precio c/IVA</th>
+                                <th style="text-align:right;">Descuento</th>
+                                <th style="text-align:right;">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            data.productos.forEach(p => {
+                const precioSinIva = toNum(p.subtotal_sin_iva, 0) / toNum(p.cantidad, 1);
+                const ivaUnitario = toNum(p.iva_unitario, 0);
+                const precioConIva = toNum(p.precio_unitario, 0);
+                const ivaPorcentaje = (ivaUnitario / precioSinIva * 100).toFixed(2);
+                productosHtml += `
+                    <tr>
+                        <td>${escapeHtml(p.nombre)}</td>
+                        <td style="text-align:center;">${p.cantidad}</td>
+                        <td style="text-align:right;">$${precioSinIva.toFixed(2)}</td>
+                        <td style="text-align:center;">${ivaPorcentaje}%</td>
+                        <td style="text-align:right;">$${ivaUnitario.toFixed(2)}</td>
+                        <td style="text-align:right;">$${precioConIva.toFixed(2)}</td>
+                        <td style="text-align:right;">$${toNum(p.descuento, 0).toFixed(2)}</td>
+                        <td style="text-align:right;">$${toNum(p.subtotal_con_iva, 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            productosHtml += `</tbody></table></div>`;
+
+            // Resumen IVA
+            const resumenHtml = `
+                <div class="resumen-iva">
+                    <span>Subtotal sin IVA: $${toNum(f.subtotal_usd, 0).toFixed(2)}</span>
+                    <span>IVA Total: $${toNum(f.iva_usd, 0).toFixed(2)}</span>
+                    <span>Servicio (${f.porcentaje_servicio || 0}%): $${toNum(f.monto_servicio_usd, 0).toFixed(2)}</span>
+                    <span>Total con IVA + Servicio: <strong>$${toNum(f.total_usd, 0).toFixed(2)}</strong></span>
+                </div>
+            `;
+
+            // Pagos
+            let pagosHtml = '';
+            if (data.pagos && data.pagos.length) {
+                pagosHtml = `
+                    <h3>💳 Detalle de Pagos</h3>
+                    <div class="table-wrapper pagos-table">
+                        <table>
+                            <thead>
+                                <tr><th>Método</th><th style="text-align:right;">Monto USD</th><th style="text-align:right;">Monto Bs</th><th>Referencia</th><th>Nota</th></tr>
+                            </thead>
+                            <tbody>
+                    `;
+                data.pagos.forEach(p => {
+                    pagosHtml += `
+                        <tr>
+                            <td>${escapeHtml(p.metodo_pago)}</td>
+                            <td style="text-align:right;">$${toNum(p.monto_usd).toFixed(2)}</td>
+                            <td style="text-align:right;">Bs ${toNum(p.monto_bs).toFixed(2)}</td>
+                            <td>${escapeHtml(p.referencia || '')}</td>
+                            <td>${escapeHtml(p.nota || '')}</td>
+                        </tr>
+                    `;
+                });
+                pagosHtml += `</tbody></table></div>`;
+            }
+
+            // Totales finales
+            const totalHtml = `
+                <div class="total-box">
+                    <div class="total-usd">$${toNum(f.total_usd, 0).toFixed(2)} USD</div>
+                    <div class="total-bs">Bs ${(toNum(f.total_usd, 0) * toNum(f.tasa_cambio)).toFixed(2)}</div>
+                    <div style="font-size:0.8rem; color:#94a3b8; margin-top:4px;">Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}</div>
+                </div>
+            `;
+
+            // Info principal
+            const infoHtml = `
+                <div class="info-grid">
+                    <div class="item"><span class="label">N° Factura</span><span class="value">${escapeHtml(f.numero)}</span></div>
+                    <div class="item"><span class="label">Fecha</span><span class="value">${new Date(f.fecha).toLocaleString()}</span></div>
+                    <div class="item"><span class="label">Cliente</span><span class="value">${escapeHtml(f.cliente_nombre || 'Cliente General')}</span></div>
+                    <div class="item"><span class="label">RIF</span><span class="value">${escapeHtml(f.cliente_rif || 'J-00000000-0')}</span></div>
+                    <div class="item"><span class="label">Cajero</span><span class="value">${escapeHtml(f.cajero || 'N/A')}</span></div>
+                    <div class="item"><span class="label">Método de Pago</span><span class="value">${escapeHtml(f.metodo_pago)}</span></div>
+                    <div class="item"><span class="label">Referencia</span><span class="value">${escapeHtml(f.referencia || 'N/A')}</span></div>
+                    <div class="item"><span class="label">Tasa</span><span class="value">Bs ${toNum(f.tasa_cambio).toFixed(2)}</span></div>
+                </div>
+            `;
+
+            // Ensamblar todo
+            const fullHtml = `
+                ${infoHtml}
+                ${extrasHtml}
+                <h3>📦 Productos</h3>
+                ${productosHtml}
+                ${resumenHtml}
+                ${pagosHtml}
+                ${totalHtml}
+            `;
+
+            document.getElementById('detalle').innerHTML = fullHtml;
+            document.getElementById('actionButtons').style.display = 'flex';
+
+            // PDF
+            document.getElementById('btnPDF').onclick = () => {
+                const element = document.getElementById('facturaContainer');
+                const opt = {
+                    margin: [0.3, 0.3, 0.3, 0.3],
+                    filename: `factura_${id}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, letterRendering: true, useCORS: true },
+                    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+                };
+                html2pdf().set(opt).from(element).save();
+            };
+
+            // Imprimir
+            document.getElementById('btnImprimir').onclick = () => {
+                window.print();
+            };
+
+        } catch (err) {
+            document.getElementById('detalle').innerHTML = `<p style="color:#ef4444; text-align:center;">❌ Error: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    verificarSesion().then(() => cargarDetalle());
+</script>
+</body>
+</html>
