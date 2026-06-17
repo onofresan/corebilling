@@ -43,20 +43,27 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ========== CONEXIÓN A BASE DE DATOS (CORREGIDA) ==========
-@app.route('/api/test-db', methods=['GET'])
-def test_db_connection():
+def get_db_connection():
+    """
+    Establece conexión con MySQL en Aiven usando SSL y timeout.
+    """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        return jsonify({'status': 'Conectado a la base de datos', 'result': result[0]}), 200
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+        conn = mysql.connector.connect(
+            host=os.environ.get('DB_HOST', 'localhost'),
+            port=int(os.environ.get('DB_PORT', 3306)),
+            user=os.environ.get('DB_USER', 'root'),
+            password=os.environ.get('DB_PASSWORD', 'Koko.2590'),
+            database=os.environ.get('DB_NAME', 'facturacion'),
+            use_pure=True,                     # Evita problemas con la extensión C
+            connection_timeout=10,              # Timeout de conexión en segundos
+            ssl_disabled=False,                 # Obliga SSL (Aiven lo requiere)
+            # Si Aiven te da un certificado .pem, descomenta la siguiente línea:
+            # ssl_ca='ca.pem'
+        )
+        return conn
+    except mysql.connector.Error as err:
+        # Lanza una excepción con mensaje claro para el endpoint
+        raise Exception(f"Error de conexión a la base de datos: {err}")
 
 # ========== FUNCIONES AUXILIARES ==========
 def obtener_tasa_bcv():
@@ -131,7 +138,7 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
 
 # ========== RUTAS ==========
 
-# --- Ruta de prueba para diagnosticar conexión a la BD ---
+# --- Ruta de prueba para diagnosticar conexión a la BD (SOLO UNA VEZ) ---
 @app.route('/api/test-db', methods=['GET'])
 def test_db_connection():
     try:
