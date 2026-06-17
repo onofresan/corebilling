@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Detalle de Factura</title>
     <style>
         body {
@@ -240,7 +241,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
 
     function escapeHtml(str) {
         if (!str) return '';
@@ -368,7 +369,7 @@
                     <span>Subtotal sin IVA: $${toNum(f.subtotal_usd, 0).toFixed(2)}</span>
                     <span>IVA Total: $${toNum(f.iva_usd, 0).toFixed(2)}</span>
                     <span>Servicio (${f.porcentaje_servicio || 0}%): $${toNum(f.monto_servicio_usd, 0).toFixed(2)}</span>
-                    <span>Total con IVA + Servicio: <strong>$${toNum(f.total_usd, 0).toFixed(2)}</strong></span>
+                    <span>Total con IVA + Servicio: <strong>$$${toNum(f.total_usd, 0).toFixed(2)}</strong></span>
                 </div>
             `;
 

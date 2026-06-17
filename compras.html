@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Compras</title>
     <style>
         .header-box {
@@ -149,7 +150,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="index.html">📊 Dashboard</a>
+    <a href="dashboard.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -221,7 +222,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let productos = [];
     let proveedores = [];
     let ordenProductos = [];
@@ -242,7 +243,7 @@
             empresaId = data.empresa_id;
             if (data.role !== 'admin') {
                 alert('Acceso denegado. Solo administradores.');
-                window.location.href = 'index.html';
+                window.location.href = 'dashboard.html';
                 return null;
             }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
@@ -361,7 +362,6 @@
 
     window.verDetalle = function(id) {
         alert('📄 Detalle de la orden #' + id + '. Puedes ver los productos en la consola del backend o en la base de datos.');
-        // Podríamos abrir un modal, pero por simplicidad dejamos el alert.
     };
 
     document.getElementById('btnNuevaOrden').onclick = () => {
@@ -370,7 +370,6 @@
         document.getElementById('proveedorId').value = '';
         document.getElementById('totalUsd').innerText = '0.00';
         document.getElementById('modalOrden').style.display = 'flex';
-        // Agregar una fila por defecto
         agregarProducto();
     };
 
@@ -407,7 +406,7 @@
                 alert('✅ Orden registrada y stock actualizado');
                 cerrarModalOrden();
                 cargarOrdenes();
-                cargarProductos(); // refrescar productos para mostrar stock actualizado
+                cargarProductos();
             } else {
                 const err = await res.json();
                 alert('❌ Error: ' + (err.error || 'Error al registrar orden'));

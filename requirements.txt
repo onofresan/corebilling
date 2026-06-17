@@ -7,3 +7,4 @@ Flask-SocketIO==5.3.4
 python-socketio==5.10.0
 stripe==6.0.0
 gunicorn==21.2.0
+requests==2.32.3

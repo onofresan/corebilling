@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>CoreBilling - Iniciar Sesión</title>
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
+    <title>CoreBilling - Iniciar Sesión</title>
     <style>
         /* Estilos exclusivos del login */
         body {
@@ -142,8 +143,9 @@
 </div>
 
 <script>
-    // URL dinámica para funcionar en PC (localhost) y en móvil (IP)
-const API_URL = '/api';
+    // URL de la API (relativa para que funcione en producción)
+    const API_URL = '/api';
+
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const usuario = document.getElementById('usuario').value;
@@ -167,7 +169,7 @@ const API_URL = '/api';
             if (data.role === 'super_admin') {
                 window.location.href = 'super_admin.html';
             } else {
-                window.location.href = 'index.html';
+                window.location.href = 'dashboard.html';
             }
         } catch (err) {
             errorDiv.innerText = err.message;

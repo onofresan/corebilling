@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>POS Térmico - Facturación Profesional</title>
     <style>
         body {
@@ -321,12 +322,12 @@
         for (let p of productos) {
             subtotal += p.cantidad * p.precioUnitario;
         }
-        let iva = subtotal * 0.21; // 21% IVA
+        let iva = subtotal * 0.21;
         let total = subtotal + iva;
         return { subtotal, iva, total };
     }
 
-    // Actualizar lista visual de productos (con botón eliminar)
+    // Actualizar lista visual de productos
     function actualizarListaUI() {
         if (productos.length === 0) {
             listaItemsDiv.innerHTML = "(ningún producto)";
@@ -338,7 +339,7 @@
             html += `
                 <div class="item-producto">
                     <span><strong>${prod.cantidad}x</strong> ${escapeHtml(prod.nombre)}</span>
-                    <span>$${totalLinea} 
+                    <span>$${totalLinea}
                         <span class="eliminar-prod" data-idx="${index}">[✖]</span>
                     </span>
                 </div>
@@ -445,7 +446,7 @@
         actualizarTicket();
     }
 
-    // Procesar factura (simulación)
+    // Procesar factura
     function procesarFactura() {
         if (productos.length === 0) {
             alert("⚠️ No hay productos. Agrega al menos un producto para procesar la factura.");

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Historial de Inventario</title>
     <style>
         .toolbar {
@@ -116,7 +117,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="index.html">📊 Dashboard</a>
+    <a href="dashboard.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -189,7 +190,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let userRole = null;
     let socket = null;
     let empresaId = null;

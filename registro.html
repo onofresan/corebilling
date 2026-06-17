@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Registro de Empresa</title>
     <style>
         body {
@@ -126,7 +127,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
 
     document.getElementById('registroForm').addEventListener('submit', async (e) => {
         e.preventDefault();

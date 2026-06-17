@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <!-- Comentamos manifest.json para evitar error 404 (opcional, descomentar si creas el archivo) -->
-    <!-- <link rel="manifest" href="/manifest.json"> -->
+    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Nueva Factura</title>
     <style>
+        /* Estilos adicionales específicos de facturar */
         .empresa-header {
             background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
             border: none !important;
@@ -263,44 +264,13 @@
             .input-nota { width: 70px; }
         }
     </style>
-    <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <!-- Carga dinámica de Stripe con manejo de errores -->
-    <script>
-        window.stripeLoaded = false;
-        window.stripeInstance = null;
-
-        function loadStripe() {
-            return new Promise((resolve) => {
-                if (typeof Stripe !== 'undefined') {
-                    window.stripeLoaded = true;
-                    resolve(Stripe);
-                    return;
-                }
-                const script = document.createElement('script');
-                script.src = 'https://js.stripe.com/v3/';
-                script.onload = () => {
-                    if (typeof Stripe !== 'undefined') {
-                        window.stripeLoaded = true;
-                        resolve(Stripe);
-                    } else {
-                        console.warn('Stripe no disponible después de cargar el script');
-                        resolve(null);
-                    }
-                };
-                script.onerror = () => {
-                    console.warn('Error al cargar Stripe');
-                    resolve(null);
-                };
-                document.head.appendChild(script);
-            });
-        }
-    </script>
+    <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="index.html">📊 Dashboard</a>
+    <a href="dashboard.html">📊 Dashboard</a>
     <a href="facturar.html" class="active">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -388,9 +358,11 @@
                     <select id="cliente-id"></select>
                     <button class="btn-primary" id="btnNuevoCliente" style="margin-top:6px; width:100%;">+ Nuevo Cliente</button>
                 </div>
-                <div class="input-group">
-                    <label>💱 Tasa (Bs/USD)</label>
-                    <input type="number" step="0.01" id="tasa-cambio">
+                <!-- CAMPO TASA CON BOTÓN ACTUALIZAR -->
+                <div class="input-group" style="display: flex; gap: 10px; align-items: center;">
+                    <label style="flex:1; margin:0;">💱 Tasa (Bs/USD)</label>
+                    <input type="number" step="0.01" id="tasa-cambio" style="flex:2;">
+                    <button class="btn-primary" id="btnActualizarTasa" style="padding: 8px 12px; white-space: nowrap; margin:0;">🔄 Actualizar</button>
                 </div>
                 <div class="input-group">
                     <label>💰 Moneda pago</label>
@@ -486,7 +458,7 @@
 
 <script>
     // ===================== CONFIGURACIÓN =====================
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
 
     // ===================== ESTADO GLOBAL =====================
     let carritoActual = [];
@@ -557,9 +529,52 @@
         if (emp.tasa_cambio) { document.getElementById('tasa-cambio').value = emp.tasa_cambio; tasaActual = emp.tasa_cambio; }
         const logo = document.getElementById('empresa-logo');
         if (emp.logo_url && emp.logo_url !== '') {
-            logo.src = `http://localhost:5000${emp.logo_url}`;
+            logo.src = emp.logo_url;
             logo.style.display = 'block';
         } else { logo.style.display = 'none'; }
+    }
+
+    // NUEVA FUNCIÓN: Actualizar tasa desde BCV
+    async function actualizarTasaBCV() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/tasa-bcv`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.tasa) {
+                document.getElementById('tasa-cambio').value = data.tasa;
+                tasaActual = data.tasa;
+                actualizarServicio();
+                actualizarCashea();
+                mostrarToast('✅ Tasa actualizada: Bs ' + data.tasa.toFixed(2));
+            } else {
+                mostrarToast('⚠️ No se pudo obtener la tasa oficial');
+            }
+        } catch(e) {
+            mostrarToast('❌ Error al actualizar tasa');
+        }
+    }
+
+    // Cargar tasa inicial (desde la empresa)
+    async function cargarTasa() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/tasa`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.tasa) {
+                document.getElementById('tasa-cambio').value = data.tasa;
+                tasaActual = data.tasa;
+                actualizarServicio();
+                actualizarCashea();
+            }
+        } catch(e) {
+            console.warn('Error al cargar tasa:', e);
+        }
     }
 
     async function cargarClientes() {
@@ -702,7 +717,6 @@
             row.insertCell(10).innerHTML = `<button class="btn-remove" onclick="eliminarDelCarrito(${idx})">✖</button>`;
             idx++;
         }
-        // Eventos dinámicos
         document.querySelectorAll('.input-cant').forEach(inp => inp.addEventListener('change', (e) => {
             let i = parseInt(e.target.dataset.idx);
             let val = parseFloat(e.target.value);
@@ -725,7 +739,7 @@
         actualizarTotales();
     }
 
-    // ===================== BORRADORES (facturas guardadas) =====================
+    // ===================== BORRADORES =====================
     function guardarFacturaActual() {
         if (!facturaActualId) facturaActualId = Date.now().toString();
         const clienteSelect = document.getElementById('cliente-id');
@@ -969,7 +983,6 @@
             row.insertCell(5).innerHTML = `<input type="text" class="pago-nota" data-idx="${idx}" value="${escapeHtml(p.nota||'')}" style="width:100%; padding:6px; border-radius:8px; border:1px solid #e2e8f0;">`;
             row.insertCell(6).innerHTML = `<button class="btn-danger" onclick="quitarFilaPago(${idx})" style="padding:4px 10px; border-radius:8px; border:none; background:#ef4444; color:white; cursor:pointer;">✖</button>`;
         });
-        // Eventos
         document.querySelectorAll('.pago-metodo').forEach(sel => sel.addEventListener('change', (e) => {
             let i = e.target.dataset.idx;
             pagosTemp[i].metodo_pago = e.target.value;
@@ -1044,16 +1057,14 @@
     document.getElementById('procesarEImprimirBtn').onclick = () => procesarFactura(true);
     document.getElementById('procesarSinImprimirBtn').onclick = () => procesarFactura(false);
 
-    // ===================== STRIPE (CORREGIDO Y SEGURO) =====================
+    // ===================== STRIPE =====================
     async function initStripe() {
         try {
-            const StripeLib = await loadStripe();
-            if (StripeLib) {
-                // Reemplaza con tu clave pública real para pagos con tarjeta
-                stripe = StripeLib('pk_test_51...');
+            if (typeof Stripe !== 'undefined') {
+                stripe = Stripe('pk_test_51...');
                 console.log('Stripe inicializado correctamente');
             } else {
-                console.warn('Stripe no disponible. La funcionalidad de pagos con tarjeta no estará activa.');
+                console.warn('Stripe no disponible.');
                 stripe = null;
             }
         } catch (e) {
@@ -1101,7 +1112,8 @@
         cargarClientes();
         cargarProductosRecetas();
         cargarEstadoMiCaja();
-        initStripe(); // Ahora no lanza error aunque Stripe falle
+        cargarTasa(); // <-- cargar tasa guardada al iniciar
+        initStripe();
         const saved = localStorage.getItem('facturas_transito');
         if (saved) facturasGuardadas = JSON.parse(saved);
         if (Object.keys(facturasGuardadas).length === 0) nuevaFactura();
@@ -1120,6 +1132,12 @@
         localStorage.removeItem('token');
         window.location.href = 'login.html';
     });
+
+    // Evento del botón actualizar tasa
+    document.getElementById('btnActualizarTasa').addEventListener('click', actualizarTasaBCV);
+
+    // Opcional: Actualizar automáticamente cada 5 minutos (descomentar si se desea)
+    // setInterval(actualizarTasaBCV, 300000);
 </script>
 </body>
 </html>

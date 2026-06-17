@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
+    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Gestión de Recetas</title>
     <style>
         .header-box {
@@ -141,7 +142,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="index.html">📊 Dashboard</a>
+    <a href="dashboard.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -233,7 +234,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let userRole = null;
     let ingredientesDisponibles = [];
     let socket = null;
@@ -254,7 +255,7 @@
             if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
             if (data.role !== 'admin') {
                 alert('Acceso denegado. Solo administradores.');
-                window.location.href = 'index.html';
+                window.location.href = 'dashboard.html';
                 return null;
             }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
