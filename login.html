@@ -143,8 +143,7 @@
 
 <script>
     // URL dinámica para funcionar en PC (localhost) y en móvil (IP)
-    const API_URL = `http://${window.location.hostname}:5000/api`;
-
+const API_URL = '/api';
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const usuario = document.getElementById('usuario').value;
