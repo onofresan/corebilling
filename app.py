@@ -47,10 +47,10 @@ def get_db_connection():
     try:
         conn = mysql.connector.connect(
             host=os.environ.get('DB_HOST', 'corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com'),
-            port=22119,  # Puerto fijo
+            port=22119,
             user=os.environ.get('DB_USER', 'avnadmin'),
             password=os.environ.get('DB_PASSWORD', 'AVNS_MKNpYf2pgrWhwGYFa3a'),
-            database='defaultdb',  # <--- BASE DE DATOS FIJA
+            database='defaultdb',  # <--- FORZADO
             use_pure=True,
             connection_timeout=30,
             ssl_disabled=False,
@@ -58,7 +58,6 @@ def get_db_connection():
         return conn
     except mysql.connector.Error as err:
         raise Exception(f"Error de conexión a la base de datos: {err}")
-
 # ========== FUNCIONES AUXILIARES ==========
 def obtener_tasa_bcv():
     try:
