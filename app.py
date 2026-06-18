@@ -50,7 +50,7 @@ def get_db_connection():
             port=22119,
             user=os.environ.get('DB_USER', 'avnadmin'),
             password=os.environ.get('DB_PASSWORD', 'AVNS_MKNpYf2pgrWhwGYFa3a'),
-            database='defaultdb',  # <--- FORZADO
+            database='defaultdb',  # Forzado
             use_pure=True,
             connection_timeout=30,
             ssl_disabled=False,
