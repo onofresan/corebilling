@@ -45,6 +45,64 @@ def get_db_connection():
 
 # ========== ENDPOINT DE DIAGNÓSTICO ==========
 @app.route('/api/test-db', methods=['GET'])
+@app.route('/api/init-db', methods=['GET'])
+def init_db():
+    """Crea las tablas necesarias si no existen"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Crear tabla empresas
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS empresas (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nombre VARCHAR(100),
+                rif VARCHAR(20),
+                correo VARCHAR(100),
+                telefono VARCHAR(20),
+                direccion TEXT,
+                tasa_cambio DECIMAL(10,2) DEFAULT 544.58,
+                logo_url VARCHAR(255),
+                activa BOOLEAN DEFAULT TRUE,
+                ultimo_reporte_z INT DEFAULT 0
+            )
+        """)
+        
+        # Crear tabla usuarios
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(20) DEFAULT 'cajero',
+                email VARCHAR(100),
+                empresa_id INT,
+                telefono VARCHAR(20),
+                email_verificado BOOLEAN DEFAULT TRUE,
+                telefono_verificado BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Insertar empresa por defecto si no existe
+        cursor.execute("""
+            INSERT IGNORE INTO empresas (id, nombre, rif, correo, telefono, activa) 
+            VALUES (1, 'hatkokoland', 'J-30391009-0', 'onofresanchez1515@gmail.com', '04248553424', 1)
+        """)
+        
+        # Insertar usuario por defecto si no existe
+        cursor.execute("""
+            INSERT IGNORE INTO usuarios (username, password_hash, role, email, empresa_id) 
+            VALUES ('restaurante', '$2b$12$gL6YmB7f1Lw4PqUeYpA4qOZbC0VcG9rHfN3sKjPqR8tLxZmVfWnYq', 'admin', 'restaurante@corebilling.com', 1)
+        """)
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'status': 'Tablas creadas correctamente'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 def test_db():
     try:
         conn = get_db_connection()
