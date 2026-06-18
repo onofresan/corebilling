@@ -42,7 +42,7 @@ CORS(app, origins="*", supports_credentials=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ========== CONEXIÓN A BASE DE DATOS (CORREGIDA) ==========
+# ========== CONEXIÓN A BASE DE DATOS ==========
 def get_db_connection():
     """
     Establece conexión con MySQL en Aiven usando SSL y timeout.
@@ -54,15 +54,13 @@ def get_db_connection():
             user=os.environ.get('DB_USER', 'root'),
             password=os.environ.get('DB_PASSWORD', 'Koko.2590'),
             database=os.environ.get('DB_NAME', 'facturacion'),
-            use_pure=True,                     # Evita problemas con la extensión C
-            connection_timeout=10,              # Timeout de conexión en segundos
-            ssl_disabled=False,                 # Obliga SSL (Aiven lo requiere)
-            # Si Aiven te da un certificado .pem, descomenta la siguiente línea:
-            # ssl_ca='ca.pem'
+            use_pure=True,
+            connection_timeout=10,
+            ssl_disabled=False,
+            # ssl_ca='ca.pem'   # Descomenta si usas certificado
         )
         return conn
     except mysql.connector.Error as err:
-        # Lanza una excepción con mensaje claro para el endpoint
         raise Exception(f"Error de conexión a la base de datos: {err}")
 
 # ========== FUNCIONES AUXILIARES ==========
@@ -136,11 +134,10 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
     conn.close()
     socketio.emit('nueva_alerta', {'tipo': tipo, 'mensaje': mensaje}, room=str(empresa_id))
 
-# ========== RUTAS ==========
-
-# --- Ruta de prueba para diagnosticar conexión a la BD (SOLO UNA VEZ) ---
+# ========== RUTAS DE PRUEBA (SIN DUPLICAR) ==========
 @app.route('/api/test-db', methods=['GET'])
 def test_db_connection():
+    """Endpoint para verificar la conexión a la base de datos."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -152,7 +149,12 @@ def test_db_connection():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- Autenticación ---
+@app.route('/api/ping', methods=['GET'])
+def ping():
+    """Endpoint simple para verificar que la aplicación responde."""
+    return jsonify({'status': 'pong'}), 200
+
+# ========== AUTENTICACIÓN ==========
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -233,7 +235,7 @@ def handle_join(data):
         from flask_socketio import join_room
         join_room(str(empresa_id))
 
-# ========== TASA DE CAMBIO AUTOMÁTICA (BCV) ==========
+# ========== TASA DE CAMBIO ==========
 @app.route('/api/tasa-bcv', methods=['GET'])
 def obtener_tasa_bcv_endpoint():
     tasa = obtener_tasa_bcv()
