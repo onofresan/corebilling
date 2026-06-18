@@ -134,68 +134,77 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
     conn.close()
     socketio.emit('nueva_alerta', {'tipo': tipo, 'mensaje': mensaje}, room=str(empresa_id))
 
-# ========== RUTAS DE PRUEBA (SIN DUPLICAR) ==========
+# ========== RUTAS DE PRUEBA ==========
 @app.route('/api/ping', methods=['GET'])
 def ping():
-    """Endpoint simple para verificar que la aplicación responde."""
     return jsonify({'status': 'pong'}), 200
 
-# ========== AUTENTICACIÓN ==========
+# ========== AUTENTICACIÓN (CON LOGS DE ERROR) ==========
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.json
-    username = data.get('usuario')
-    password = data.get('contrasena')
-
-    if not username or not password:
-        return jsonify({'error': 'Faltan credenciales'}), 400
-
+    import traceback
     try:
-        conn = get_db_connection()
-    except Exception as e:
-        return jsonify({'error': f'Error de conexión a la base de datos: {str(e)}'}), 500
+        data = request.json
+        username = data.get('usuario')
+        password = data.get('contrasena')
 
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT * FROM usuarios WHERE username = %s", (username,))
-        user = cursor.fetchone()
-    except mysql.connector.Error as err:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': f'Error en la consulta: {str(err)}'}), 500
-    finally:
-        cursor.close()
-        conn.close()
+        if not username or not password:
+            return jsonify({'error': 'Faltan credenciales'}), 400
 
-    if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
-        return jsonify({'error': 'Credenciales inválidas'}), 401
-
-    if user['role'] != 'super_admin':
+        # Intentar conectar a la BD
         try:
-            conn2 = get_db_connection()
-            cursor2 = conn2.cursor(dictionary=True)
-            cursor2.execute("SELECT activa FROM empresas WHERE id = %s", (user['empresa_id'],))
-            empresa = cursor2.fetchone()
-            cursor2.close()
-            conn2.close()
-            if not empresa or not empresa.get('activa', True):
-                return jsonify({'error': 'Empresa desactivada'}), 403
+            conn = get_db_connection()
         except Exception as e:
-            return jsonify({'error': f'Error verificando empresa: {str(e)}'}), 500
+            print("ERROR de conexión a BD:", traceback.format_exc())
+            return jsonify({'error': f'Error de conexión a la base de datos: {str(e)}'}), 500
 
-    token = jwt.encode({
-        'user_id': user['id'],
-        'role': user['role'],
-        'username': user['username'],
-        'empresa_id': user.get('empresa_id')
-    }, app.config['SECRET_KEY'], algorithm='HS256')
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("SELECT * FROM usuarios WHERE username = %s", (username,))
+            user = cursor.fetchone()
+        except mysql.connector.Error as err:
+            print("ERROR en consulta SQL:", traceback.format_exc())
+            cursor.close()
+            conn.close()
+            return jsonify({'error': f'Error en la consulta: {str(err)}'}), 500
+        finally:
+            cursor.close()
+            conn.close()
 
-    return jsonify({
-        'token': token,
-        'role': user['role'],
-        'username': user['username'],
-        'empresa_id': user.get('empresa_id')
-    }), 200
+        if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            return jsonify({'error': 'Credenciales inválidas'}), 401
+
+        if user['role'] != 'super_admin':
+            try:
+                conn2 = get_db_connection()
+                cursor2 = conn2.cursor(dictionary=True)
+                cursor2.execute("SELECT activa FROM empresas WHERE id = %s", (user['empresa_id'],))
+                empresa = cursor2.fetchone()
+                cursor2.close()
+                conn2.close()
+                if not empresa or not empresa.get('activa', True):
+                    return jsonify({'error': 'Empresa desactivada'}), 403
+            except Exception as e:
+                print("ERROR verificando empresa:", traceback.format_exc())
+                return jsonify({'error': f'Error verificando empresa: {str(e)}'}), 500
+
+        token = jwt.encode({
+            'user_id': user['id'],
+            'role': user['role'],
+            'username': user['username'],
+            'empresa_id': user.get('empresa_id')
+        }, app.config['SECRET_KEY'], algorithm='HS256')
+
+        return jsonify({
+            'token': token,
+            'role': user['role'],
+            'username': user['username'],
+            'empresa_id': user.get('empresa_id')
+        }), 200
+
+    except Exception as e:
+        print("ERROR GENERAL en /api/login:", traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/check-session', methods=['GET'])
 @token_required
