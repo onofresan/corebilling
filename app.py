@@ -46,11 +46,11 @@ def allowed_file(filename):
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host=os.environ.get('DB_HOST', 'corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com'),
+            host='corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com',
             port=22119,
-            user=os.environ.get('DB_USER', 'avnadmin'),
-            password=os.environ.get('DB_PASSWORD', 'AVNS_MKNpYf2pgrWhwGYFa3a'),
-            database='defaultdb',  # Forzado
+            user='avnadmin',
+            password='AVNS_MKNpYf2pgrWhwGYFa3a',
+            database='defaultdb',  # <--- Fijo
             use_pure=True,
             connection_timeout=30,
             ssl_disabled=False,
