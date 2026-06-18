@@ -1,4 +1,4 @@
-# ===== MONKEY PATCH AL PRINCIPIO (evita advertencias) =====
+# ===== MONKEY PATCH AL PRINCIPIO =====
 from gevent import monkey
 monkey.patch_all()
 
@@ -135,20 +135,6 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
     socketio.emit('nueva_alerta', {'tipo': tipo, 'mensaje': mensaje}, room=str(empresa_id))
 
 # ========== RUTAS DE PRUEBA (SIN DUPLICAR) ==========
-@app.route('/api/test-db', methods=['GET'])
-def test_db_connection():
-    """Endpoint para verificar la conexión a la base de datos."""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        return jsonify({'status': 'Conectado a la base de datos', 'result': result[0]}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/ping', methods=['GET'])
 def ping():
     """Endpoint simple para verificar que la aplicación responde."""
