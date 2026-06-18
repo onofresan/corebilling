@@ -44,22 +44,16 @@ def allowed_file(filename):
 
 # ========== CONEXIÓN A BASE DE DATOS (AJUSTADA) ==========
 def get_db_connection():
-    """
-    Establece conexión con MySQL en Aiven usando SSL y timeout.
-    El puerto por defecto es 22119 (el que usa Aiven).
-    """
     try:
         conn = mysql.connector.connect(
             host=os.environ.get('DB_HOST', 'corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com'),
-            port=int(os.environ.get('DB_PORT', 22119)),  # ¡Puerto correcto!
+            port=22119,  # <--- PUERTO FIJO
             user=os.environ.get('DB_USER', 'avnadmin'),
             password=os.environ.get('DB_PASSWORD', 'AVNS_MKNpYf2pgrWhwGYFa3a'),
-            database=os.environ.get('DB_NAME', 'facturacion'),  # Tu base de datos
-            use_pure=True,                     # Evita problemas con la extensión C
-            connection_timeout=30,              # Aumentado para evitar timeouts
-            ssl_disabled=False,                 # Obliga SSL (Aiven lo requiere)
-            # Si descargas el certificado CA, descomenta la siguiente línea:
-            # ssl_ca='ca.pem'
+            database=os.environ.get('DB_NAME', 'facturacion'),
+            use_pure=True,
+            connection_timeout=30,
+            ssl_disabled=False,
         )
         return conn
     except mysql.connector.Error as err:
