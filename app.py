@@ -42,22 +42,24 @@ CORS(app, origins="*", supports_credentials=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ========== CONEXIÓN A BASE DE DATOS ==========
+# ========== CONEXIÓN A BASE DE DATOS (AJUSTADA) ==========
 def get_db_connection():
     """
     Establece conexión con MySQL en Aiven usando SSL y timeout.
+    El puerto por defecto es 22119 (el que usa Aiven).
     """
     try:
         conn = mysql.connector.connect(
-            host=os.environ.get('DB_HOST', 'localhost'),
-            port=int(os.environ.get('DB_PORT', 3306)),
-            user=os.environ.get('DB_USER', 'root'),
-            password=os.environ.get('DB_PASSWORD', 'Koko.2590'),
-            database=os.environ.get('DB_NAME', 'facturacion'),
-            use_pure=True,
-            connection_timeout=10,
-            ssl_disabled=False,
-            # ssl_ca='ca.pem'   # Descomenta si usas certificado
+            host=os.environ.get('DB_HOST', 'corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com'),
+            port=int(os.environ.get('DB_PORT', 22119)),  # ¡Puerto correcto!
+            user=os.environ.get('DB_USER', 'avnadmin'),
+            password=os.environ.get('DB_PASSWORD', 'AVNS_MKNpYf2pgrWhwGYFa3a'),
+            database=os.environ.get('DB_NAME', 'facturacion'),  # Tu base de datos
+            use_pure=True,                     # Evita problemas con la extensión C
+            connection_timeout=30,              # Aumentado para evitar timeouts
+            ssl_disabled=False,                 # Obliga SSL (Aiven lo requiere)
+            # Si descargas el certificado CA, descomenta la siguiente línea:
+            # ssl_ca='ca.pem'
         )
         return conn
     except mysql.connector.Error as err:
@@ -139,7 +141,20 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
 def ping():
     return jsonify({'status': 'pong'}), 200
 
-# ========== AUTENTICACIÓN (CON LOGS DE ERROR) ==========
+@app.route('/api/test-db', methods=['GET'])
+def test_db():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return jsonify({'status': 'Conectado', 'result': result[0]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ========== AUTENTICACIÓN ==========
 @app.route('/api/login', methods=['POST'])
 def login():
     import traceback
@@ -151,7 +166,6 @@ def login():
         if not username or not password:
             return jsonify({'error': 'Faltan credenciales'}), 400
 
-        # Intentar conectar a la BD
         try:
             conn = get_db_connection()
         except Exception as e:
