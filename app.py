@@ -47,10 +47,10 @@ def get_db_connection():
     try:
         conn = mysql.connector.connect(
             host=os.environ.get('DB_HOST', 'corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com'),
-            port=22119,  # <--- PUERTO FIJO
+            port=22119,  # Puerto fijo
             user=os.environ.get('DB_USER', 'avnadmin'),
             password=os.environ.get('DB_PASSWORD', 'AVNS_MKNpYf2pgrWhwGYFa3a'),
-            database=os.environ.get('DB_NAME', 'facturacion'),
+            database='defaultdb',  # <--- BASE DE DATOS FIJA
             use_pure=True,
             connection_timeout=30,
             ssl_disabled=False,
