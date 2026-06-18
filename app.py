@@ -43,25 +43,21 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ========== CONEXIÓN A BASE DE DATOS (AJUSTADA) ==========
-@app.route('/api/test-db', methods=['GET'])
-def test_db():
+def get_db_connection():
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DATABASE();")
-        db_name = cursor.fetchone()[0]
-        cursor.execute("SHOW TABLES LIKE 'usuarios';")
-        table_exists = cursor.fetchone() is not None
-        cursor.close()
-        conn.close()
-        return jsonify({
-            'status': 'Conectado',
-            'db_name': db_name,
-            'table_usuarios_exists': table_exists,
-            'message': 'Conexión exitosa' if table_exists else 'La tabla usuarios no existe en esta base de datos'
-        }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        conn = mysql.connector.connect(
+            host='corebilling-db-onofresanchez1515-bd0c.j.aivencloud.com',
+            port=22119,
+            user='avnadmin',
+            password='AVNS_MKNpYf2pgrWhwGYFa3a',
+            database='defaultdb',  # <--- Fijo
+            use_pure=True,
+            connection_timeout=30,
+            ssl_disabled=False,
+        )
+        return conn
+    except mysql.connector.Error as err:
+        raise Exception(f"Error de conexión a la base de datos: {err}")
 # ========== FUNCIONES AUXILIARES ==========
 def obtener_tasa_bcv():
     try:
@@ -134,34 +130,27 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
     socketio.emit('nueva_alerta', {'tipo': tipo, 'mensaje': mensaje}, room=str(empresa_id))
 
 # ========== RUTAS DE PRUEBA ==========
-@app.route('/api/ping', methods=['GET'])
-def ping():
-    return jsonify({'status': 'pong'}), 200
 
+# ========== AUTENTICACIÓN ==========
 @app.route('/api/test-db', methods=['GET'])
 def test_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        result = cursor.fetchone()
+        cursor.execute("SELECT DATABASE();")
+        db_name = cursor.fetchone()[0]
+        cursor.execute("SHOW TABLES LIKE 'usuarios';")
+        table_exists = cursor.fetchone() is not None
         cursor.close()
         conn.close()
-        return jsonify({'status': 'Conectado', 'result': result[0]}), 200
+        return jsonify({
+            'status': 'Conectado',
+            'db_name': db_name,
+            'table_usuarios_exists': table_exists,
+            'message': 'Tabla encontrada' if table_exists else 'La tabla usuarios NO existe en esta base de datos'
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-# ========== AUTENTICACIÓN ==========
-@app.route('/api/login', methods=['POST'])
-def login():
-    import traceback
-    try:
-        data = request.json
-        username = data.get('usuario')
-        password = data.get('contrasena')
-
-        if not username or not password:
-            return jsonify({'error': 'Faltan credenciales'}), 400
 
         try:
             conn = get_db_connection()
