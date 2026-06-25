@@ -1,12 +1,9 @@
 Flask==2.3.3
-Flask-CORS==4.0.0
+Flask-CORS==4.0.1
+Flask-SocketIO==5.3.6
 mysql-connector-python==8.2.0
-bcrypt==4.0.1
+bcrypt==4.1.2
 PyJWT==2.8.0
-Flask-SocketIO==5.3.4
-python-socketio==5.10.0
-stripe==6.0.0
+stripe==7.5.0
+python-dotenv==1.0.0
 gunicorn==21.2.0
-requests==2.32.3
-gevent==23.9.1
-gevent-websocket==0.10.1
