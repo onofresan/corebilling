@@ -2255,18 +2255,7 @@ def super_eliminar_cierre(id):
         cursor.close()
         conn.close()
 
-# ========== RUTAS ESTÁTICAS (SERVIDOR DE HTML) ==========
-@app.route('/')
-@app.route('/<path:filename>')
-def serve_frontend(filename='index.html'):
-    if filename.startswith('api/') or filename.startswith('socket.io/'):
-        return jsonify({'error': 'Not found'}), 404
-    try:
-        return send_from_directory('.', filename)
-    except FileNotFoundError:
-        return jsonify({'error': 'Not found'}), 404
-
-# ========== FUNCIÓN PARA CREAR/ACTUALIZAR SUPER ADMIN ==========
+# ========== CREAR SUPER ADMIN SI NO EXISTE (al iniciar) ==========
 def crear_super_admin_si_no_existe():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -2291,9 +2280,21 @@ def crear_super_admin_si_no_existe():
     cursor.close()
     conn.close()
 
+# ========== RUTAS ESTÁTICAS (SERVIDOR DE HTML) ==========
+@app.route('/')
+@app.route('/<path:filename>')
+def serve_frontend(filename='index.html'):
+    if filename.startswith('api/') or filename.startswith('socket.io/'):
+        return jsonify({'error': 'Not found'}), 404
+    try:
+        return send_from_directory('.', filename)
+    except FileNotFoundError:
+        return jsonify({'error': 'Not found'}), 404
+
 # ========== INICIO ==========
 if __name__ == '__main__':
-    # Crear/actualizar super admin automáticamente
     crear_super_admin_si_no_existe()
-    # En producción con Gunicorn, no se ejecuta socketio.run
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+else:
+    # Para producción con Gunicorn
+    crear_super_admin_si_no_existe()
