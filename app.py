@@ -122,12 +122,10 @@ def login():
     password = data.get('contrasena')
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # 🔥 CORRECCIÓN: LIMIT 1 para evitar "Unread result found"
-    cursor.execute("SELECT * FROM usuarios WHERE username = %s LIMIT 1", (username,))
+    cursor.execute("SELECT * FROM usuarios WHERE username = %s", (username,))
     user = cursor.fetchone()
     cursor.close()
     conn.close()
-
     if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
         return jsonify({'error': 'Credenciales inválidas'}), 401
 
@@ -2255,10 +2253,26 @@ def super_eliminar_cierre(id):
         cursor.close()
         conn.close()
 
-# ========== CREAR SUPER ADMIN SI NO EXISTE (al iniciar) ==========
+# ========== CREAR SUPER ADMIN SI NO EXISTE ==========
 def crear_super_admin_si_no_existe():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    
+    # Crear tabla usuarios si no existe
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            telefono VARCHAR(50),
+            role VARCHAR(50) DEFAULT 'cajero',
+            empresa_id INT,
+            INDEX (empresa_id)
+        )
+    """)
+    conn.commit()
+    
     cursor.execute("SELECT id FROM usuarios WHERE username = 'super_admin'")
     existe = cursor.fetchone()
     if not existe:
@@ -2271,7 +2285,6 @@ def crear_super_admin_si_no_existe():
         conn.commit()
         print("✅ Super admin creado con contraseña: koko.080502")
     else:
-        # Actualizar contraseña por si acaso
         password = "koko.080502"
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode()
         cursor.execute("UPDATE usuarios SET password_hash = %s WHERE username = 'super_admin'", (hashed,))
@@ -2280,7 +2293,7 @@ def crear_super_admin_si_no_existe():
     cursor.close()
     conn.close()
 
-# ========== RUTAS ESTÁTICAS (SERVIDOR DE HTML) ==========
+# ========== RUTAS ESTÁTICAS ==========
 @app.route('/')
 @app.route('/<path:filename>')
 def serve_frontend(filename='index.html'):
