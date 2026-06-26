@@ -32,7 +32,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# CORS - permite cualquier origen
 CORS(app, origins="*", supports_credentials=True)
 
 def allowed_file(filename):
@@ -475,7 +474,7 @@ def eliminar_cliente(id):
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== PRODUCTOS ==========
+# ========== PRODUCTOS (CON FECHA DE VENCIMIENTO) ==========
 @app.route('/api/productos', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_productos():
@@ -490,7 +489,8 @@ def obtener_productos():
             COALESCE(p.precio_compra, 0) AS costo,
             COALESCE(p.precio_venta, 0) AS venta,
             COALESCE(p.iva, 16) AS iva,
-            COALESCE(p.existencia, 0) AS stock
+            COALESCE(p.existencia, 0) AS stock,
+            p.fecha_vencimiento
         FROM productos p
         WHERE p.empresa_id = %s
         ORDER BY p.codigo
@@ -500,6 +500,8 @@ def obtener_productos():
         for key in ['costo', 'venta', 'iva', 'stock']:
             if p[key] is not None:
                 p[key] = float(p[key])
+        if p.get('fecha_vencimiento'):
+            p['fecha_vencimiento'] = p['fecha_vencimiento'].strftime('%Y-%m-%d')
     cursor.close()
     conn.close()
     return jsonify(productos), 200
@@ -516,6 +518,7 @@ def agregar_producto():
         costo = float(data.get('costo', 0))
         venta = float(data.get('venta', 0))
         tipo_producto = data.get('tipo_producto', 'normal')
+        fecha_vencimiento = data.get('fecha_vencimiento', None)
         if tipo_producto in ['receta', 'kit_hijo']:
             nuevo_stock = 0
         if nuevo_stock < 0 or costo < 0 or venta < 0:
@@ -528,16 +531,16 @@ def agregar_producto():
             anterior_stock = existe['existencia']
             cursor.execute("""
                 UPDATE productos 
-                SET descripcion=%s, categoria=%s, precio_compra=%s, precio_venta=%s, existencia=%s, iva=%s, unidad_medida=%s, tipo_producto=%s
+                SET descripcion=%s, categoria=%s, precio_compra=%s, precio_venta=%s, existencia=%s, iva=%s, unidad_medida=%s, tipo_producto=%s, fecha_vencimiento=%s
                 WHERE codigo=%s AND empresa_id=%s
-            """, (data['nombre'], data['categoria'], costo, venta, nuevo_stock, iva, data.get('unidad_medida', 'unidad'), tipo_producto, data['codigo'], empresa_id))
+            """, (data['nombre'], data['categoria'], costo, venta, nuevo_stock, iva, data.get('unidad_medida', 'unidad'), tipo_producto, fecha_vencimiento, data['codigo'], empresa_id))
             registrar_historial_inventario(cursor, data['codigo'], data['nombre'], 'modificacion',
                                            anterior_stock, nuevo_stock, f"Actualizado: costo={costo}, venta={venta}, iva={iva}% | Nota: {nota}")
         else:
             cursor.execute("""
-                INSERT INTO productos (codigo, descripcion, categoria, precio_compra, precio_venta, existencia, iva, unidad_medida, tipo_producto, empresa_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (data['codigo'], data['nombre'], data['categoria'], costo, venta, nuevo_stock, iva, data.get('unidad_medida', 'unidad'), tipo_producto, empresa_id))
+                INSERT INTO productos (codigo, descripcion, categoria, precio_compra, precio_venta, existencia, iva, unidad_medida, tipo_producto, empresa_id, fecha_vencimiento)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (data['codigo'], data['nombre'], data['categoria'], costo, venta, nuevo_stock, iva, data.get('unidad_medida', 'unidad'), tipo_producto, empresa_id, fecha_vencimiento))
             registrar_historial_inventario(cursor, data['codigo'], data['nombre'], 'creacion', 0, nuevo_stock, f'Creado | Nota: {nota}')
         conn.commit()
         if nuevo_stock < 5 and tipo_producto not in ['receta', 'kit_hijo']:
@@ -999,7 +1002,6 @@ def cerrar_mi_caja():
         return jsonify({'error': 'No hay caja abierta'}), 400
     caja_id = caja['id']
 
-    # Facturas que NO son Casa ni Crédito (ventas reales)
     cursor.execute("""
         SELECT fc.total_usd, fc.subtotal_usd, fc.iva_usd, fc.monto_servicio_usd
         FROM facturas_cabecera fc
@@ -1021,7 +1023,6 @@ def cerrar_mi_caja():
     base_imponible_bs = base_imponible_usd * tasa
     iva_total_bs = iva_total_usd * tasa
 
-    # Cobros reales (excluyendo administración, Casa y Crédito)
     cursor.execute("""
         SELECT fp.metodo_pago, SUM(fp.monto_usd) as total_usd, SUM(fp.monto_bs) as total_bs
         FROM facturas_pagos fp
@@ -1046,7 +1047,6 @@ def cerrar_mi_caja():
         if m not in pagos_dict:
             pagos_dict[m] = {'usd': 0.0, 'bs': 0.0}
 
-    # Pagos por administración (abonos)
     cursor.execute("""
         SELECT SUM(fp.monto_usd) as total_admin_usd, SUM(fp.monto_bs) as total_admin_bs
         FROM facturas_pagos fp
@@ -1057,7 +1057,6 @@ def cerrar_mi_caja():
     total_admin_usd = float(admin_row['total_admin_usd'] or 0)
     total_admin_bs = float(admin_row['total_admin_bs'] or 0)
 
-    # Gastos internos (Casa)
     cursor.execute("""
         SELECT SUM(fc.subtotal_usd) as total_casa_usd,
                SUM(fc.subtotal_usd * fc.tasa_cambio) as total_casa_bs
@@ -1068,7 +1067,6 @@ def cerrar_mi_caja():
     total_casa_usd = float(casa_row['total_casa_usd'] or 0)
     total_casa_bs = float(casa_row['total_casa_bs'] or 0)
 
-    # Crédito (Fiado)
     cursor.execute("""
         SELECT SUM(fc.subtotal_usd) as total_credito_usd,
                SUM(fc.subtotal_usd * fc.tasa_cambio) as total_credito_bs
@@ -1079,7 +1077,6 @@ def cerrar_mi_caja():
     total_credito_usd = float(credito_row['total_credito_usd'] or 0)
     total_credito_bs = float(credito_row['total_credito_bs'] or 0)
 
-    # Actualizar contador de reporte Z
     cursor.execute("SELECT ultimo_reporte_z FROM empresas WHERE id = %s", (empresa_id,))
     row = cursor.fetchone()
     if row and row['ultimo_reporte_z'] is not None:
@@ -2309,5 +2306,4 @@ if __name__ == '__main__':
     crear_super_admin_si_no_existe()
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 else:
-    # Para producción con Gunicorn
     crear_super_admin_si_no_existe()
