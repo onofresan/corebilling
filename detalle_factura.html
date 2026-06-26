@@ -6,7 +6,6 @@
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Detalle de Factura</title>
     <style>
-        /* ... estilos iguales a los anteriores ... */
         body { background: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         .container { max-width: 900px; width: 100%; background: white; border-radius: 28px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
@@ -62,7 +61,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -94,7 +93,6 @@
             const f = data.factura;
             if (!f) throw new Error('Factura no encontrada');
 
-            // Estado
             const badge = document.getElementById('estadoBadge');
             if (f.estado === 'activa') {
                 badge.innerText = '✅ Activa';
@@ -104,7 +102,6 @@
                 badge.className = 'badge-estado badge-anulada';
             }
 
-            // Extras Cashea
             let extrasHtml = '';
             if (f.metodo_pago === 'Cashea' && f.extras) {
                 try {
@@ -129,7 +126,6 @@
                 } catch(e) {}
             }
 
-            // Productos
             let productosHtml = `
                 <div class="table-wrapper">
                     <table>
@@ -167,7 +163,6 @@
             });
             productosHtml += `</tbody></table></div>`;
 
-            // Resumen IVA
             const resumenHtml = `
                 <div class="resumen-iva">
                     <span>Subtotal sin IVA: $${toNum(f.subtotal_usd, 0).toFixed(2)}</span>
@@ -177,7 +172,6 @@
                 </div>
             `;
 
-            // Pagos
             let pagosHtml = '';
             if (data.pagos && data.pagos.length) {
                 pagosHtml = `
@@ -203,7 +197,6 @@
                 pagosHtml += `</tbody></table></div>`;
             }
 
-            // Totales
             const totalHtml = `
                 <div class="total-box">
                     <div class="total-usd">$${toNum(f.total_usd, 0).toFixed(2)} USD</div>
@@ -212,7 +205,6 @@
                 </div>
             `;
 
-            // Info principal
             const infoHtml = `
                 <div class="info-grid">
                     <div class="item"><span class="label">N° Factura</span><span class="value">${escapeHtml(f.numero)}</span></div>
@@ -239,7 +231,6 @@
             document.getElementById('detalle').innerHTML = fullHtml;
             document.getElementById('actionButtons').style.display = 'flex';
 
-            // PDF con jsPDF (mejorado)
             document.getElementById('btnPDF').onclick = () => generarPDF(f, data);
             document.getElementById('btnImprimir').onclick = () => window.print();
 
@@ -248,19 +239,16 @@
         }
     }
 
-    // ===== GENERAR PDF MODERNO =====
     function generarPDF(f, data) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('p', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
 
-        // Encabezado
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(18);
         doc.setTextColor(40, 40, 80);
         doc.text('DETALLE DE FACTURA', pageWidth/2, 20, { align: 'center' });
 
-        // Información de la factura (izquierda)
         doc.setFontSize(10);
         doc.setTextColor(60);
         const lines = [
@@ -280,7 +268,6 @@
         });
         y += 4;
 
-        // Tabla de productos
         const tableData = data.productos.map(p => [
             p.nombre,
             p.cantidad,
@@ -296,7 +283,6 @@
             columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 20 }, 2: { cellWidth: 35 }, 3: { cellWidth: 35 } },
             margin: { left: 14, right: 14 },
             didDrawPage: function(data) {
-                // Pie de página
                 doc.setFontSize(8);
                 doc.setTextColor(150);
                 doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
@@ -304,7 +290,6 @@
         });
         y = doc.lastAutoTable.finalY + 6;
 
-        // Resumen IVA y totales
         const subtotal = toNum(f.subtotal_usd);
         const iva = toNum(f.iva_usd);
         const servicio = toNum(f.monto_servicio_usd);
@@ -327,7 +312,6 @@
         doc.setTextColor(0);
         doc.text(`Total en Bs: Bs ${totalBs.toFixed(2)}`, 14, y);
 
-        // Pagos (si existen)
         if (data.pagos && data.pagos.length > 0) {
             y += 10;
             doc.setFont('helvetica', 'bold');
@@ -359,7 +343,6 @@
             y = doc.lastAutoTable.finalY + 6;
         }
 
-        // Pie de página fijo
         doc.setFontSize(8);
         doc.setTextColor(150);
         doc.text('Documento generado por CoreBilling', pageWidth/2, 285, { align: 'center' });
