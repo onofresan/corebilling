@@ -3,6 +3,7 @@ import mysql.connector
 from mysql.connector import pooling
 from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
+from flask_compress import Compress
 from datetime import datetime, timedelta
 import json
 import bcrypt
@@ -32,6 +33,9 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Compresión Gzip
+Compress(app)
 
 CORS(app, origins="*", supports_credentials=True)
 
