@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <link rel="manifest" href="/manifest.json">
+    <!-- <link rel="manifest" href="/manifest.json"> -->  <!-- Comentado para evitar error 404 -->
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Compras</title>
     <style>
         .header-box {
@@ -150,7 +149,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -222,7 +221,7 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `http://${window.location.hostname}:5000/api`;
     let productos = [];
     let proveedores = [];
     let ordenProductos = [];
@@ -243,7 +242,7 @@
             empresaId = data.empresa_id;
             if (data.role !== 'admin') {
                 alert('Acceso denegado. Solo administradores.');
-                window.location.href = 'dashboard.html';
+                window.location.href = 'index.html';
                 return null;
             }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
@@ -311,6 +310,27 @@
         });
     }
 
+    // Función para reasignar índices después de eliminar una fila
+    function reasignarIndices() {
+        const rows = document.querySelectorAll('.producto-row');
+        rows.forEach((row, newIdx) => {
+            // Actualizar data-idx en select, cantidad y precio
+            row.querySelector('.prod-codigo').dataset.idx = newIdx;
+            row.querySelector('.prod-cantidad').dataset.idx = newIdx;
+            row.querySelector('.prod-precio').dataset.idx = newIdx;
+        });
+        // También actualizar el array ordenProductos para que coincida con el orden de las filas
+        const nuevos = [];
+        rows.forEach(row => {
+            const codigo = row.querySelector('.prod-codigo').value || '';
+            const cantidad = parseFloat(row.querySelector('.prod-cantidad').value) || 0;
+            const precio = parseFloat(row.querySelector('.prod-precio').value) || 0;
+            nuevos.push({ codigo, cantidad, precio, div: row });
+        });
+        ordenProductos = nuevos;
+        recalcularTotal();
+    }
+
     function agregarProducto() {
         const container = document.getElementById('productosContainer');
         const idx = ordenProductos.length;
@@ -321,9 +341,9 @@
                 <option value="">-- Seleccionar producto --</option>
                 ${productos.map(p => `<option value="${escapeHtml(p.codigo)}" data-precio="${p.costo}">${escapeHtml(p.nombre)} (${escapeHtml(p.codigo)}) - Costo: $${p.costo}</option>`).join('')}
             </select>
-            <input type="number" step="any" class="prod-cantidad" placeholder="Cantidad" value="0">
-            <input type="number" step="0.01" class="prod-precio" placeholder="Precio unitario USD" value="0">
-            <button type="button" class="btn-remove" onclick="this.parentElement.remove(); recalcularTotal();">✖</button>
+            <input type="number" step="any" class="prod-cantidad" data-idx="${idx}" placeholder="Cantidad" value="0">
+            <input type="number" step="0.01" class="prod-precio" data-idx="${idx}" placeholder="Precio unitario USD" value="0">
+            <button type="button" class="btn-remove" onclick="eliminarFila(this)">✖</button>
         `;
         container.appendChild(div);
         ordenProductos.push({ codigo: '', cantidad: 0, precio: 0, div: div });
@@ -344,15 +364,26 @@
         });
         cantidad.addEventListener('input', (e) => {
             const i = parseInt(e.target.dataset.idx);
-            ordenProductos[i].cantidad = parseFloat(e.target.value) || 0;
-            recalcularTotal();
+            if (ordenProductos[i]) {
+                ordenProductos[i].cantidad = parseFloat(e.target.value) || 0;
+                recalcularTotal();
+            }
         });
         precio.addEventListener('input', (e) => {
             const i = parseInt(e.target.dataset.idx);
-            ordenProductos[i].precio = parseFloat(e.target.value) || 0;
-            recalcularTotal();
+            if (ordenProductos[i]) {
+                ordenProductos[i].precio = parseFloat(e.target.value) || 0;
+                recalcularTotal();
+            }
         });
     }
+
+    // Función para eliminar una fila y reasignar índices
+    window.eliminarFila = function(btn) {
+        const row = btn.closest('.producto-row');
+        row.remove();
+        reasignarIndices();  // Reconstruir el array y los índices
+    };
 
     function recalcularTotal() {
         let total = 0;
@@ -370,6 +401,7 @@
         document.getElementById('proveedorId').value = '';
         document.getElementById('totalUsd').innerText = '0.00';
         document.getElementById('modalOrden').style.display = 'flex';
+        // Agregar una fila por defecto
         agregarProducto();
     };
 
@@ -406,7 +438,7 @@
                 alert('✅ Orden registrada y stock actualizado');
                 cerrarModalOrden();
                 cargarOrdenes();
-                cargarProductos();
+                cargarProductos(); // refrescar productos para mostrar stock actualizado
             } else {
                 const err = await res.json();
                 alert('❌ Error: ' + (err.error || 'Error al registrar orden'));
