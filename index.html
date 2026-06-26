@@ -2,60 +2,283 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <link rel="icon" href="/static/favicon.ico">
-    <title>CoreBilling - Redirigiendo</title>
-    <!-- Redirección inmediata a login.html -->
-    <meta http-equiv="refresh" content="0; url=login.html">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Dashboard</title>
     <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #0f172a;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            color: white;
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
-        .loader {
+        .metric-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
             text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
         }
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255,255,255,0.1);
-            border-top-color: #4f46e5;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px;
+        .metric-card .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .metric-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f172a;
         }
-        p {
-            color: #94a3b8;
-            font-size: 0.9rem;
+        .metric-card .label {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 4px;
         }
-        a {
-            color: #4f46e5;
+        .chart-container {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .chart-container h3 {
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #0f172a;
+        }
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .quick-actions a {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #4f46e5;
+            color: white;
+            border-radius: 40px;
             text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
         }
-        a:hover {
-            text-decoration: underline;
+        .quick-actions a:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+        }
+        @media (max-width: 640px) {
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
+            .metric-card .value { font-size: 1.5rem; }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 </head>
 <body>
-    <div class="loader">
-        <div class="spinner"></div>
-        <p>Redirigiendo al inicio de sesión...</p>
-        <p style="font-size: 0.8rem; margin-top: 8px;">
-            Si no eres redirigido automáticamente, <a href="login.html">haz clic aquí</a>.
-        </p>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html" class="active">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+        <h1 style="font-weight:700;">📊 Panel de Control</h1>
+        <span id="fechaActual" style="color:#64748b;"></span>
     </div>
-    <script>
+
+    <div class="dashboard-grid" id="metricas">
+        <div class="metric-card">
+            <div class="icon">💰</div>
+            <div class="value" id="totalVentas">$0.00</div>
+            <div class="label">Ventas hoy</div>
+        </div>
+        <div class="metric-card">
+            <div class="icon">📦</div>
+            <div class="value" id="totalProductos">0</div>
+            <div class="label">Productos</div>
+        </div>
+        <div class="metric-card">
+            <div class="icon">👥</div>
+            <div class="value" id="totalClientes">0</div>
+            <div class="label">Clientes</div>
+        </div>
+        <div class="metric-card">
+            <div class="icon">📈</div>
+            <div class="value" id="gananciaPotencial">$0.00</div>
+            <div class="label">Ganancia potencial</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h3>📊 Ventas Últimos 7 Días (Bs)</h3>
+        <canvas id="ventasChart" style="max-height:250px;"></canvas>
+    </div>
+
+    <div class="quick-actions">
+        <a href="facturar.html">➕ Nueva Factura</a>
+        <a href="inventario.html">📦 Gestionar Inventario</a>
+        <a href="clientes.html">👥 Clientes</a>
+        <a href="reporte.html">📊 Reportes</a>
+    </div>
+</div>
+
+<script>
+    const API_URL = '/api';
+    let socket = null, empresaId = null;
+    let ventasChart = null;
+
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return null;
+        }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Sesión inválida');
+            const data = await res.json();
+            if (!data.logged_in) throw new Error('No autenticado');
+            empresaId = data.empresa_id;
+            if (data.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            }
+            if (data.role === 'super_admin') {
+                window.location.href = 'super_admin.html';
+                return null;
+            }
+            conectarWebSocket();
+            return data;
+        } catch (e) {
+            console.error('Error en verificarSesion:', e);
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+            return null;
+        }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io();
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => {
+            mostrarToast(data.mensaje);
+        });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function cargarDashboard() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        try {
+            const resStats = await fetch(`${API_URL}/sales-stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const stats = await resStats.json();
+
+            const resProd = await fetch(`${API_URL}/productos`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const productos = await resProd.json();
+
+            const resCli = await fetch(`${API_URL}/clientes`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const clientes = await resCli.json();
+
+            const hoy = new Date().toISOString().slice(0,10);
+            const ventasHoy = stats.diarias
+                .filter(d => d.dia === hoy)
+                .reduce((sum, d) => sum + (d.total_bs || 0), 0);
+
+            let gananciaPotencial = 0;
+            productos.forEach(p => {
+                const ganancia = (p.venta || 0) - (p.costo || 0);
+                gananciaPotencial += ganancia * (p.stock || 0);
+            });
+
+            document.getElementById('totalVentas').innerText = `Bs ${ventasHoy.toFixed(2)}`;
+            document.getElementById('totalProductos').innerText = productos.length;
+            document.getElementById('totalClientes').innerText = clientes.length;
+            document.getElementById('gananciaPotencial').innerText = `$${gananciaPotencial.toFixed(2)}`;
+
+            document.getElementById('fechaActual').innerText = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            if (ventasChart) ventasChart.destroy();
+            const labels = stats.diarias.map(d => d.dia);
+            const valores = stats.diarias.map(d => d.total_bs || 0);
+            ventasChart = new Chart(document.getElementById('ventasChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Ventas (Bs)',
+                        data: valores,
+                        backgroundColor: 'rgba(79,70,229,0.6)',
+                        borderColor: '#4f46e5',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+        } catch (e) {
+            console.error('Error cargando dashboard:', e);
+            document.querySelector('.dashboard-grid').innerHTML = `
+                <div style="grid-column:1/-1; text-align:center; color:#ef4444; padding:40px;">
+                    ❌ Error al cargar los datos. Intenta de nuevo.
+                </div>
+            `;
+        }
+    }
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
         window.location.href = 'login.html';
-    </script>
+    });
+
+    verificarSesion().then(() => {
+        cargarDashboard();
+        setInterval(cargarDashboard, 30000);
+    });
+</script>
 </body>
 </html>
