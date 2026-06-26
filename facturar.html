@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Nueva Factura</title>
     <style>
-        /* ... tus estilos (los mismos que ya tienes) ... */
+        /* ... estilos iguales a los anteriores ... */
         .empresa-header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important; border: none !important; }
         .empresa-header h2 { color: white !important; font-weight: 700; }
         .caja-total { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 24px; padding: 24px; color: white; }
@@ -344,7 +344,7 @@
         const logo = document.getElementById('empresa-logo');
         const placeholder = document.getElementById('logo-placeholder');
         if (emp.logo_url && emp.logo_url !== '') {
-            logo.src = emp.logo_url; // ya viene con /static/logos/...
+            logo.src = emp.logo_url; // ya es relativo
             logo.style.display = 'block';
             placeholder.style.display = 'none';
             logo.onerror = function() { this.style.display = 'none'; placeholder.style.display = 'block'; };
@@ -688,7 +688,6 @@
         if (carritoActual.length === 0) return alert('Carrito vacío');
         if (miCajaEstado !== 'abierta') return alert('Debes abrir tu caja');
         
-        // Agregar abonos administración como pagos especiales
         abonosAdmin.forEach(a => {
             pagosTemp.push({
                 metodo_pago: 'Administracion',
@@ -730,7 +729,7 @@
             alert('Factura guardada correctamente');
             cerrarModalPagos();
             if (imprimir) await generarPDFFactura(data.factura_id);
-            nuevaFactura(); // Reinicia carrito y abonos
+            nuevaFactura();
         } catch (err) { alert('Error: ' + err.message); }
     }
 
@@ -773,7 +772,6 @@
         } else {
             pagosTemp = [{ metodo_pago: metodo, moneda: 'USD', monto: totalFacturaActual, referencia: document.getElementById('pago-referencia').value || '', nota: '' }];
         }
-        // Si hay abonos, se agregarán al procesar, no aquí
         const tasa = parseFloat(document.getElementById('tasa-cambio').value) || 1;
         document.getElementById('resumenFactura').innerHTML = `Total a pagar: <strong>$${totalFacturaActual.toFixed(2)} USD</strong> (≈ Bs ${(totalFacturaActual * tasa).toFixed(2)})<br>Tasa: Bs ${tasa.toFixed(2)}`;
         renderizarTablaPagos();
@@ -926,7 +924,6 @@
         cargarProductosRecetas();
         cargarEstadoMiCaja();
         initStripe();
-        // Cargar borradores guardados
         try {
             const saved = localStorage.getItem('facturas_transito');
             if (saved) {
@@ -934,7 +931,6 @@
                 actualizarListaFacturas();
             }
         } catch(e) { localStorage.removeItem('facturas_transito'); facturasGuardadas = {}; actualizarListaFacturas(); }
-        // Siempre empezar con carrito vacío
         nuevaFactura();
     }).catch(err => console.error('Error en inicialización:', err));
 
