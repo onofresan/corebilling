@@ -4,122 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
-    <title>CoreBilling - Panel Super Administrador</title>
+    <title>CoreBilling - Administrar Usuarios</title>
     <style>
-        .header-box {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 20px;
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#f8fafc; font-family:'Segoe UI', sans-serif; display:flex; flex-direction:column; min-height:100vh; }
+        .sidebar { position:fixed; top:0; left:-260px; width:260px; height:100%; background:#0f172a; transition:0.3s; z-index:1000; overflow-y:auto; box-shadow:2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar.open { left:0; }
+        .sidebar h4 { color:#6366f1; text-align:center; padding:24px 0; font-size:1.5rem; }
+        .sidebar a { display:block; color:#94a3b8; padding:12px 20px; text-decoration:none; transition:0.2s; }
+        .sidebar a:hover, .sidebar a.active { background:#1e293b; color:white; }
+        .sidebar .salir { color:#f87171 !important; margin-top:20px; }
+        .main-content { flex:1; padding:16px; transition:0.3s; }
+        .menu-toggle { background:#4f46e5; color:white; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; margin-bottom:15px; display:inline-block; font-size:1rem; }
+        @media (min-width:768px) {
+            .sidebar { left:0; }
+            .main-content { margin-left:260px; }
+            .menu-toggle { display:none; }
         }
-        .table-container {
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-            background: white;
-            margin-top: 12px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        th {
-            background: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-            padding: 12px 10px;
-            border-bottom: 2px solid #e2e8f0;
-            text-align: left;
-        }
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-        tr:hover td {
-            background: #f8fafc;
-        }
-        .badge-estado {
-            display: inline-block;
-            padding: 2px 12px;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        .badge-activa {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        .badge-inactiva {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        .btn-accion {
-            padding: 4px 10px;
-            border-radius: 40px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin: 0 2px;
-            font-size: 0.7rem;
-        }
-        .btn-accion.warning { background: #f59e0b; color: white; }
-        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
-        .btn-accion.success { background: #10b981; color: white; }
-        .btn-accion.success:hover { background: #059669; transform: translateY(-2px); }
-        .btn-accion.primary { background: #4f46e5; color: white; }
-        .btn-accion.primary:hover { background: #4338ca; transform: translateY(-2px); }
-        .btn-accion.danger { background: #ef4444; color: white; }
-        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
-        .modal-content {
-            max-width: 520px;
-        }
-        .modal-content .input-group {
-            margin-bottom: 14px;
-        }
-        .modal-content .input-group label {
-            display: block;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: #334155;
-            margin-bottom: 4px;
-        }
-        .modal-content .input-group input,
-        .modal-content .input-group select {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
-            transition: all 0.2s;
-        }
-        .modal-content .input-group input:focus,
-        .modal-content .input-group select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
-            outline: none;
-        }
-        .flex-btns {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-        hr {
-            border: none;
-            border-top: 2px dashed #e2e8f0;
-            margin: 16px 0;
-        }
-        @media (max-width: 640px) {
-            th, td { font-size: 0.75rem; padding: 6px 4px; }
-            .btn-accion { font-size: 0.65rem; padding: 3px 6px; }
-            .modal-content { padding: 16px; }
+        .card { background:white; border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .btn-primary { background:#4f46e5; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; }
+        .btn-danger { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+        .btn-warning { background:#f59e0b; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+        .form-group { margin-bottom:12px; }
+        .form-group label { display:block; font-weight:600; margin-bottom:4px; }
+        .form-group input, .form-group select { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
+        .table-container { overflow-x:auto; margin-top:20px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:12px; border-bottom:1px solid #e2e8f0; text-align:left; }
+        th { background:#f8fafc; }
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1100; }
+        .modal-content { background:white; max-width:400px; width:90%; padding:20px; border-radius:16px; }
+        .close-modal { float:right; font-size:24px; cursor:pointer; }
+        .flex-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+        @media (max-width:640px) {
+            th, td { padding:8px; font-size:12px; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
@@ -127,87 +45,68 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="super_admin.html" class="active">🏢 Super Admin</a>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="active admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
     <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
 </div>
 <div class="main-content">
     <button class="menu-toggle" id="menuToggle">☰ Menú</button>
-
     <div class="card">
-        <div class="header-box">
-            <h2 style="font-weight:700;">🏢 Panel de Super Administrador</h2>
-            <span style="font-size:0.9rem; color:#64748b;">Gestión global de empresas registradas</span>
-        </div>
-
-        <div class="table-container">
-            <table id="tablaEmpresas">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>RIF</th>
-                        <th>Correo</th>
-                        <th>Teléfono</th>
-                        <th>Admin</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="tbody-empresas">
-                    <tr><td colspan="8" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
-                </tbody>
-            </table>
+        <h2>👥 Gestión de Usuarios</h2>
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:250px;">
+                <h3>Crear nuevo usuario</h3>
+                <form id="formUsuario">
+                    <div class="form-group"><label>Usuario</label><input type="text" id="username" required></div>
+                    <div class="form-group"><label>Contraseña</label><input type="password" id="password" required></div>
+                    <div class="form-group"><label>Correo</label><input type="email" id="email"></div>
+                    <div class="form-group"><label>Rol</label>
+                        <select id="role">
+                            <option value="cajero">Cajero</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">Crear Usuario</button>
+                </form>
+            </div>
+            <div style="flex:2; min-width:300px;">
+                <h3>Lista de usuarios</h3>
+                <div class="table-container">
+                    <table id="tablaUsuarios">
+                        <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th><th>Email</th><th>Acciones</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Modal para editar empresa -->
-<div id="modalEditar" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
-    <div class="modal-content" style="background:white; max-width:520px; width:95%; padding:24px; border-radius:28px;">
-        <span class="close-modal" onclick="cerrarModalEditar()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
-        <h3 style="margin-bottom:16px;">Editar Empresa</h3>
+<!-- Modal para editar usuario -->
+<div id="modalEditar" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModalEditar()">&times;</span>
+        <h3>Editar Usuario</h3>
         <form id="formEditar">
-            <input type="hidden" id="edit-id">
-            <div class="input-group">
-                <label>🏪 Nombre</label>
-                <input type="text" id="edit-nombre" required>
-            </div>
-            <div class="input-group">
-                <label>📄 RIF</label>
-                <input type="text" id="edit-rif" required>
-            </div>
-            <div class="input-group">
-                <label>📧 Correo</label>
-                <input type="email" id="edit-correo" required>
-            </div>
-            <div class="input-group">
-                <label>📞 Teléfono</label>
-                <input type="text" id="edit-telefono">
-            </div>
-            <div class="input-group">
-                <label>📍 Dirección</label>
-                <input type="text" id="edit-direccion">
-            </div>
-            <div class="input-group">
-                <label>💱 Tasa de cambio (Bs/USD)</label>
-                <input type="number" step="0.01" id="edit-tasa" required>
-            </div>
-            <hr>
-            <h4 style="font-weight:600; margin-bottom:12px;">Usuario Administrador</h4>
-            <div class="input-group">
-                <label>👤 Nombre de usuario</label>
-                <input type="text" id="edit-admin-username">
-            </div>
-            <div class="input-group">
-                <label>📧 Email del administrador</label>
-                <input type="email" id="edit-admin-email">
-            </div>
-            <div class="input-group">
-                <label>🔒 Nueva contraseña (dejar vacío para no cambiar)</label>
-                <input type="password" id="edit-admin-password" placeholder="Dejar vacío para no cambiar">
-            </div>
+            <input type="hidden" id="editUserId">
+            <div class="form-group"><label>Nuevo nombre de usuario</label><input type="text" id="editUsername" placeholder="Dejar vacío para no cambiar"></div>
+            <div class="form-group"><label>Nueva contraseña</label><input type="password" id="editPassword" placeholder="Dejar vacío para no cambiar"></div>
+            <div class="form-group"><label>Confirmar contraseña</label><input type="password" id="editConfirmPassword"></div>
             <div class="flex-btns">
-                <button type="submit" class="btn-success">Guardar cambios</button>
+                <button type="submit" class="btn-primary">Guardar cambios</button>
                 <button type="button" class="btn-danger" onclick="cerrarModalEditar()">Cancelar</button>
             </div>
         </form>
@@ -215,204 +114,133 @@
 </div>
 
 <script>
-    const API_URL = '/api';
-    let empresas = [];
+    const API_URL = 'http://localhost:5000/api';
+    let socket = null, empresaId = null;
 
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m; }); }
 
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = 'login.html';
-            return null;
-        }
+        if (!token) { window.location.href = 'login.html'; return null; }
         try {
-            const res = await fetch(`${API_URL}/check-session`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (!res.ok) throw new Error();
             const data = await res.json();
-            if (!data.logged_in || data.role !== 'super_admin') {
-                alert('Acceso denegado. Solo super administrador.');
-                window.location.href = 'login.html';
-                return null;
-            }
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            if (data.role !== 'admin') { alert('Acceso denegado'); window.location.href = 'index.html'; return null; }
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            conectarWebSocket();
             return data;
-        } catch(e) {
-            localStorage.removeItem('token');
-            window.location.href = 'login.html';
-            return null;
-        }
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
     }
 
-    async function cargarEmpresas() {
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        socket = io('http://localhost:5000');
+        socket.emit('join', { empresa_id: empresaId });
+        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+    }
+
+    function mostrarToast(mensaje) {
+        const toast = document.createElement('div');
+        toast.style.position='fixed'; toast.style.bottom='20px'; toast.style.right='20px';
+        toast.style.background='#1e293b'; toast.style.color='white'; toast.style.padding='12px 20px';
+        toast.style.borderRadius='12px'; toast.style.zIndex='1100';
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(()=>toast.remove(),5000);
+    }
+
+    async function cargarUsuarios() {
         const token = localStorage.getItem('token');
-        const tbody = document.getElementById('tbody-empresas');
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
-        try {
-            const res = await fetch(`${API_URL}/super/empresas`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error('No autorizado');
-            empresas = await res.json();
-            if (empresas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#94a3b8;">No hay empresas registradas</td></tr>';
-                return;
-            }
-            tbody.innerHTML = '';
-            empresas.forEach(emp => {
-                const estadoClass = emp.activa ? 'badge-activa' : 'badge-inactiva';
-                const estadoText = emp.activa ? '✅ Activa' : '❌ Inactiva';
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${emp.id}</td>
-                        <td>${escapeHtml(emp.nombre || '')}</td>
-                        <td>${escapeHtml(emp.rif || '')}</td>
-                        <td>${escapeHtml(emp.correo || '')}</td>
-                        <td>${escapeHtml(emp.telefono || '')}</td>
-                        <td>${escapeHtml(emp.admin_username || '')}</td>
-                        <td><span class="badge-estado ${estadoClass}">${estadoText}</span></td>
-                        <td>
-                            <button class="btn-accion warning" onclick="abrirEditar(${emp.id})">✏️ Editar</button>
-                            <button class="btn-accion success" onclick="toggleEstado(${emp.id})">${emp.activa ? '🔒 Desactivar' : '🔓 Activar'}</button>
-                            <button class="btn-accion primary" onclick="resetearEmpresa(${emp.id})">🔄 Reiniciar</button>
-                            <button class="btn-accion danger" onclick="eliminarEmpresa(${emp.id})">🗑️ Eliminar</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        } catch(e) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#ef4444;">❌ Error: ${escapeHtml(e.message)}</td></tr>`;
-        }
+        const res = await fetch(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const usuarios = await res.json();
+        const tbody = document.querySelector('#tablaUsuarios tbody');
+        tbody.innerHTML = '';
+        usuarios.forEach(u => {
+            tbody.innerHTML += `<tr>
+                <td>${u.id}</td>
+                <td>${escapeHtml(u.username)}</td>
+                <td>${escapeHtml(u.role)}</td>
+                <td>${escapeHtml(u.email||'')}</td>
+                <td>
+                    <button class="btn-warning" onclick="abrirModalEditar(${u.id}, '${escapeHtml(u.username)}')">✏️ Editar</button>
+                    <button class="btn-danger" onclick="eliminarUsuario(${u.id})">🗑️ Eliminar</button>
+                </td>
+            </tr>`;
+        });
     }
 
-    async function toggleEstado(id) {
-        if (!confirm('¿Cambiar el estado de activación de esta empresa?')) return;
+    async function eliminarUsuario(id) {
+        if (!confirm('¿Eliminar este usuario?')) return;
         const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/super/empresas/${id}/toggle-status`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                alert('✅ Estado actualizado');
-                cargarEmpresas();
-            } else {
-                alert('❌ Error al cambiar estado');
-            }
-        } catch(e) {
-            alert('❌ Error de conexión: ' + e.message);
-        }
+        const res = await fetch(`${API_URL}/usuarios/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) { alert('Usuario eliminado'); cargarUsuarios(); }
+        else { const err = await res.json(); alert('Error: ' + err.error); }
     }
 
-    function abrirEditar(id) {
-        const empresa = empresas.find(e => e.id === id);
-        if (!empresa) return;
-        document.getElementById('edit-id').value = empresa.id;
-        document.getElementById('edit-nombre').value = empresa.nombre || '';
-        document.getElementById('edit-rif').value = empresa.rif || '';
-        document.getElementById('edit-correo').value = empresa.correo || '';
-        document.getElementById('edit-telefono').value = empresa.telefono || '';
-        document.getElementById('edit-direccion').value = empresa.direccion || '';
-        document.getElementById('edit-tasa').value = empresa.tasa_cambio || 544.58;
-        document.getElementById('edit-admin-username').value = empresa.admin_username || '';
-        document.getElementById('edit-admin-email').value = empresa.admin_email || '';
-        document.getElementById('edit-admin-password').value = '';
+    window.abrirModalEditar = function(id, username) {
+        document.getElementById('editUserId').value = id;
+        document.getElementById('editUsername').value = '';
+        document.getElementById('editPassword').value = '';
+        document.getElementById('editConfirmPassword').value = '';
         document.getElementById('modalEditar').style.display = 'flex';
-    }
+    };
 
-    function cerrarModalEditar() {
-        document.getElementById('modalEditar').style.display = 'none';
-    }
+    function cerrarModalEditar() { document.getElementById('modalEditar').style.display = 'none'; }
+
+    document.getElementById('formUsuario').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            usuario: document.getElementById('username').value,
+            contrasena: document.getElementById('password').value,
+            correo: document.getElementById('email').value,
+            role: document.getElementById('role').value
+        };
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/usuarios`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            alert('Usuario creado');
+            document.getElementById('formUsuario').reset();
+            cargarUsuarios();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + (err.error || 'Error desconocido'));
+        }
+    });
 
     document.getElementById('formEditar').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const id = document.getElementById('edit-id').value;
-        const payload = {
-            nombre: document.getElementById('edit-nombre').value,
-            rif: document.getElementById('edit-rif').value,
-            correo: document.getElementById('edit-correo').value,
-            telefono: document.getElementById('edit-telefono').value,
-            direccion: document.getElementById('edit-direccion').value,
-            tasa_cambio: parseFloat(document.getElementById('edit-tasa').value),
-            admin_username: document.getElementById('edit-admin-username').value,
-            admin_email: document.getElementById('edit-admin-email').value,
-            admin_password: document.getElementById('edit-admin-password').value
-        };
+        const id = document.getElementById('editUserId').value;
+        const username = document.getElementById('editUsername').value.trim();
+        const password = document.getElementById('editPassword').value;
+        const confirm = document.getElementById('editConfirmPassword').value;
+        if (password && password !== confirm) { alert('Las contraseñas no coinciden'); return; }
+        const payload = {};
+        if (username) payload.username = username;
+        if (password) payload.password = password;
+        if (Object.keys(payload).length === 0) { alert('No se ingresaron cambios'); return; }
         const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/super/empresas/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                alert('✅ Empresa actualizada');
-                cerrarModalEditar();
-                cargarEmpresas();
-            } else {
-                const err = await res.json();
-                alert('❌ Error: ' + (err.error || 'No se pudo actualizar'));
-            }
-        } catch(e) {
-            alert('❌ Error de conexión: ' + e.message);
-        }
+        const res = await fetch(`${API_URL}/usuarios/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) { alert('Usuario actualizado'); cerrarModalEditar(); cargarUsuarios(); }
+        else { const err = await res.json(); alert('Error: ' + (err.error || 'No se pudo actualizar')); }
     });
 
-    async function resetearEmpresa(id) {
-        if (!confirm('⚠️ ADVERTENCIA: Se borrarán TODOS los datos de esta empresa (productos, facturas, clientes, historiales). Los usuarios y la empresa se conservarán. ¿Estás seguro?')) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/super/empresas/${id}/reset`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                alert('✅ Empresa reiniciada correctamente');
-                cargarEmpresas();
-            } else {
-                alert('❌ Error al reiniciar');
-            }
-        } catch(e) {
-            alert('❌ Error de conexión: ' + e.message);
-        }
-    }
+    document.getElementById('menuToggle').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
+    document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); localStorage.removeItem('token'); window.location.href='login.html'; });
 
-    async function eliminarEmpresa(id) {
-        if (!confirm('⚠️ ELIMINACIÓN PERMANENTE: Se borrará la empresa y TODOS sus datos (incluyendo usuarios). Esta acción no se puede deshacer. ¿Continuar?')) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/super/empresas/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                alert('✅ Empresa eliminada');
-                cargarEmpresas();
-            } else {
-                alert('❌ Error al eliminar');
-            }
-        } catch(e) {
-            alert('❌ Error de conexión: ' + e.message);
-        }
-    }
-
-    document.getElementById('menuToggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
-    });
-
-    document.getElementById('logoutBtn').addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('token');
-        window.location.href = 'login.html';
-    });
-
-    verificarSesion().then(() => cargarEmpresas());
-    window.toggleEstado = toggleEstado;
-    window.abrirEditar = abrirEditar;
+    verificarSesion().then(() => cargarUsuarios());
     window.cerrarModalEditar = cerrarModalEditar;
-    window.resetearEmpresa = resetearEmpresa;
-    window.eliminarEmpresa = eliminarEmpresa;
 </script>
 </body>
 </html>
