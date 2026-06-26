@@ -184,6 +184,14 @@
             .form-inline .input-group { min-width: 100%; }
             th, td { font-size: 0.75rem; padding: 6px 4px; }
         }
+        .vencido {
+            background-color: #fee2e2 !important;
+            color: #991b1b !important;
+        }
+        .por-vencer {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+        }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 </head>
@@ -299,6 +307,10 @@
                 <label>Stock</label>
                 <input type="number" step="any" id="stock" placeholder="0" required>
             </div>
+            <div class="input-group">
+                <label>📅 Fecha Vencimiento</label>
+                <input type="date" id="fecha_vencimiento">
+            </div>
             <button type="submit" class="btn-success">+ Cargar</button>
             <button type="button" class="btn-danger" onclick="limpiarFormulario()">Cancelar</button>
         </form>
@@ -319,11 +331,12 @@
                     <th>IVA%</th>
                     <th>GANANCIA</th>
                     <th>STOCK</th>
+                    <th>VENCIMIENTO</th>
                     <th>ACCIONES</th>
                 </tr>
             </thead>
             <tbody id="tabla-productos">
-                <tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">Cargando productos...</td></tr>
+                <tr><td colspan="12" style="text-align:center; padding:30px; color:#94a3b8;">Cargando productos...</td></tr>
             </tbody>
         </table>
     </div>
@@ -346,7 +359,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let productos = [];
     let userRole = null;
     let editingCodigo = null;
@@ -382,7 +395,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -403,13 +416,15 @@
         const tbody = document.getElementById('tabla-productos');
         tbody.innerHTML = '';
         if (productos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">No hay productos registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; color:#94a3b8;">No hay productos registrados</td></tr>';
             document.getElementById('total-items').innerText = '0';
             document.getElementById('total-costo').innerText = '$0.00';
             document.getElementById('total-venta').innerText = '$0.00';
             document.getElementById('total-ganancia').innerText = '$0.00';
             return;
         }
+        const hoy = new Date();
+        const tresDias = new Date(hoy.getTime() + 3 * 24 * 60 * 60 * 1000);
         productos.forEach(p => {
             const costo = toNum(p.costo);
             const venta = toNum(p.venta);
@@ -424,13 +439,22 @@
             else if (p.tipo_producto === 'receta') tipoClase = 'badge-receta';
             else if (p.tipo_producto === 'kit_padre') tipoClase = 'badge-kit-padre';
             else if (p.tipo_producto === 'kit_hijo') tipoClase = 'badge-kit-hijo';
-            let stockClass = (stock < 5 && p.tipo_producto !== 'receta') ? 'stock-bajo' : '';
+            let stockClass = '';
+            if (stock < 5 && p.tipo_producto !== 'receta') stockClass = 'stock-bajo';
+            // Vencimiento
+            let vencimientoClase = '';
+            let vencimientoTexto = p.fecha_vencimiento || '—';
+            if (p.fecha_vencimiento) {
+                const fechaVen = new Date(p.fecha_vencimiento + 'T00:00:00');
+                if (fechaVen < hoy) vencimientoClase = 'vencido';
+                else if (fechaVen <= tresDias) vencimientoClase = 'por-vencer';
+            }
             let acciones = (userRole === 'admin') ?
                 `<button class="btn-warning" onclick="editarConNota('${escapeHtml(p.codigo)}')">✏️</button>
                  <button class="btn-danger" onclick="eliminarConNota('${escapeHtml(p.codigo)}')">🗑️</button>` :
                 '<span style="color:#94a3b8; font-size:0.8rem;">🔒</span>';
             tbody.innerHTML += `
-                <tr class="${stockClass}">
+                <tr class="${stockClass} ${vencimientoClase}">
                     <td>${escapeHtml(p.codigo)}</td>
                     <td>${escapeHtml(p.nombre)}</td>
                     <td>${escapeHtml(p.categoria || '')}</td>
@@ -441,6 +465,7 @@
                     <td>${p.iva}%</td>
                     <td>$${ganancia.toFixed(2)}</td>
                     <td>${stock.toFixed(2)}</td>
+                    <td>${escapeHtml(vencimientoTexto)}</td>
                     <td>${acciones}</td>
                 </tr>
             `;
@@ -450,7 +475,6 @@
         document.getElementById('total-ganancia').innerText = `$${totalGanancia.toFixed(2)}`;
         document.getElementById('total-items').innerText = productos.length;
 
-        // Aplicar filtro del buscador (si existe)
         aplicarFiltro();
     }
 
@@ -465,7 +489,6 @@
         });
     }
 
-    // Evento buscador
     document.getElementById('buscarInventario').addEventListener('input', aplicarFiltro);
 
     function mostrarModalNota(titulo, callback) {
@@ -509,6 +532,7 @@
             document.getElementById('venta').value = toNum(p.venta);
             document.getElementById('iva').value = toNum(p.iva, 16);
             document.getElementById('stock').value = toNum(p.stock);
+            document.getElementById('fecha_vencimiento').value = p.fecha_vencimiento || '';
             windowNotaEdicion = nota;
             editingCodigo = codigo;
             alert("Datos cargados. Modifica y presiona 'Cargar'.");
@@ -551,6 +575,7 @@
             venta: venta,
             iva: parseFloat(document.getElementById('iva').value) || 16,
             stock: stock,
+            fecha_vencimiento: document.getElementById('fecha_vencimiento').value || null,
             nota: windowNotaEdicion || 'Modificación sin nota'
         };
         const token = localStorage.getItem('token');
@@ -577,6 +602,7 @@
         document.getElementById('unidad_medida').value = 'unidad';
         document.getElementById('tipo_producto').value = 'normal';
         document.getElementById('iva').value = '16';
+        document.getElementById('fecha_vencimiento').value = '';
         windowNotaEdicion = '';
         editingCodigo = null;
     }
