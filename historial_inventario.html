@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Historial de Inventario</title>
     <style>
         .toolbar {
@@ -21,7 +20,7 @@
             flex-wrap: wrap;
             gap: 8px;
         }
-        .btn-refresh, .btn-csv, .btn-pdf {
+        .btn-refresh, .btn-csv, .btn-pdf, .btn-danger {
             padding: 8px 16px;
             border-radius: 40px;
             border: none;
@@ -46,10 +45,18 @@
             transform: translateY(-2px);
         }
         .btn-pdf {
-            background: #ef4444;
+            background: #dc2626;
             color: white;
         }
         .btn-pdf:hover {
+            background: #b91c1c;
+            transform: translateY(-2px);
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover {
             background: #dc2626;
             transform: translateY(-2px);
         }
@@ -112,12 +119,13 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -144,6 +152,7 @@
                 <button class="btn-refresh" onclick="cargarHistorial()">⟳ Actualizar</button>
                 <button class="btn-csv" onclick="exportarCSV()">📄 Exportar CSV</button>
                 <button class="btn-pdf" id="btnPDFHistorial">📑 Exportar PDF</button>
+                <button class="btn-danger admin-only" id="btnReiniciarHistorial" style="display:none;">🗑️ Reiniciar Historial</button>
             </div>
         </div>
 
@@ -208,7 +217,16 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
-            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            if (data.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                const resEmpresa = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const empresa = await resEmpresa.json();
+                if (empresa.permite_reiniciar_historial) {
+                    document.getElementById('btnReiniciarHistorial').style.display = 'inline-block';
+                } else {
+                    document.getElementById('btnReiniciarHistorial').style.display = 'none';
+                }
+            }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             conectarWebSocket();
             return data;
@@ -217,7 +235,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -248,7 +266,6 @@
 
     async function cargarHistorial() {
         const token = localStorage.getItem('token');
-        // Obtener productos para stock actual
         const prodRes = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
         const productos = await prodRes.json();
         const stockMap = new Map();
@@ -257,7 +274,6 @@
         const movRes = await fetch(`${API_URL}/historial-inventario`, { headers: { 'Authorization': `Bearer ${token}` } });
         const movimientos = await movRes.json();
 
-        // Resumen por producto
         const resumenMap = new Map();
         movimientos.forEach(m => {
             const codigo = m.producto_codigo;
@@ -301,7 +317,6 @@
             }
         }
 
-        // Movimientos detallados
         const tbody = document.getElementById('tabla-historial');
         tbody.innerHTML = '';
         if (movimientos.length === 0) {
@@ -330,30 +345,103 @@
     }
 
     function exportarPDF() {
-        const resumenElem = document.getElementById('resumenContainer').cloneNode(true);
-        const detalleElem = document.getElementById('detalleContainer').cloneNode(true);
-        const wrapper = document.createElement('div');
-        wrapper.style.padding = '20px';
-        wrapper.style.fontFamily = 'monospace';
-        wrapper.innerHTML = `
-            <h2 style="text-align:center;">Historial de Inventario - CoreBilling</h2>
-            <h3>Resumen por Producto</h3>
-            ${resumenElem.innerHTML}
-            <h3>Movimientos Detallados</h3>
-            ${detalleElem.innerHTML}
-            <p style="text-align:center; margin-top:30px; font-size:0.8rem; color:#64748b;">Generado el ${new Date().toLocaleString()}</p>
-        `;
-        const opt = {
-            margin: [0.5, 0.5, 0.5, 0.5],
-            filename: 'historial_inventario.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
-        };
-        html2pdf().set(opt).from(wrapper).save();
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('Debes iniciar sesión');
+            return;
+        }
+
+        const tbody = document.getElementById('tabla-historial');
+        const filas = tbody.querySelectorAll('tr');
+        const datosValidos = [];
+        filas.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length === 8) {
+                const primerTexto = cells[0]?.innerText?.trim() || '';
+                if (primerTexto && !primerTexto.includes('No hay movimientos')) {
+                    datosValidos.push([
+                        cells[0].innerText,
+                        cells[1].innerText,
+                        cells[2].innerText,
+                        cells[3].innerText,
+                        cells[4].innerText,
+                        cells[5].innerText,
+                        cells[6].innerText,
+                        cells[7].innerText
+                    ]);
+                }
+            }
+        });
+
+        if (datosValidos.length === 0) {
+            alert('No hay movimientos para exportar');
+            return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(40, 40, 80);
+        doc.text('HISTORIAL DE INVENTARIO', pageWidth / 2, 15, { align: 'center' });
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 25);
+
+        doc.autoTable({
+            startY: 30,
+            head: [['Fecha', 'Usuario', 'Código', 'Producto', 'Tipo', 'Cant. Ant.', 'Cant. Nueva', 'Nota']],
+            body: datosValidos,
+            theme: 'striped',
+            headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 8 },
+            styles: { fontSize: 7, cellPadding: 2 },
+            columnStyles: {
+                0: { cellWidth: 30 },
+                1: { cellWidth: 25 },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 45 },
+                4: { cellWidth: 25 },
+                5: { cellWidth: 20 },
+                6: { cellWidth: 20 },
+                7: { cellWidth: 40 }
+            },
+            margin: { left: 10, right: 10 },
+            didDrawPage: function(data) {
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text('CoreBilling - Historial de Inventario', pageWidth / 2, 285, { align: 'center' });
+            }
+        });
+
+        doc.save('historial_inventario.pdf');
     }
 
-    document.getElementById('btnPDFHistorial').onclick = exportarPDF;
+    document.getElementById('btnReiniciarHistorial').addEventListener('click', async function() {
+        if (!confirm('⚠️ ¿Estás seguro de que quieres ELIMINAR TODO el historial de inventario? Esta acción no se puede deshacer. Los productos y su stock actual NO se verán afectados.')) return;
+        if (!confirm('Confirmación final: ¿Borrar todos los movimientos del historial?')) return;
+
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/reiniciar-historial-inventario`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert('✅ ' + data.mensaje);
+                cargarHistorial();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('❌ Error de conexión: ' + e.message);
+        }
+    });
+
+    document.getElementById('btnPDFHistorial').addEventListener('click', exportarPDF);
 
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
@@ -367,6 +455,7 @@
     verificarSesion().then(() => cargarHistorial());
     window.cargarHistorial = cargarHistorial;
     window.exportarCSV = exportarCSV;
+    window.exportarPDF = exportarPDF;
 </script>
 </body>
 </html>
