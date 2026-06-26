@@ -161,7 +161,7 @@
 <script>
     const API_URL = '/api';
 
-    // Si ya hay token, redirigir a index (que a su vez verificará y enviará a facturar)
+    // Si ya hay token, redirigir a index
     (function() {
         if (localStorage.getItem('token')) {
             window.location.href = 'index.html';
@@ -206,7 +206,7 @@
             if (data.role === 'super_admin') {
                 window.location.href = 'super_admin.html';
             } else {
-                window.location.href = 'index.html';
+                window.location.href = 'index.html';   // 👈 CORREGIDO: antes era dashboard.html
             }
         } catch (err) {
             mostrarError(err.message);
