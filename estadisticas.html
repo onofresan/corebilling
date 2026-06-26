@@ -2,10 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Estadísticas</title>
     <style>
         .chart-grid {
@@ -97,7 +96,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -164,7 +163,7 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `http://${window.location.hostname}:5000/api`;
     let topChart = null, ventasChart = null, metodosChart = null;
     let socket = null, empresaId = null;
 
@@ -172,25 +171,43 @@
 
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return null; }
+        if (!token) {
+            window.location.href = 'login.html';
+            return null;
+        }
         try {
-            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) throw new Error();
+            const res = await fetch(`${API_URL}/check-session`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Sesión inválida');
             const data = await res.json();
-            if (!data.logged_in) throw new Error();
+            if (!data.logged_in) throw new Error('No autenticado');
             empresaId = data.empresa_id;
-            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
-            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            if (data.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            }
+            if (data.role === 'super_admin') {
+                window.location.href = 'super_admin.html';
+                return null;
+            }
             conectarWebSocket();
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch (e) {
+            console.error('Error en verificarSesion:', e);
+            localStorage.removeItem('token');
+            // Redirige a login SOLO si el token es inválido
+            window.location.href = 'login.html';
+            return null;
+        }
     }
 
     function conectarWebSocket() {
         if (!empresaId) return;
         socket = io('http://localhost:5000');
         socket.emit('join', { empresa_id: empresaId });
-        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+        socket.on('nueva_alerta', (data) => {
+            mostrarToast(data.mensaje);
+        });
     }
 
     function mostrarToast(mensaje) {
@@ -203,12 +220,17 @@
 
     async function cargarGraficos() {
         const token = localStorage.getItem('token');
+        if (!token) return;
         try {
-            const res = await fetch(`${API_URL}/sales-stats`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`${API_URL}/sales-stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Error al obtener estadísticas');
             const data = await res.json();
 
+            // Ventas diarias
             if (ventasChart) ventasChart.destroy();
-            const labelsDiarias = data.diarias.map(d => escapeHtml(d.dia));
+            const labelsDiarias = data.diarias.map(d => d.dia);
             const valoresDiarias = data.diarias.map(d => d.total_bs || 0);
             ventasChart = new Chart(document.getElementById('ventasChart'), {
                 type: 'line',
@@ -227,14 +249,13 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false }
-                    }
+                    plugins: { legend: { display: false } }
                 }
             });
 
+            // Ventas por método de pago
             if (metodosChart) metodosChart.destroy();
-            const labelsMetodos = data.por_metodo.map(m => escapeHtml(m.metodo_pago));
+            const labelsMetodos = data.por_metodo.map(m => m.metodo_pago);
             const valoresMetodos = data.por_metodo.map(m => m.total_usd || 0);
             const colores = ['#10b981', '#f59e0b', '#ef4444', '#6366f1', '#8b5cf6', '#ec4899', '#14b8a6'];
             metodosChart = new Chart(document.getElementById('metodosChart'), {
@@ -249,16 +270,19 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: { position: 'bottom' }
-                    }
+                    plugins: { legend: { position: 'bottom' } }
                 }
             });
 
+            // Top productos
             await cargarTopProductos();
 
-        } catch(e) {
+        } catch (e) {
             console.error('Error cargando gráficos:', e);
+            document.querySelector('.chart-grid').innerHTML =
+                `<div class="card" style="grid-column: 1/-1; color:#ef4444; text-align:center; padding:40px;">
+                    ❌ Error al cargar estadísticas. Intenta de nuevo más tarde.
+                </div>`;
         }
     }
 
@@ -266,12 +290,14 @@
         const periodo = document.getElementById('topPeriodo').value;
         const orden = document.getElementById('topOrden').value;
         const token = localStorage.getItem('token');
+        if (!token) return;
         try {
             const res = await fetch(`${API_URL}/top-productos?periodo=${periodo}&orden=${orden}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (!res.ok) throw new Error('Error al cargar top productos');
             const data = await res.json();
-            const labels = data.map(p => escapeHtml(p.nombre));
+            const labels = data.map(p => p.nombre);
             let valores, labelY;
             if (orden === 'cantidad') {
                 valores = data.map(p => p.total_cantidad || 0);
@@ -297,15 +323,11 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
                 }
             });
-        } catch(e) {
+        } catch (e) {
             console.error('Error cargando top productos:', e);
         }
     }
@@ -315,13 +337,26 @@
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
     });
+
     document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
         localStorage.removeItem('token');
         window.location.href = 'login.html';
     });
 
-    verificarSesion().then(() => cargarGraficos());
+    // Inicialización
+    verificarSesion()
+        .then(() => {
+            cargarGraficos();
+        })
+        .catch(err => {
+            console.error('Fallo en la inicialización:', err);
+            // Mostrar mensaje de error sin redirigir
+            document.querySelector('.chart-grid').innerHTML =
+                `<div class="card" style="grid-column: 1/-1; color:#ef4444; text-align:center; padding:40px;">
+                    ❌ Error de autenticación. Por favor, inicia sesión nuevamente.
+                </div>`;
+        });
 </script>
 </body>
 </html>
