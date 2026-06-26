@@ -289,6 +289,7 @@
     let empresaId = null;
     let stripe = null;
     let abonosAdmin = [];
+    let abriendoCaja = false;   // 👈 CONTROL PARA EVITAR LLAMADAS REPETITIVAS
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -296,10 +297,7 @@
     // ===== AUTENTICACIÓN =====
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = 'login.html';
-            return null;
-        }
+        if (!token) { window.location.href = 'login.html'; return null; }
         try {
             const res = await fetch(`${API_URL}/check-session`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -354,7 +352,7 @@
         const logo = document.getElementById('empresa-logo');
         const placeholder = document.getElementById('logo-placeholder');
         if (emp.logo_url && emp.logo_url !== '') {
-            logo.src = emp.logo_url; // ya es relativa
+            logo.src = emp.logo_url;
             logo.style.display = 'block';
             placeholder.style.display = 'none';
             logo.onerror = function() { this.style.display = 'none'; placeholder.style.display = 'block'; };
@@ -397,36 +395,74 @@
         });
     }
 
-    // ===== CAJA =====
+    // ===== CAJA (CON CONTROL DE LLAMADAS REPETITIVAS) =====
     async function cargarEstadoMiCaja() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        miCajaEstado = data.estado;
-        const span = document.getElementById('estadoCajaUsuario');
-        const btnAbrir = document.getElementById('btnAbrirCaja');
-        const btnCerrar = document.getElementById('btnCerrarCaja');
-        if (data.estado === 'abierta') {
-            span.innerText = '🔓 ABIERTA'; span.className = 'estado-caja estado-abierta';
-            btnAbrir.style.display = 'none'; btnCerrar.style.display = 'inline-block';
-        } else {
-            span.innerText = '🔒 CERRADA'; span.className = 'estado-caja estado-cerrada';
-            btnAbrir.style.display = 'inline-block'; btnCerrar.style.display = 'none';
+        try {
+            const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error('Error al obtener estado de caja');
+            const data = await res.json();
+            miCajaEstado = data.estado;
+            const span = document.getElementById('estadoCajaUsuario');
+            const btnAbrir = document.getElementById('btnAbrirCaja');
+            const btnCerrar = document.getElementById('btnCerrarCaja');
+            if (data.estado === 'abierta') {
+                span.innerText = '🔓 ABIERTA'; span.className = 'estado-caja estado-abierta';
+                btnAbrir.style.display = 'none'; btnCerrar.style.display = 'inline-block';
+            } else {
+                span.innerText = '🔒 CERRADA'; span.className = 'estado-caja estado-cerrada';
+                btnAbrir.style.display = 'inline-block'; btnCerrar.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('Error al cargar estado de caja:', e);
         }
     }
+
     document.getElementById('btnAbrirCaja').onclick = async () => {
+        if (abriendoCaja) return; // 👈 EVITA LLAMADAS REPETITIVAS
+        abriendoCaja = true;
+        if (!confirm('¿Abrir tu caja?')) { abriendoCaja = false; return; }
         const token = localStorage.getItem('token');
-        await fetch(`${API_URL}/abrir-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-        cargarEstadoMiCaja();
-    };
-    document.getElementById('btnCerrarCaja').onclick = async () => {
-        if (!confirm('¿Cerrar caja?')) return;
-        const token = localStorage.getItem('token');
-        await fetch(`${API_URL}/cerrar-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-        cargarEstadoMiCaja();
+        try {
+            const res = await fetch(`${API_URL}/abrir-caja`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                mostrarToast('Caja abierta correctamente');
+                await cargarEstadoMiCaja();
+            } else {
+                alert('Error: ' + (data.error || 'No se pudo abrir la caja'));
+            }
+        } catch (e) {
+            alert('Error de conexión: ' + e.message);
+        } finally {
+            abriendoCaja = false;
+        }
     };
 
-    // ===== CARRITO Y CÁLCULOS =====
+    document.getElementById('btnCerrarCaja').onclick = async () => {
+        if (!confirm('¿Cerrar caja? Se generará reporte Z.')) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/cerrar-caja`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(`✅ Caja cerrada. Total: $${toNum(data.reporte?.total_cobrado_usd).toFixed(2)}`);
+                await cargarEstadoMiCaja();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión: ' + e.message);
+        }
+    };
+
+    // ===== CARRITO Y CÁLCULOS (sin cambios) =====
     function actualizarTotales() {
         let subtotalSinIVA = 0, totalIVA = 0, totalConIVA = 0;
         carritoActual.forEach(item => {
@@ -523,7 +559,7 @@
         actualizarTotales();
     }
 
-    // ===== BORRADORES =====
+    // ===== BORRADORES (sin cambios) =====
     function guardarFacturaActual() {
         if (!facturaActualId) facturaActualId = Date.now().toString();
         const clienteSelect = document.getElementById('cliente-id');
@@ -698,7 +734,6 @@
         if (carritoActual.length === 0) return alert('Carrito vacío');
         if (miCajaEstado !== 'abierta') return alert('Debes abrir tu caja');
         
-        // Agregar abonos administración como pagos especiales
         abonosAdmin.forEach(a => {
             pagosTemp.push({
                 metodo_pago: 'Administracion',
@@ -736,12 +771,14 @@
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
+            if (!res.ok) throw new Error(data.error || 'Error al guardar factura');
             alert('Factura guardada correctamente');
             cerrarModalPagos();
             if (imprimir) await generarPDFFactura(data.factura_id);
             nuevaFactura();
-        } catch (err) { alert('Error: ' + err.message); }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
     }
 
     async function generarPDFFactura(facturaId) {
