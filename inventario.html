@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Inventario</title>
     <style>
         .metrics {
@@ -167,6 +166,20 @@
             justify-content: flex-end;
             margin-top: 16px;
         }
+        #buscarInventario {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 1rem;
+            transition: all 0.2s;
+            margin-bottom: 16px;
+        }
+        #buscarInventario:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 4px rgba(79,70,229,0.1);
+            outline: none;
+        }
         @media (max-width: 640px) {
             .form-inline .input-group { min-width: 100%; }
             th, td { font-size: 0.75rem; padding: 6px 4px; }
@@ -177,7 +190,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html" class="active">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -220,6 +233,9 @@
             <div class="label">Ítems en catálogo</div>
         </div>
     </div>
+
+    <!-- Buscador -->
+    <input type="text" id="buscarInventario" placeholder="🔍 Buscar por código, nombre, categoría...">
 
     <!-- Formulario de producto -->
     <div class="card" id="formCard">
@@ -330,7 +346,7 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `http://${window.location.hostname}:5000/api`;
     let productos = [];
     let userRole = null;
     let editingCodigo = null;
@@ -433,7 +449,24 @@
         document.getElementById('total-venta').innerText = `$${totalVenta.toFixed(2)}`;
         document.getElementById('total-ganancia').innerText = `$${totalGanancia.toFixed(2)}`;
         document.getElementById('total-items').innerText = productos.length;
+
+        // Aplicar filtro del buscador (si existe)
+        aplicarFiltro();
     }
+
+    function aplicarFiltro() {
+        const filtro = document.getElementById('buscarInventario').value.toLowerCase();
+        const filas = document.querySelectorAll('#tabla-productos tr');
+        filas.forEach(fila => {
+            if (fila.cells.length > 0) {
+                const texto = fila.innerText.toLowerCase();
+                fila.style.display = texto.includes(filtro) ? '' : 'none';
+            }
+        });
+    }
+
+    // Evento buscador
+    document.getElementById('buscarInventario').addEventListener('input', aplicarFiltro);
 
     function mostrarModalNota(titulo, callback) {
         document.getElementById('modalNotaTitle').innerText = titulo;
@@ -458,7 +491,9 @@
         cancelar.onclick = nuevaCancelacion;
     }
 
-    function cerrarModalNota() { document.getElementById('modalNota').style.display = 'none'; }
+    function cerrarModalNota() {
+        document.getElementById('modalNota').style.display = 'none';
+    }
 
     window.editarConNota = function(codigo) {
         const p = productos.find(x => x.codigo === codigo);
