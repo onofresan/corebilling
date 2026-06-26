@@ -272,6 +272,23 @@
 <script>
     const API_URL = '/api';
 
+    // ===== CACHÉ EN LOCALSTORAGE =====
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+    function getCache(key) {
+        const data = localStorage.getItem(key);
+        const time = localStorage.getItem(key + '_time');
+        if (data && time && (Date.now() - parseInt(time)) < CACHE_DURATION) {
+            return JSON.parse(data);
+        }
+        return null;
+    }
+
+    function setCache(key, data) {
+        localStorage.setItem(key, JSON.stringify(data));
+        localStorage.setItem(key + '_time', String(Date.now()));
+    }
+
     // ===== ESTADO GLOBAL =====
     let carritoActual = [];
     let facturasGuardadas = {};
@@ -289,7 +306,7 @@
     let empresaId = null;
     let stripe = null;
     let abonosAdmin = [];
-    let abriendoCaja = false;   // 👈 CONTROL PARA EVITAR LLAMADAS REPETITIVAS
+    let abriendoCaja = false;
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -336,7 +353,7 @@
         setTimeout(() => toast.remove(), 5000);
     }
 
-    // ===== CARGA DE DATOS =====
+    // ===== CARGA DE DATOS CON CACHÉ Y PARALELO =====
     async function cargarEmpresa() {
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -360,23 +377,50 @@
             logo.style.display = 'none';
             placeholder.style.display = 'block';
         }
+        return emp;
     }
 
-    async function cargarClientes() {
+    async function cargarClientesConCache() {
+        let clientes = getCache('clientes');
+        if (clientes) {
+            llenarSelectClientes(clientes);
+            return;
+        }
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const clientes = await res.json();
+        clientes = await res.json();
+        setCache('clientes', clientes);
+        llenarSelectClientes(clientes);
+    }
+
+    function llenarSelectClientes(clientes) {
         const select = document.getElementById('cliente-id');
         select.innerHTML = '<option value="">-- Cliente General --</option>';
         clientes.forEach(c => { select.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)} (${escapeHtml(c.rif)})</option>`; });
     }
 
-    async function cargarProductosRecetas() {
+    async function cargarProductosRecetasConCache() {
+        let cachedProductos = getCache('productos');
+        let cachedRecetas = getCache('recetas');
+        if (cachedProductos && cachedRecetas) {
+            listaProductos = cachedProductos;
+            listaRecetas = cachedRecetas;
+            llenarDatalist();
+            return;
+        }
         const token = localStorage.getItem('token');
-        const resP = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const [resP, resR] = await Promise.all([
+            fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${API_URL}/recetas`, { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
         listaProductos = await resP.json();
-        const resR = await fetch(`${API_URL}/recetas`, { headers: { 'Authorization': `Bearer ${token}` } });
         listaRecetas = await resR.json();
+        setCache('productos', listaProductos);
+        setCache('recetas', listaRecetas);
+        llenarDatalist();
+    }
+
+    function llenarDatalist() {
         const datalist = document.getElementById('productos-list');
         datalist.innerHTML = '';
         listaProductos.forEach(p => {
@@ -395,7 +439,7 @@
         });
     }
 
-    // ===== CAJA (CON CONTROL DE LLAMADAS REPETITIVAS) =====
+    // ===== CAJA =====
     async function cargarEstadoMiCaja() {
         const token = localStorage.getItem('token');
         try {
@@ -419,7 +463,7 @@
     }
 
     document.getElementById('btnAbrirCaja').onclick = async () => {
-        if (abriendoCaja) return; // 👈 EVITA LLAMADAS REPETITIVAS
+        if (abriendoCaja) return;
         abriendoCaja = true;
         if (!confirm('¿Abrir tu caja?')) { abriendoCaja = false; return; }
         const token = localStorage.getItem('token');
@@ -559,7 +603,7 @@
         actualizarTotales();
     }
 
-    // ===== BORRADORES (sin cambios) =====
+    // ===== BORRADORES =====
     function guardarFacturaActual() {
         if (!facturaActualId) facturaActualId = Date.now().toString();
         const clienteSelect = document.getElementById('cliente-id');
@@ -684,7 +728,6 @@
     document.getElementById('cashea-inicial').addEventListener('input', actualizarCashea);
     document.getElementById('cashea-cuotas').addEventListener('input', actualizarCashea);
 
-    // Botones Cashea
     const btnContainer = document.getElementById('botones-cashea');
     [25, 30, 35, 40, 45, 50, 60].forEach(pct => {
         let btn = document.createElement('button');
@@ -961,26 +1004,32 @@
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
         });
-        if (res.ok) { alert('Cliente creado'); cerrarModalCliente(); cargarClientes(); }
+        if (res.ok) { alert('Cliente creado'); cerrarModalCliente(); cargarClientesConCache(); }
         else alert('Error al crear cliente');
     });
 
-    // ===== INICIALIZACIÓN =====
-    verificarSesion().then(() => {
-        cargarEmpresa();
-        cargarClientes();
-        cargarProductosRecetas();
-        cargarEstadoMiCaja();
-        initStripe();
+    // ===== INICIALIZACIÓN CON CARGA PARALELA =====
+    verificarSesion().then(async () => {
         try {
-            const saved = localStorage.getItem('facturas_transito');
-            if (saved) {
-                facturasGuardadas = JSON.parse(saved);
-                actualizarListaFacturas();
-            }
-        } catch(e) { localStorage.removeItem('facturas_transito'); facturasGuardadas = {}; actualizarListaFacturas(); }
-        nuevaFactura();
-    }).catch(err => console.error('Error en inicialización:', err));
+            await Promise.all([
+                cargarEmpresa(),
+                cargarClientesConCache(),
+                cargarProductosRecetasConCache()
+            ]);
+            await cargarEstadoMiCaja();
+            await initStripe();
+            try {
+                const saved = localStorage.getItem('facturas_transito');
+                if (saved) {
+                    facturasGuardadas = JSON.parse(saved);
+                    actualizarListaFacturas();
+                }
+            } catch(e) { localStorage.removeItem('facturas_transito'); facturasGuardadas = {}; actualizarListaFacturas(); }
+            nuevaFactura();
+        } catch (e) {
+            console.error('Error en inicialización:', e);
+        }
+    }).catch(err => console.error('Error en verificarSesion:', err));
 
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
