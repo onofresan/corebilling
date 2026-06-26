@@ -3,176 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Historial de Cierres Z</title>
     <style>
-        .filtro {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: flex-end;
-            margin-bottom: 20px;
-            padding: 16px;
-            background: #f8fafc;
-            border-radius: 16px;
+        * { box-sizing: border-box; }
+        body { background: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        .sidebar { position: fixed; top: 0; left: -260px; width: 260px; height: 100%; background: #0f172a; transition: 0.3s; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar.open { left: 0; }
+        .sidebar h4 { color: #6366f1; text-align: center; padding: 24px 0; font-size: 1.5rem; border-bottom: 1px solid #1e293b; margin-bottom: 20px; }
+        .sidebar a { display: block; color: #94a3b8; padding: 12px 20px; text-decoration: none; transition: 0.2s; border-radius: 12px; margin: 4px 10px; }
+        .sidebar a:hover, .sidebar a.active { background: #1e293b; color: white; }
+        .sidebar .salir { color: #f87171 !important; margin-top: 20px; border-top: 1px solid #1e293b; padding-top: 20px; }
+        .main-content { flex: 1; padding: 16px; transition: 0.3s; margin-left: 0; }
+        .menu-toggle { background: #4f46e5; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; margin-bottom: 15px; display: inline-block; font-size: 1rem; }
+        @media (min-width: 768px) {
+            .sidebar { left: 0; }
+            .main-content { margin-left: 260px; }
+            .menu-toggle { display: none; }
         }
-        .filtro .input-group {
-            flex: 1;
-            min-width: 150px;
-        }
-        .filtro .input-group label {
-            display: block;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #475569;
-            margin-bottom: 4px;
-        }
-        .filtro select, .filtro button {
-            width: 100%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            border: 1.5px solid #e2e8f0;
-            background: white;
-            font-size: 0.9rem;
-            transition: all 0.2s;
-        }
-        .filtro select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
-            outline: none;
-        }
-        .filtro button {
-            background: #4f46e5;
-            color: white;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .filtro button:hover {
-            background: #4338ca;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(79,70,229,0.3);
-        }
-        .table-container {
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-            background: white;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        th {
-            background: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-            padding: 12px 10px;
-            border-bottom: 2px solid #e2e8f0;
-            text-align: left;
-        }
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-        tr:hover td {
-            background: #f8fafc;
-        }
-        .btn-ver {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 40px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-ver:hover {
-            background: #2563eb;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
-        }
-        .btn-pdf, .btn-imprimir {
-            padding: 6px 14px;
-            border-radius: 40px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin: 0 4px;
-        }
-        .btn-pdf {
-            background: #10b981;
-            color: white;
-        }
-        .btn-pdf:hover {
-            background: #059669;
-            transform: translateY(-2px);
-        }
-        .btn-imprimir {
-            background: #f59e0b;
-            color: white;
-        }
-        .btn-imprimir:hover {
-            background: #d97706;
-            transform: translateY(-2px);
-        }
-        .modal-content {
-            max-width: 680px;
-        }
-        .detalle-fiscal {
-            font-family: 'Courier New', monospace;
-            font-size: 0.85rem;
-            padding: 16px;
-            background: white;
-            border-radius: 12px;
-        }
-        .detalle-fiscal .fila {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-            padding: 3px 0;
-            flex-wrap: wrap;
-        }
-        .detalle-fiscal .linea {
-            border-top: 1px dashed #000;
-            margin: 8px 0;
-        }
-        .detalle-fiscal .doble-linea {
-            border-top: 2px solid #000;
-            margin: 8px 0;
-        }
-        .detalle-fiscal h3, .detalle-fiscal h4 {
-            text-align: center;
-            margin: 8px 0;
-        }
-        .detalle-fiscal .fila span:last-child {
-            font-weight: 600;
-        }
-        @media print {
-            .sidebar, .menu-toggle, .filtro, .btn-ver, .btn-pdf, .btn-imprimir, .close-modal { display: none; }
-            .modal-content { box-shadow: none; padding: 0; }
-            .detalle-fiscal { font-size: 0.75rem; }
-        }
+        .card { background: white; border-radius: 20px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .filtro { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 16px; }
+        .filtro .input-group { flex: 1; min-width: 150px; }
+        .filtro .input-group label { display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+        .filtro select, .filtro button { width: 100%; padding: 10px 14px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: white; font-size: 0.9rem; transition: all 0.2s; }
+        .filtro select:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); outline: none; }
+        .filtro button { background: #4f46e5; color: white; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .filtro button:hover { background: #4338ca; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+        .table-container { border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: #f8fafc; color: #475569; font-weight: 600; padding: 12px 10px; border-bottom: 2px solid #e2e8f0; text-align: left; }
+        td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover td { background: #f8fafc; }
+        .btn-ver { background: #3b82f6; color: white; border: none; padding: 6px 14px; border-radius: 40px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-ver:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+        .btn-pdf, .btn-imprimir { padding: 6px 14px; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; margin: 0 4px; }
+        .btn-pdf { background: #10b981; color: white; }
+        .btn-pdf:hover { background: #059669; transform: translateY(-2px); }
+        .btn-imprimir { background: #f59e0b; color: white; }
+        .btn-imprimir:hover { background: #d97706; transform: translateY(-2px); }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 2000; }
+        .modal-content { background: white; max-width: 680px; width: 95%; padding: 24px; border-radius: 28px; max-height: 80vh; overflow-y: auto; }
+        .close-modal { float: right; font-size: 28px; cursor: pointer; color: #94a3b8; transition: 0.2s; }
+        .close-modal:hover { color: #ef4444; }
+        .detalle-fiscal { font-family: 'Courier New', monospace; font-size: 0.85rem; padding: 16px; background: white; border-radius: 12px; }
+        .detalle-fiscal .fila { display: flex; justify-content: space-between; margin: 5px 0; padding: 3px 0; flex-wrap: wrap; }
+        .detalle-fiscal .linea { border-top: 1px dashed #000; margin: 8px 0; }
+        .detalle-fiscal .doble-linea { border-top: 2px solid #000; margin: 8px 0; }
+        .detalle-fiscal h3, .detalle-fiscal h4 { text-align: center; margin: 8px 0; }
+        .detalle-fiscal .fila span:last-child { font-weight: 600; }
+        .observacion { background: #fef3c7; padding: 8px 12px; border-radius: 8px; margin-top: 10px; font-size: 0.8rem; color: #92400e; }
+        .observacion span { font-weight: 600; }
+        .alert-toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: white; padding: 12px 20px; border-radius: 12px; z-index: 1100; box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: fadein 0.3s; }
+        @keyframes fadein { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @media (max-width: 640px) {
-            .filtro .input-group { min-width: 100%; }
             th, td { font-size: 0.75rem; padding: 6px 4px; }
-            .detalle-fiscal { font-size: 0.7rem; padding: 10px; }
+            .filtro .input-group { min-width: 100%; }
+            .modal-content { padding: 16px; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -227,10 +124,9 @@
     </div>
 </div>
 
-<!-- Modal para detalle fiscal -->
-<div id="modalDetalle" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
-    <div class="modal-content" style="background:white; max-width:680px; width:95%; padding:24px; border-radius:28px; max-height:80vh; overflow-y:auto;">
-        <span class="close-modal" onclick="cerrarModal()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+<div id="modalDetalle" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModal()">&times;</span>
         <div id="detalle-contenido"></div>
         <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <button class="btn-pdf" id="btnPDFDetalle">📄 Descargar PDF</button>
@@ -242,40 +138,73 @@
 <script>
     const API_URL = '/api';
     let userRole = null;
-    let currentDetalleHtml = null;
     let currentDetalleData = null;
     let socket = null;
     let empresaId = null;
+    let empresaLogo = null;
 
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
-    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[m] || m);
+    }
+
+    function toNum(v, d = 0) {
+        let n = parseFloat(v);
+        return isNaN(n) ? d : n;
+    }
 
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return null; }
+        if (!token) {
+            window.location.href = 'login.html';
+            return null;
+        }
         try {
-            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`${API_URL}/check-session`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (!res.ok) throw new Error();
             const data = await res.json();
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
                 document.getElementById('filtroUsuario').style.display = 'flex';
-                cargarUsuarios();
+                await cargarUsuarios();
             }
-            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            if (data.role === 'super_admin') {
+                window.location.href = 'super_admin.html';
+                return null;
+            }
+
+            await cargarEmpresa();
             conectarWebSocket();
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch (e) {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+            return null;
+        }
+    }
+
+    async function cargarEmpresa() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/empresa`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const emp = await res.json();
+        empresaLogo = emp.logo_url ? emp.logo_url : null;
     }
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
-        socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
+        socket.on('nueva_alerta', (data) => {
+            mostrarToast(data.mensaje);
+        });
     }
 
     function mostrarToast(mensaje) {
@@ -288,7 +217,9 @@
 
     async function cargarUsuarios() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch(`${API_URL}/usuarios`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         const usuarios = await res.json();
         const select = document.getElementById('selectUsuario');
         select.innerHTML = '<option value="">Todos los usuarios</option>';
@@ -302,16 +233,22 @@
         const usuarioId = document.getElementById('selectUsuario')?.value || '';
         let url = `${API_URL}/historial-cierres`;
         if (usuarioId && userRole === 'admin') url += `?usuario_id=${usuarioId}`;
+
         const tbody = document.getElementById('tabla-cierres');
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
+
         try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             const data = await res.json();
             if (!Array.isArray(data)) throw new Error('Respuesta inválida');
+
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No hay cierres registrados</td></tr>';
                 return;
             }
+
             tbody.innerHTML = '';
             data.forEach(c => {
                 const datosStr = JSON.stringify(c.datos).replace(/'/g, "&#39;");
@@ -325,7 +262,7 @@
                     </tr>
                 `;
             });
-        } catch(e) {
+        } catch (e) {
             tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;">Error: ${escapeHtml(e.message)}</td></tr>`;
         }
     }
@@ -334,6 +271,11 @@
         currentDetalleData = datos;
         const empresa = datos.empresa || { nombre: '', rif: '', direccion: '' };
         const pagos = datos.pagos || {};
+        const obs = datos.observaciones || {};
+        const admin = obs.pagos_administracion || { usd: 0, bs: 0 };
+        const gastos = obs.gastos_internos || { usd: 0, bs: 0 };
+        const credito = obs.credito_fiado || { usd: 0, bs: 0 };
+
         let html = `
             <div class="detalle-fiscal" id="reporteZParaImprimir">
                 <h3>REPORTE Z FISCAL</h3>
@@ -347,13 +289,14 @@
                 <h4>INFORME DE VENTAS - RESUMEN Z</h4>
                 <div class="fila"><span>TOTAL DOLARES (facturado):</span><span>$${toNum(datos.total_ventas_usd).toFixed(2)}</span></div>
                 <div class="fila"><span>TOTAL COBRADO (hoy):</span><span>$${toNum(datos.total_cobrado_usd).toFixed(2)}</span></div>
-                <div class="fila"><span>💵 TOTAL SERVICIO:</span><span>$${toNum(datos.total_servicio_usd).toFixed(2)} (Bs ${toNum(datos.total_servicio_bs).toFixed(2)})</span></div>
+                <div class="fila"><span>TOTAL SERVICIO:</span><span>$${toNum(datos.total_servicio_usd).toFixed(2)} (Bs ${toNum(datos.total_servicio_bs).toFixed(2)})</span></div>
                 <div class="fila"><span>TOTAL Bs COBRADO:</span><span>Bs ${toNum(datos.total_cobrado_bs).toFixed(2)}</span></div>
                 <div class="fila"><span>ALÍCUOTA GENERAL (16%):</span><span>Bs ${toNum(datos.base_imponible_bs).toFixed(2)}</span></div>
                 <div class="fila"><span>MONTO I.V.A. (16%):</span><span>Bs ${toNum(datos.iva_total_bs).toFixed(2)}</span></div>
                 <div class="linea"></div>
                 <h4>DESGLOSE POR MEDIOS DE PAGO (cobrado)</h4>
         `;
+
         for (const [metodo, montos] of Object.entries(pagos)) {
             let montoBs = toNum(montos.bs || montos, 0);
             let montoUsd = toNum(montos.usd || 0, 0);
@@ -362,19 +305,19 @@
                 : `Bs ${montoBs.toFixed(2)}`;
             html += `<div class="fila"><span>${escapeHtml(metodo)}:</span><span>${mostrar}</span></div>`;
         }
-        if (datos.financiado_cashea_usd && datos.financiado_cashea_usd > 0) {
-            html += `
-                <div class="linea"></div>
-                <div class="fila"><span>TOTAL FINANCIADO CASHEA:</span><span>$${toNum(datos.financiado_cashea_usd).toFixed(2)} (Bs ${(datos.financiado_cashea_usd * datos.tasa).toFixed(2)})</span></div>
-            `;
-        }
+
+        html += `<div class="linea"></div><h4>OBSERVACIONES</h4>`;
+        html += `<div class="fila" style="color:#6b21a8;"><span>Pagos por Administracion:</span><span>$${toNum(admin.usd).toFixed(2)} (Bs ${toNum(admin.bs).toFixed(2)})</span></div>`;
+        html += `<div class="fila" style="color:#b45309;"><span>Gastos Internos (Casa):</span><span>$${toNum(gastos.usd).toFixed(2)} (Bs ${toNum(gastos.bs).toFixed(2)})</span></div>`;
+        html += `<div class="fila" style="color:#2563eb;"><span>Total Fiado (Crédito):</span><span>$${toNum(credito.usd).toFixed(2)} (Bs ${toNum(credito.bs).toFixed(2)})</span></div>`;
         html += `
+                <div class="observacion">⚠️ Estos montos son informativos y <strong>no afectan</strong> el total cobrado ni los ingresos de la caja.</div>
                 <div class="doble-linea"></div>
                 <p style="font-size:0.7rem; text-align:center; color:#64748b;">*** Documento fiscal ***</p>
             </div>
         `;
+
         document.getElementById('detalle-contenido').innerHTML = html;
-        currentDetalleHtml = html;
         document.getElementById('modalDetalle').style.display = 'flex';
     };
 
@@ -383,22 +326,40 @@
         currentDetalleData = null;
     };
 
-    document.getElementById('btnPDFDetalle').onclick = () => {
-        if (!currentDetalleHtml) return;
-        const element = document.querySelector('#detalle-contenido');
-        const opt = {
-            margin: [0.2, 0.2, 0.2, 0.2],
-            filename: `cierre_z_${currentDetalleData?.num_reporte || 'detalle'}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-        };
-        html2pdf().set(opt).from(element).save();
-    };
+    function exportarPDFDetalle() {
+        if (!currentDetalleData) {
+            alert('Primero visualiza un reporte Z');
+            return;
+        }
 
-    document.getElementById('btnImprimirDetalle').onclick = () => {
-        if (!currentDetalleHtml) return;
+        const element = document.getElementById('reporteZParaImprimir');
+        if (!element) {
+            alert('No se encontró el reporte para exportar.');
+            return;
+        }
+
+        const opt = {
+            margin:        [0.5, 0.5, 0.5, 0.5],
+            filename:      `cierre_z_${currentDetalleData.num_reporte || new Date().toISOString().slice(0, 10)}.pdf`,
+            image:         { type: 'jpeg', quality: 0.98 },
+            html2canvas:   { scale: 2, useCORS: true, letterRendering: true },
+            jsPDF:         { unit: 'in', format: 'a4', orientation: 'portrait' },
+            pagebreak:     { mode: 'avoid-all' }
+        };
+
+        html2pdf().set(opt).from(element).save();
+    }
+
+    function imprimirDetalle() {
+        if (!currentDetalleData) {
+            alert('Primero visualiza un reporte Z');
+            return;
+        }
         const ventana = window.open('', '_blank');
+        if (!ventana) {
+            alert('Permite ventanas emergentes para imprimir.');
+            return;
+        }
         ventana.document.write(`
             <!DOCTYPE html>
             <html>
@@ -412,11 +373,12 @@
                     .linea { border-top: 1px dashed #000; margin: 8px 0; }
                     .doble-linea { border-top: 2px solid #000; margin: 8px 0; }
                     h3, h4 { text-align: center; }
+                    .observacion { background: #fef3c7; padding: 8px; border-radius: 8px; margin-top: 10px; font-size: 0.8rem; }
                     @media print { body { margin: 0; padding: 10px; } }
                 </style>
             </head>
             <body>
-                ${currentDetalleHtml}
+                ${document.getElementById('reporteZParaImprimir').outerHTML}
                 <script>
                     window.onload = function() {
                         window.print();
@@ -427,19 +389,32 @@
             </html>
         `);
         ventana.document.close();
-    };
+    }
 
-    document.getElementById('menuToggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
-    });
-    document.getElementById('logoutBtn').addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('token');
-        window.location.href = 'login.html';
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('btnPDFDetalle').addEventListener('click', exportarPDFDetalle);
+        document.getElementById('btnImprimirDetalle').addEventListener('click', imprimirDetalle);
+
+        document.getElementById('menuToggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('open');
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
+
+        verificarSesion().then(() => {
+            cargarHistorial();
+        });
     });
 
-    verificarSesion().then(() => cargarHistorial());
     window.cargarHistorial = cargarHistorial;
+    window.verDetalle = verDetalle;
+    window.cerrarModal = cerrarModal;
+    window.exportarPDFDetalle = exportarPDFDetalle;
+    window.imprimirDetalle = imprimirDetalle;
 </script>
 </body>
 </html>
