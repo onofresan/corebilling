@@ -2,261 +2,51 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <link rel="manifest" href="/manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Nueva Factura</title>
     <style>
-        /* Estilos adicionales específicos de facturar */
-        .empresa-header {
-            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
-            border: none !important;
-        }
-        .empresa-header h2 {
-            color: white !important;
-            font-weight: 700;
-            background: none !important;
-            -webkit-background-clip: unset !important;
-            background-clip: unset !important;
-        }
-        .empresa-header .empresa-detalles,
-        .empresa-header .empresa-direccion {
-            color: #e2e8f0 !important;
-        }
-        .empresa-header .caja-actions {
-            background: rgba(255,255,255,0.15);
-            border-radius: 60px;
-            padding: 8px 16px;
-        }
-        #empresa-logo {
-            background: rgba(255,255,255,0.9);
-            padding: 5px;
-            border-radius: 12px;
-            max-height: 60px;
-            max-width: 100px;
-            object-fit: contain;
-        }
-        .toolbar select {
-            padding: 10px;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            background: white;
-            font-weight: 500;
-        }
-        .caja-total {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            border-radius: 24px;
-            padding: 24px;
-            color: white;
-        }
-        .caja-total strong {
-            color: #e2e8f0;
-        }
-        .caja-total #total-bs {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: #34d399;
-        }
-        .btn-procesar {
-            background: linear-gradient(135deg, #10b981, #059669) !important;
-            border: none !important;
-            border-radius: 40px !important;
-            font-weight: 700 !important;
-            padding: 14px !important;
-            width: 100%;
-            margin-top: 12px;
-            color: white;
-            font-size: 1rem;
-        }
-        .btn-procesar:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(16,185,129,0.4);
-        }
-        .btn-stripe {
-            background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
-            border: none !important;
-            border-radius: 40px !important;
-            font-weight: 700 !important;
-            padding: 12px !important;
-            width: 100%;
-            margin-top: 8px;
-            color: white;
-        }
-        .input-group {
-            margin-bottom: 14px;
-        }
-        .input-group label {
-            display: block;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #334155;
-            margin-bottom: 6px;
-        }
-        .input-group input, .input-group select {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
-            transition: all 0.2s;
-            background: white;
-        }
-        .input-group input:focus, .input-group select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
-            outline: none;
-        }
-        .btn-pct {
-            background: #e2e8f0;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 40px;
-            cursor: pointer;
-            margin: 3px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .btn-pct:hover {
-            background: #cbd5e1;
-        }
-        .btn-pct.active {
-            background: #4f46e5;
-            color: white;
-        }
-        .search-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-        .search-row input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e2e8f0;
-            border-radius: 16px;
-            font-size: 1rem;
-            transition: all 0.2s;
-            outline: none;
-            background: white;
-        }
-        .search-row input:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 4px rgba(79,70,229,0.1);
-        }
-        .search-row button {
-            padding: 12px 24px;
-            border-radius: 40px;
-            background: #4f46e5;
-            color: white;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .search-row button:hover {
-            background: #4338ca;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(79,70,229,0.3);
-        }
-        .table-container {
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-            background: white;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        th {
-            background: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-            padding: 12px 10px;
-            border-bottom: 2px solid #e2e8f0;
-            text-align: left;
-        }
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-        tr:hover td {
-            background: #f8fafc;
-        }
-        .input-cant, .input-descuento {
-            width: 65px;
-            padding: 6px 8px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 0.9rem;
-        }
-        .input-nota {
-            width: 100px;
-            padding: 6px 8px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 0.8rem;
-        }
-        .btn-remove {
-            background: #ef4444;
-            border: none;
-            border-radius: 8px;
-            padding: 4px 10px;
-            color: white;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        .btn-remove:hover {
-            background: #dc2626;
-            transform: scale(1.05);
-        }
-        .estado-caja {
-            border-radius: 40px;
-            padding: 6px 16px;
-            font-weight: 600;
-            font-size: 0.8rem;
-        }
-        .estado-abierta {
-            background: #10b981;
-            color: white;
-        }
-        .estado-cerrada {
-            background: #ef4444;
-            color: white;
-        }
-        .modal-content {
-            border-radius: 28px;
-            padding: 28px;
-        }
-        .modal-content table {
-            font-size: 0.9rem;
-        }
-        .modal-content .pago-monto {
-            width: 100px;
-            padding: 6px 10px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-        }
-        .modal-content .pago-ref, .modal-content .pago-nota {
-            padding: 6px 10px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            width: 100%;
-        }
-        #resumenFactura {
-            background: #f8fafc;
-            padding: 12px 16px;
-            border-radius: 16px;
-            margin-bottom: 16px;
-            font-weight: 500;
-        }
-        #totalPagadoDiv {
-            margin-top: 10px;
-            font-weight: 600;
-        }
+        /* ... tus estilos (los mismos que ya tienes) ... */
+        .empresa-header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important; border: none !important; }
+        .empresa-header h2 { color: white !important; font-weight: 700; }
+        .caja-total { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 24px; padding: 24px; color: white; }
+        .caja-total #total-bs { font-size: 2.2rem; font-weight: 700; color: #34d399; }
+        .btn-procesar { background: linear-gradient(135deg, #10b981, #059669) !important; border: none !important; border-radius: 40px !important; font-weight: 700 !important; padding: 14px !important; width: 100%; margin-top: 12px; color: white; }
+        .btn-stripe { background: linear-gradient(135deg, #6366f1, #4f46e5) !important; border: none !important; border-radius: 40px !important; font-weight: 700 !important; padding: 12px !important; width: 100%; margin-top: 8px; color: white; }
+        .input-group { margin-bottom: 14px; }
+        .input-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+        .input-group input, .input-group select { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; transition: all 0.2s; background: white; }
+        .input-group input:focus, .input-group select:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.15); outline: none; }
+        .btn-pct { background: #e2e8f0; border: none; padding: 6px 14px; border-radius: 40px; cursor: pointer; margin: 3px; font-weight: 500; }
+        .btn-pct:hover { background: #cbd5e1; }
+        .search-row { display: flex; gap: 10px; margin-bottom: 16px; }
+        .search-row input { flex: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 16px; font-size: 1rem; transition: all 0.2s; outline: none; background: white; }
+        .search-row input:focus { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79,70,229,0.1); }
+        .search-row button { padding: 12px 24px; border-radius: 40px; background: #4f46e5; color: white; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .search-row button:hover { background: #4338ca; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+        .table-container { border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: #f8fafc; color: #475569; font-weight: 600; padding: 12px 10px; border-bottom: 2px solid #e2e8f0; text-align: left; }
+        td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover td { background: #f8fafc; }
+        .input-cant, .input-descuento { width: 65px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center; font-size: 0.9rem; }
+        .input-nota { width: 100px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem; }
+        .btn-remove { background: #ef4444; border: none; border-radius: 8px; padding: 4px 10px; color: white; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-remove:hover { background: #dc2626; transform: scale(1.05); }
+        .estado-caja { border-radius: 40px; padding: 6px 16px; font-weight: 600; font-size: 0.8rem; }
+        .estado-abierta { background: #10b981; color: white; }
+        .estado-cerrada { background: #ef4444; color: white; }
+        .modal-content { border-radius: 28px; padding: 28px; }
+        .modal-content .pago-monto { width: 100px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .modal-content .pago-ref, .modal-content .pago-nota { padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; width: 100%; }
+        #resumenFactura { background: #f8fafc; padding: 12px 16px; border-radius: 16px; margin-bottom: 16px; font-weight: 500; }
+        #totalPagadoDiv { margin-top: 10px; font-weight: 600; }
+        #grupo-administracion { background: #f8fafc; padding: 12px; border-radius: 12px; margin-top: 10px; }
+        #grupo-administracion h5 { margin-bottom: 8px; }
+        #lista-abonos { margin-top: 8px; font-size: 0.9rem; }
+        #lista-abonos ul { list-style: none; padding: 0; }
+        #lista-abonos ul li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #e2e8f0; }
+        .btn-remove-abono { background: transparent; border: none; color: #ef4444; cursor: pointer; }
         @media (max-width: 640px) {
             .search-row input { font-size: 0.9rem; }
             th, td { font-size: 0.8rem; padding: 6px 4px; }
@@ -265,12 +55,25 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        window.stripeLoaded = false;
+        window.stripeInstance = null;
+        function loadStripe() {
+            return new Promise((resolve) => {
+                if (typeof Stripe !== 'undefined') { window.stripeLoaded = true; resolve(Stripe); return; }
+                const script = document.createElement('script');
+                script.src = 'https://js.stripe.com/v3/';
+                script.onload = () => { if (typeof Stripe !== 'undefined') { window.stripeLoaded = true; resolve(Stripe); } else { console.warn('Stripe no disponible'); resolve(null); } };
+                script.onerror = () => { console.warn('Error al cargar Stripe'); resolve(null); };
+                document.head.appendChild(script);
+            });
+        }
+    </script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html" class="active">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -290,11 +93,12 @@
 <div class="main-content">
     <button class="menu-toggle" id="menuToggle">☰ Menú</button>
 
-    <!-- Cabecera azul -->
+    <!-- Cabecera -->
     <div class="card empresa-header">
         <div class="empresa-info" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:15px;">
             <div class="empresa-logo-area" style="flex-shrink:0;">
-                <img id="empresa-logo" src="" alt="Logo" style="display:none;">
+                <img id="empresa-logo" src="" alt="Logo" style="display:none; max-height:60px;">
+                <span id="logo-placeholder" style="display:none; font-size:2rem;">🏪</span>
             </div>
             <div class="empresa-datos" style="flex:1;">
                 <h2 id="lbl-empresa-nombre">Cargando...</h2>
@@ -350,7 +154,7 @@
             </div>
         </div>
 
-        <!-- Columna derecha: datos de cobro y totales -->
+        <!-- Columna derecha -->
         <div style="flex:1; min-width:250px;">
             <div class="card">
                 <div class="input-group">
@@ -358,11 +162,9 @@
                     <select id="cliente-id"></select>
                     <button class="btn-primary" id="btnNuevoCliente" style="margin-top:6px; width:100%;">+ Nuevo Cliente</button>
                 </div>
-                <!-- CAMPO TASA CON BOTÓN ACTUALIZAR -->
-                <div class="input-group" style="display: flex; gap: 10px; align-items: center;">
-                    <label style="flex:1; margin:0;">💱 Tasa (Bs/USD)</label>
-                    <input type="number" step="0.01" id="tasa-cambio" style="flex:2;">
-                    <button class="btn-primary" id="btnActualizarTasa" style="padding: 8px 12px; white-space: nowrap; margin:0;">🔄 Actualizar</button>
+                <div class="input-group">
+                    <label>💱 Tasa (Bs/USD)</label>
+                    <input type="number" step="0.01" id="tasa-cambio">
                 </div>
                 <div class="input-group">
                     <label>💰 Moneda pago</label>
@@ -379,6 +181,7 @@
                         <option value="Punto de Venta">Punto de Venta</option>
                         <option value="Cashea">Cashea (Financiamiento)</option>
                         <option value="Casa">Casa (Gasto interno)</option>
+                        <option value="Credito">💳 Crédito / Fiado</option>
                     </select>
                 </div>
                 <div id="grupo-referencia">
@@ -390,6 +193,17 @@
                     <div class="input-group"><label>📆 Saldo financiado</label><input id="cashea-financiado" readonly style="background:#f1f5f9;"></div>
                     <div class="input-group"><label>📅 Cuotas</label><input type="number" id="cashea-cuotas" value="1" min="1"></div>
                 </div>
+                <!-- NUEVO: Pagos por Administración -->
+                <div id="grupo-administracion" style="display:none;">
+                    <h5>💰 Pagos por Administración (Abonos)</h5>
+                    <div class="input-group">
+                        <label>Monto en USD</label>
+                        <input type="number" step="0.01" id="monto-administracion" placeholder="0.00" value="0">
+                    </div>
+                    <button class="btn-primary" id="btnAgregarAbono" style="width:100%;">➕ Registrar Abono</button>
+                    <div id="lista-abonos"><span style="color:#94a3b8;">Sin abonos registrados</span></div>
+                </div>
+
                 <div class="input-group">
                     <label>🍽️ Servicio (%)</label>
                     <input type="number" step="0.1" id="servicio-porcentaje" value="0" placeholder="Propina">
@@ -457,10 +271,9 @@
 </div>
 
 <script>
-    // ===================== CONFIGURACIÓN =====================
-    const API_URL = '/api';
+    const API_URL = `http://${window.location.hostname}:5000/api`;
 
-    // ===================== ESTADO GLOBAL =====================
+    // ===== ESTADO GLOBAL =====
     let carritoActual = [];
     let facturasGuardadas = {};
     let facturaActualId = null;
@@ -476,12 +289,12 @@
     let socket = null;
     let empresaId = null;
     let stripe = null;
+    let abonosAdmin = [];
 
-    // ===================== UTILIDADES =====================
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
 
-    // ===================== AUTENTICACIÓN Y SOCKETS =====================
+    // ===== AUTENTICACIÓN =====
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) { window.location.href = 'login.html'; return null; }
@@ -505,7 +318,6 @@
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
-
     function mostrarToast(mensaje) {
         const toast = document.createElement('div');
         toast.className = 'alert-toast';
@@ -514,7 +326,7 @@
         setTimeout(() => toast.remove(), 5000);
     }
 
-    // ===================== CARGA DE DATOS =====================
+    // ===== CARGA DE DATOS =====
     async function cargarEmpresa() {
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -528,52 +340,15 @@
         } else { dir.style.display = 'none'; }
         if (emp.tasa_cambio) { document.getElementById('tasa-cambio').value = emp.tasa_cambio; tasaActual = emp.tasa_cambio; }
         const logo = document.getElementById('empresa-logo');
+        const placeholder = document.getElementById('logo-placeholder');
         if (emp.logo_url && emp.logo_url !== '') {
-            logo.src = emp.logo_url;
+            logo.src = `http://localhost:5000${emp.logo_url}`;
             logo.style.display = 'block';
-        } else { logo.style.display = 'none'; }
-    }
-
-    // NUEVA FUNCIÓN: Actualizar tasa desde BCV
-    async function actualizarTasaBCV() {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        try {
-            const res = await fetch(`${API_URL}/tasa-bcv`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.tasa) {
-                document.getElementById('tasa-cambio').value = data.tasa;
-                tasaActual = data.tasa;
-                actualizarServicio();
-                actualizarCashea();
-                mostrarToast('✅ Tasa actualizada: Bs ' + data.tasa.toFixed(2));
-            } else {
-                mostrarToast('⚠️ No se pudo obtener la tasa oficial');
-            }
-        } catch(e) {
-            mostrarToast('❌ Error al actualizar tasa');
-        }
-    }
-
-    // Cargar tasa inicial (desde la empresa)
-    async function cargarTasa() {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        try {
-            const res = await fetch(`${API_URL}/tasa`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.tasa) {
-                document.getElementById('tasa-cambio').value = data.tasa;
-                tasaActual = data.tasa;
-                actualizarServicio();
-                actualizarCashea();
-            }
-        } catch(e) {
-            console.warn('Error al cargar tasa:', e);
+            placeholder.style.display = 'none';
+            logo.onerror = function() { this.style.display = 'none'; placeholder.style.display = 'block'; };
+        } else {
+            logo.style.display = 'none';
+            placeholder.style.display = 'block';
         }
     }
 
@@ -610,7 +385,7 @@
         });
     }
 
-    // ===================== CAJA =====================
+    // ===== CAJA =====
     async function cargarEstadoMiCaja() {
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -627,7 +402,6 @@
             btnAbrir.style.display = 'inline-block'; btnCerrar.style.display = 'none';
         }
     }
-
     document.getElementById('btnAbrirCaja').onclick = async () => {
         const token = localStorage.getItem('token');
         await fetch(`${API_URL}/abrir-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
@@ -640,7 +414,7 @@
         cargarEstadoMiCaja();
     };
 
-    // ===================== CARRITO Y CÁLCULOS =====================
+    // ===== CARRITO Y CÁLCULOS =====
     function actualizarTotales() {
         let subtotalSinIVA = 0, totalIVA = 0, totalConIVA = 0;
         carritoActual.forEach(item => {
@@ -722,14 +496,12 @@
             let val = parseFloat(e.target.value);
             if (!isNaN(val) && val > 0) carritoActual[i].cantidad = val;
             else carritoActual[i].cantidad = 1;
-            actualizarTabla();
-            guardarFacturaActual();
+            actualizarTabla(); guardarFacturaActual();
         }));
         document.querySelectorAll('.input-descuento').forEach(inp => inp.addEventListener('change', (e) => {
             let i = parseInt(e.target.dataset.idx);
             carritoActual[i].descuento = parseFloat(e.target.value) || 0;
-            actualizarTabla();
-            guardarFacturaActual();
+            actualizarTabla(); guardarFacturaActual();
         }));
         document.querySelectorAll('.input-nota').forEach(inp => inp.addEventListener('change', (e) => {
             let i = parseInt(e.target.dataset.idx);
@@ -739,7 +511,7 @@
         actualizarTotales();
     }
 
-    // ===================== BORRADORES =====================
+    // ===== BORRADORES =====
     function guardarFacturaActual() {
         if (!facturaActualId) facturaActualId = Date.now().toString();
         const clienteSelect = document.getElementById('cliente-id');
@@ -786,6 +558,8 @@
     function nuevaFactura() {
         facturaActualId = Date.now().toString();
         carritoActual = [];
+        abonosAdmin = [];
+        actualizarListaAbonos();
         document.getElementById('cliente-id').value = '';
         document.getElementById('moneda-pago').value = 'Bs';
         document.getElementById('metodo-pago').value = 'Efectivo';
@@ -819,7 +593,7 @@
     };
     document.getElementById('eliminarBorradorBtn').onclick = eliminarFacturaSeleccionada;
 
-    // ===================== BÚSQUEDA Y AGREGADO =====================
+    // ===== BÚSQUEDA =====
     document.getElementById('form-escaner').addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('codigo-buscar').value.trim();
@@ -848,11 +622,12 @@
         document.getElementById('codigo-buscar').focus();
     });
 
-    // ===================== MÉTODOS DE PAGO =====================
+    // ===== MÉTODOS DE PAGO =====
     function controlarPago() {
         const metodo = document.getElementById('metodo-pago').value;
-        document.getElementById('grupo-referencia').style.display = (metodo === 'Cashea' || metodo === 'Casa') ? 'none' : 'block';
+        document.getElementById('grupo-referencia').style.display = (metodo === 'Cashea' || metodo === 'Casa' || metodo === 'Credito') ? 'none' : 'block';
         document.getElementById('cashea-campos').style.display = (metodo === 'Cashea') ? 'block' : 'none';
+        document.getElementById('grupo-administracion').style.display = (metodo === 'Credito') ? 'block' : 'none';
         if (metodo === 'Cashea') actualizarCashea();
     }
     document.getElementById('metodo-pago').addEventListener('change', controlarPago);
@@ -861,7 +636,7 @@
     document.getElementById('cashea-inicial').addEventListener('input', actualizarCashea);
     document.getElementById('cashea-cuotas').addEventListener('input', actualizarCashea);
 
-    // Botones de porcentaje Cashea
+    // Botones Cashea
     const btnContainer = document.getElementById('botones-cashea');
     [25, 30, 35, 40, 45, 50, 60].forEach(pct => {
         let btn = document.createElement('button');
@@ -875,10 +650,54 @@
         btnContainer.appendChild(btn);
     });
 
-    // ===================== PROCESAR FACTURA =====================
+    // ===== ABONOS ADMINISTRACIÓN =====
+    document.getElementById('btnAgregarAbono').addEventListener('click', function() {
+        const monto = parseFloat(document.getElementById('monto-administracion').value);
+        if (!monto || monto <= 0) { alert('Ingrese un monto válido'); return; }
+        abonosAdmin.push({ monto: monto, fecha: new Date().toLocaleString() });
+        actualizarListaAbonos();
+        document.getElementById('monto-administracion').value = '0';
+    });
+
+    function actualizarListaAbonos() {
+        const div = document.getElementById('lista-abonos');
+        if (abonosAdmin.length === 0) {
+            div.innerHTML = '<span style="color:#94a3b8;">Sin abonos registrados</span>';
+            return;
+        }
+        let html = '<ul>';
+        let total = 0;
+        abonosAdmin.forEach((a, i) => {
+            total += a.monto;
+            html += `<li><span>Abono #${i+1}: $${a.monto.toFixed(2)}</span><button class="btn-remove-abono" onclick="quitarAbono(${i})">✖</button></li>`;
+        });
+        html += `<li style="font-weight:600;">Total abonado: $${total.toFixed(2)}</li>`;
+        html += '</ul>';
+        div.innerHTML = html;
+    }
+
+    window.quitarAbono = function(idx) {
+        abonosAdmin.splice(idx, 1);
+        actualizarListaAbonos();
+    };
+
+    // ===== PROCESAR FACTURA =====
     async function procesarFactura(imprimir) {
         if (carritoActual.length === 0) return alert('Carrito vacío');
         if (miCajaEstado !== 'abierta') return alert('Debes abrir tu caja');
+        
+        // Agregar abonos administración como pagos especiales
+        abonosAdmin.forEach(a => {
+            pagosTemp.push({
+                metodo_pago: 'Administracion',
+                moneda: 'USD',
+                monto: a.monto,
+                referencia: 'Abono',
+                nota: 'Pago por administración',
+                es_administracion: true
+            });
+        });
+
         const articulos = carritoActual.map(item => ({
             producto_id: item.codigo,
             cantidad: item.cantidad,
@@ -909,7 +728,7 @@
             alert('Factura guardada correctamente');
             cerrarModalPagos();
             if (imprimir) await generarPDFFactura(data.factura_id);
-            nuevaFactura();
+            nuevaFactura(); // Reinicia carrito y abonos
         } catch (err) { alert('Error: ' + err.message); }
     }
 
@@ -936,7 +755,7 @@
         win.print();
     }
 
-    // ===================== MODAL DE PAGOS =====================
+    // ===== MODAL DE PAGOS =====
     function mostrarModalPagos() {
         if (carritoActual.length === 0) return alert('Carrito vacío');
         const totalConIVA = parseFloat(document.getElementById('total-con-iva').innerText.replace('$', '')) || 0;
@@ -946,12 +765,13 @@
             let inicial = parseFloat(document.getElementById('cashea-inicial').value) || 0;
             totalFacturaActual = inicial;
             pagosTemp = [{ metodo_pago: 'Cashea', moneda: 'USD', monto: inicial, referencia: '', nota: '' }];
-        } else if (metodo === 'Casa') {
+        } else if (metodo === 'Casa' || metodo === 'Credito') {
             totalFacturaActual = 0;
-            pagosTemp = [{ metodo_pago: 'Casa', moneda: 'USD', monto: 0, referencia: '', nota: 'Gasto interno' }];
+            pagosTemp = [];
         } else {
             pagosTemp = [{ metodo_pago: metodo, moneda: 'USD', monto: totalFacturaActual, referencia: document.getElementById('pago-referencia').value || '', nota: '' }];
         }
+        // Si hay abonos, se agregarán al procesar, no aquí
         const tasa = parseFloat(document.getElementById('tasa-cambio').value) || 1;
         document.getElementById('resumenFactura').innerHTML = `Total a pagar: <strong>$${totalFacturaActual.toFixed(2)} USD</strong> (≈ Bs ${(totalFacturaActual * tasa).toFixed(2)})<br>Tasa: Bs ${tasa.toFixed(2)}`;
         renderizarTablaPagos();
@@ -972,12 +792,13 @@
                 <option value="Divisa">Divisa</option>
                 <option value="Cashea">Cashea</option>
                 <option value="Casa">Casa</option>
+                <option value="Administracion">Administración</option>
             </select>`;
             row.insertCell(1).innerHTML = `<select class="pago-moneda" data-idx="${idx}" style="width:100%; padding:6px; border-radius:8px; border:1px solid #e2e8f0;">
                 <option value="USD" ${p.moneda==='USD'?'selected':''}>USD</option>
                 <option value="Bs">Bs</option>
             </select>`;
-            row.insertCell(2).innerHTML = `<input type="number" step="0.01" class="pago-monto" data-idx="${idx}" value="${p.monto}" ${p.metodo_pago==='Casa'?'disabled':''} style="width:100%; padding:6px; border-radius:8px; border:1px solid #e2e8f0;">`;
+            row.insertCell(2).innerHTML = `<input type="number" step="0.01" class="pago-monto" data-idx="${idx}" value="${p.monto}" style="width:100%; padding:6px; border-radius:8px; border:1px solid #e2e8f0;">`;
             row.insertCell(3).innerHTML = `<span class="equiv-val" id="equiv-${idx}">0.00</span>`;
             row.insertCell(4).innerHTML = `<input type="text" class="pago-ref" data-idx="${idx}" value="${escapeHtml(p.referencia||'')}" style="width:100%; padding:6px; border-radius:8px; border:1px solid #e2e8f0;">`;
             row.insertCell(5).innerHTML = `<input type="text" class="pago-nota" data-idx="${idx}" value="${escapeHtml(p.nota||'')}" style="width:100%; padding:6px; border-radius:8px; border:1px solid #e2e8f0;">`;
@@ -986,9 +807,6 @@
         document.querySelectorAll('.pago-metodo').forEach(sel => sel.addEventListener('change', (e) => {
             let i = e.target.dataset.idx;
             pagosTemp[i].metodo_pago = e.target.value;
-            const montoInp = document.querySelector(`.pago-monto[data-idx="${i}"]`);
-            if (e.target.value === 'Casa') { pagosTemp[i].monto = 0; if (montoInp) { montoInp.value = 0; montoInp.disabled = true; } }
-            else if (montoInp) montoInp.disabled = false;
             actualizarEquivalenteFila(i);
             actualizarTotalPagado();
         }));
@@ -1029,7 +847,7 @@
         let totalPagadoUSD = 0;
         const tasa = parseFloat(document.getElementById('tasa-cambio').value) || 1;
         pagosTemp.forEach(p => {
-            if (p.metodo_pago === 'Casa') return;
+            if (p.metodo_pago === 'Casa' || p.metodo_pago === 'Administracion') return;
             if (p.moneda === 'USD') totalPagadoUSD += p.monto;
             else totalPagadoUSD += p.monto / tasa;
         });
@@ -1057,34 +875,27 @@
     document.getElementById('procesarEImprimirBtn').onclick = () => procesarFactura(true);
     document.getElementById('procesarSinImprimirBtn').onclick = () => procesarFactura(false);
 
-    // ===================== STRIPE =====================
+    // ===== STRIPE =====
     async function initStripe() {
         try {
-            if (typeof Stripe !== 'undefined') {
-                stripe = Stripe('pk_test_51...');
+            const StripeLib = await loadStripe();
+            if (StripeLib) {
+                stripe = StripeLib('pk_test_51...');
                 console.log('Stripe inicializado correctamente');
             } else {
-                console.warn('Stripe no disponible.');
+                console.warn('Stripe no disponible');
                 stripe = null;
             }
-        } catch (e) {
-            console.warn('Error al inicializar Stripe:', e);
-            stripe = null;
-        }
+        } catch (e) { console.warn('Error al inicializar Stripe:', e); stripe = null; }
     }
-
-    async function pagarConStripe() {
+    document.getElementById('btnStripe').onclick = async () => {
         const total = parseFloat(document.getElementById('total-con-iva').innerText.replace('$', '')) + servicioMonto;
         if (total <= 0) return alert('Total inválido');
-        if (!stripe) {
-            alert('Stripe no está configurado. Por favor, usa el método de pago principal.');
-            return;
-        }
-        alert('Para usar Stripe, configura tu clave pública en el frontend y el secreto en el backend.');
-    }
-    document.getElementById('btnStripe').onclick = pagarConStripe;
+        if (!stripe) { alert('Stripe no configurado. Usa otro método.'); return; }
+        alert('Para usar Stripe, configura tus claves.');
+    };
 
-    // ===================== MODAL CLIENTE RÁPIDO =====================
+    // ===== MODAL CLIENTE =====
     window.cerrarModalCliente = () => document.getElementById('modalClienteRapido').style.display = 'none';
     document.getElementById('btnNuevoCliente').onclick = () => document.getElementById('modalClienteRapido').style.display = 'flex';
     document.getElementById('formClienteRapido').addEventListener('submit', async (e) => {
@@ -1106,38 +917,35 @@
         else alert('Error al crear cliente');
     });
 
-    // ===================== INICIALIZACIÓN =====================
+    // ===== INICIALIZACIÓN =====
     verificarSesion().then(() => {
         cargarEmpresa();
         cargarClientes();
         cargarProductosRecetas();
         cargarEstadoMiCaja();
-        cargarTasa(); // <-- cargar tasa guardada al iniciar
         initStripe();
-        const saved = localStorage.getItem('facturas_transito');
-        if (saved) facturasGuardadas = JSON.parse(saved);
-        if (Object.keys(facturasGuardadas).length === 0) nuevaFactura();
-        else cargarFactura(Object.keys(facturasGuardadas)[0]);
-        actualizarListaFacturas();
-    }).catch(err => {
-        console.error('Error en la inicialización:', err);
-    });
+        // Cargar borradores guardados
+        try {
+            const saved = localStorage.getItem('facturas_transito');
+            if (saved) {
+                facturasGuardadas = JSON.parse(saved);
+                actualizarListaFacturas();
+            }
+        } catch(e) { localStorage.removeItem('facturas_transito'); facturasGuardadas = {}; actualizarListaFacturas(); }
+        // Siempre empezar con carrito vacío
+        nuevaFactura();
+    }).catch(err => console.error('Error en inicialización:', err));
 
-    // ===================== EVENTOS GLOBALES =====================
+    // ===== EVENTOS GLOBALES =====
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
     });
     document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
         localStorage.removeItem('token');
+        localStorage.removeItem('facturas_transito');
         window.location.href = 'login.html';
     });
-
-    // Evento del botón actualizar tasa
-    document.getElementById('btnActualizarTasa').addEventListener('click', actualizarTasaBCV);
-
-    // Opcional: Actualizar automáticamente cada 5 minutos (descomentar si se desea)
-    // setInterval(actualizarTasaBCV, 300000);
 </script>
 </body>
 </html>
