@@ -6,7 +6,6 @@
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Nueva Factura</title>
     <style>
-        /* ... tus estilos (los mismos que ya tienes) ... */
         .empresa-header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important; border: none !important; }
         .empresa-header h2 { color: white !important; font-weight: 700; }
         .caja-total { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 24px; padding: 24px; color: white; }
@@ -271,9 +270,8 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
-
-    // ===== ESTADO GLOBAL =====
+    // ✅ RUTA RELATIVA
+    const API_URL = '/api';
     let carritoActual = [];
     let facturasGuardadas = {};
     let facturaActualId = null;
@@ -299,7 +297,9 @@
         const token = localStorage.getItem('token');
         if (!token) { window.location.href = 'login.html'; return null; }
         try {
-            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`${API_URL}/check-session`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (!res.ok) throw new Error();
             const data = await res.json();
             if (!data.logged_in) throw new Error();
@@ -314,7 +314,8 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        // ✅ SOCKET SIN ARGUMENTOS
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -342,7 +343,8 @@
         const logo = document.getElementById('empresa-logo');
         const placeholder = document.getElementById('logo-placeholder');
         if (emp.logo_url && emp.logo_url !== '') {
-            logo.src = `http://localhost:5000${emp.logo_url}`;
+            // ✅ logo_url ya es relativo (comienza con /)
+            logo.src = emp.logo_url;
             logo.style.display = 'block';
             placeholder.style.display = 'none';
             logo.onerror = function() { this.style.display = 'none'; placeholder.style.display = 'block'; };
