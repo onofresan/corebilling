@@ -120,19 +120,16 @@
         <h2 style="font-weight:700;">📈 Estadísticas</h2>
 
         <div class="chart-grid">
-            <!-- Gráfico 1: Ventas últimos 7 días -->
             <div class="chart-card">
                 <h3>📊 Ventas Últimos 7 Días (Bs)</h3>
                 <canvas id="ventasChart"></canvas>
             </div>
 
-            <!-- Gráfico 2: Ventas por método de pago -->
             <div class="chart-card">
                 <h3>💳 Ventas por Método de Pago (Último mes USD)</h3>
                 <canvas id="metodosChart"></canvas>
             </div>
 
-            <!-- Gráfico 3: Top productos (ocupa toda la fila) -->
             <div class="chart-card full-width">
                 <h3>🏆 Top 5 Productos Más Vendidos</h3>
                 <div class="filtros">
@@ -163,7 +160,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let topChart = null, ventasChart = null, metodosChart = null;
     let socket = null, empresaId = null;
 
@@ -195,7 +192,6 @@
         } catch (e) {
             console.error('Error en verificarSesion:', e);
             localStorage.removeItem('token');
-            // Redirige a login SOLO si el token es inválido
             window.location.href = 'login.html';
             return null;
         }
@@ -203,7 +199,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => {
             mostrarToast(data.mensaje);
@@ -228,7 +224,6 @@
             if (!res.ok) throw new Error('Error al obtener estadísticas');
             const data = await res.json();
 
-            // Ventas diarias
             if (ventasChart) ventasChart.destroy();
             const labelsDiarias = data.diarias.map(d => d.dia);
             const valoresDiarias = data.diarias.map(d => d.total_bs || 0);
@@ -253,7 +248,6 @@
                 }
             });
 
-            // Ventas por método de pago
             if (metodosChart) metodosChart.destroy();
             const labelsMetodos = data.por_metodo.map(m => m.metodo_pago);
             const valoresMetodos = data.por_metodo.map(m => m.total_usd || 0);
@@ -274,7 +268,6 @@
                 }
             });
 
-            // Top productos
             await cargarTopProductos();
 
         } catch (e) {
@@ -344,14 +337,12 @@
         window.location.href = 'login.html';
     });
 
-    // Inicialización
     verificarSesion()
         .then(() => {
             cargarGraficos();
         })
         .catch(err => {
             console.error('Fallo en la inicialización:', err);
-            // Mostrar mensaje de error sin redirigir
             document.querySelector('.chart-grid').innerHTML =
                 `<div class="card" style="grid-column: 1/-1; color:#ef4444; text-align:center; padding:40px;">
                     ❌ Error de autenticación. Por favor, inicia sesión nuevamente.
