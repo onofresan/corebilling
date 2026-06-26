@@ -25,7 +25,6 @@
             overflow: hidden;
             box-shadow: 0 20px 35px rgba(0,0,0,0.3);
         }
-        /* Estilo ticket térmico */
         .ticket {
             background: white;
             padding: 16px 12px;
@@ -98,7 +97,6 @@
             border-top: 1px dotted #aaa;
             padding-top: 8px;
         }
-        /* Panel de ingreso */
         .form-panel {
             background: #f8f9fa;
             padding: 15px;
@@ -178,9 +176,7 @@
 </head>
 <body>
 <div class="pos-container">
-    <!-- Vista previa del ticket (factura actual) -->
     <div class="ticket" id="ticketPreview">
-        <!-- Se llena con JavaScript -->
     </div>
 
     <div class="form-panel">
@@ -227,7 +223,6 @@
 </div>
 
 <script>
-    // ===================== CONFIGURACIÓN =====================
     const empresa = {
         nombre: "SUPERMERCADO EL AHORRO",
         ruc: "RUC: 2-12345678-0",
@@ -235,23 +230,20 @@
         telefono: "TEL: 2600-7777"
     };
 
-    // Función para escapar HTML
-function escapeHtml(str) {
-    // Convierte a string si no lo es (maneja números, null, undefined, objetos)
-    if (str === null || str === undefined) return '';
-    if (typeof str !== 'string') str = String(str);
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-    // Estado global
-    let productos = [];           // { nombre, cantidad, precioUnitario }
-    let numeroFactura = 17;       // Comienza en 17 (puedes cambiarlo a 20 si quieres)
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        if (typeof str !== 'string') str = String(str);
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
 
-    // Elementos del DOM
+    let productos = [];
+    let numeroFactura = 17;
+
     const ticketDiv = document.getElementById("ticketPreview");
     const clienteInput = document.getElementById("clienteInput");
     const metodoSelect = document.getElementById("metodoPagoSelect");
@@ -264,18 +256,16 @@ function escapeHtml(str) {
     const btnImprimir = document.getElementById("btnImprimir");
     const mensajeDiv = document.getElementById("mensaje");
 
-    // ===================== FUNCIONES =====================
     function calcularTotales() {
         let subtotal = 0;
         for (let p of productos) {
             subtotal += p.cantidad * p.precioUnitario;
         }
-        let iva = subtotal * 0.21;   // 21% IVA
+        let iva = subtotal * 0.21;
         let total = subtotal + iva;
         return { subtotal, iva, total };
     }
 
-    // Actualizar la lista visual de productos (con botón eliminar)
     function actualizarListaUI() {
         if (productos.length === 0) {
             listaItemsDiv.innerHTML = "(ningún producto)";
@@ -294,7 +284,6 @@ function escapeHtml(str) {
             `;
         });
         listaItemsDiv.innerHTML = html;
-        // Asignar eventos eliminar
         document.querySelectorAll(".eliminar-prod").forEach(el => {
             el.addEventListener("click", (e) => {
                 const idx = parseInt(el.getAttribute("data-idx"));
@@ -308,7 +297,6 @@ function escapeHtml(str) {
         });
     }
 
-    // Actualizar la vista previa del ticket (factura)
     function actualizarTicket() {
         const cliente = escapeHtml(clienteInput.value.trim()) || "Consumidor Final";
         const metodo = escapeHtml(metodoSelect.value);
@@ -361,7 +349,6 @@ function escapeHtml(str) {
         ticketDiv.innerHTML = html;
     }
 
-    // Agregar producto desde el formulario
     function agregarProducto() {
         const nombre = prodNombre.value.trim();
         const cantidad = parseInt(prodCantidad.value);
@@ -386,7 +373,6 @@ function escapeHtml(str) {
             precioUnitario: precio
         });
 
-        // Limpiar campos de producto
         prodNombre.value = "";
         prodPrecio.value = "0.00";
         prodCantidad.value = "1";
@@ -396,7 +382,6 @@ function escapeHtml(str) {
         actualizarTicket();
     }
 
-    // Procesar factura: cierra la venta, guarda y REINICIA COMPLETAMENTE a una nueva factura EN BLANCO
     function procesarFactura() {
         if (productos.length === 0) {
             alert("⚠️ No hay productos. Agrega al menos un producto para procesar la factura.");
@@ -407,37 +392,28 @@ function escapeHtml(str) {
         const metodo = metodoSelect.value;
         const { total } = calcularTotales();
 
-        // Simular registro (puedes ver en consola F12)
         console.log(`=== FACTURA #${numeroFactura} CERRADA ===`);
         console.log(`Cliente: ${cliente} | Total: $${total.toFixed(2)} | Pago: ${metodo}`);
         console.log("Productos:", JSON.parse(JSON.stringify(productos)));
 
-        // Mostrar mensaje de éxito
         mensajeDiv.style.display = "block";
         mensajeDiv.innerHTML = `✅ Factura N° ${numeroFactura} procesada. Total: $${total.toFixed(2)}. Se abre nueva factura.`;
         setTimeout(() => { mensajeDiv.style.display = "none"; }, 3000);
 
-        // *** REINICIAR A UNA NUEVA FACTURA EN BLANCO ***
-        numeroFactura++;               // Incrementar número de factura
-        productos = [];               // Vaciar productos
-        clienteInput.value = "Consumidor Final";   // Resetear cliente
-        metodoSelect.value = "Efectivo";           // Resetear método de pago
-        // Limpiar campos de producto
+        numeroFactura++;
+        productos = [];
+        clienteInput.value = "Consumidor Final";
+        metodoSelect.value = "Efectivo";
         prodNombre.value = "";
         prodCantidad.value = "1";
         prodPrecio.value = "0.00";
 
-        // Actualizar interfaces (verás el ticket completamente vacío)
         actualizarListaUI();
-        actualizarTicket();  // Muestra "SIN PRODUCTOS" y el nuevo número de factura
+        actualizarTicket();
     }
 
-    // Imprimir / Guardar PDF (captura EXACTAMENTE el ticket visible)
     function imprimirTicket() {
-        // Clonar el contenido actual del ticket
         const ticketActual = document.getElementById("ticketPreview").cloneNode(true);
-        
-        // Abrir una ventana nueva para impresión
         const ventanaPrint = window.open("", "_blank");
         if (!ventanaPrint) {
             alert("Por favor, permite ventanas emergentes para poder imprimir.");
@@ -493,16 +469,13 @@ function escapeHtml(str) {
         ventanaPrint.document.close();
     }
 
-    // ===================== EVENTOS =====================
     btnAgregar.addEventListener("click", agregarProducto);
     btnProcesar.addEventListener("click", procesarFactura);
     btnImprimir.addEventListener("click", imprimirTicket);
 
-    // Actualizar el ticket en tiempo real cuando cambie cliente o método de pago
     clienteInput.addEventListener("input", () => actualizarTicket());
     metodoSelect.addEventListener("change", () => actualizarTicket());
 
-    // Agregar producto presionando "Enter" en los campos de producto
     const camposProducto = [prodNombre, prodCantidad, prodPrecio];
     camposProducto.forEach(campo => {
         campo.addEventListener("keypress", (e) => {
@@ -513,7 +486,6 @@ function escapeHtml(str) {
         });
     });
 
-    // Inicializar la factura EN BLANCO (sin productos)
     actualizarListaUI();
     actualizarTicket();
 </script>
