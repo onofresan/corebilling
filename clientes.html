@@ -217,7 +217,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let clientes = [];
     let userRole = null;
     let pendingDeleteId = null;
@@ -262,7 +262,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -284,7 +284,6 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) {
-                // Si la respuesta no es 2xx, mostrar error y salir
                 const err = await res.json();
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#ef4444;">❌ Error al cargar: ${escapeHtml(err.error || 'Error desconocido')}</td></tr>`;
                 clientes = [];
