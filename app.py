@@ -1,5 +1,6 @@
 import os
 import mysql.connector
+from mysql.connector import pooling
 from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
 from datetime import datetime, timedelta
@@ -15,7 +16,6 @@ from werkzeug.utils import secure_filename
 import jwt
 from flask_socketio import SocketIO, emit
 import stripe
-import time
 
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
@@ -33,19 +33,24 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# CORS - permite cualquier origen
 CORS(app, origins="*", supports_credentials=True)
+
+# ========== POOL DE CONEXIONES ==========
+dbconfig = {
+    "host": os.environ.get('DB_HOST', 'localhost'),
+    "user": os.environ.get('DB_USER', 'root'),
+    "password": os.environ.get('DB_PASSWORD', 'Koko.2590'),
+    "database": os.environ.get('DB_NAME', 'facturacion'),
+    "pool_name": "mypool",
+    "pool_size": 5,
+}
+connection_pool = pooling.MySQLConnectionPool(**dbconfig)
+
+def get_db_connection():
+    return connection_pool.get_connection()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.environ.get('DB_HOST', 'localhost'),
-        user=os.environ.get('DB_USER', 'root'),
-        password=os.environ.get('DB_PASSWORD', 'Koko.2590'),
-        database=os.environ.get('DB_NAME', 'facturacion')
-    )
 
 # ========== DECORADORES ==========
 def token_required(f):
@@ -115,7 +120,86 @@ def handle_join(data):
         from flask_socketio import join_room
         join_room(str(empresa_id))
 
-# ========== AUTENTICACIÓN ==========
+# ========== INICIALIZACIÓN DE BASE DE DATOS E ÍNDICES ==========
+def crear_indices():
+    """Crea índices en las tablas principales para acelerar consultas."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("ALTER TABLE facturas_cabecera ADD INDEX IF NOT EXISTS idx_empresa_fecha (empresa_id, fecha);")
+    except: pass
+    try:
+        cursor.execute("ALTER TABLE facturas_detalle ADD INDEX IF NOT EXISTS idx_factura (factura_numero);")
+    except: pass
+    try:
+        cursor.execute("ALTER TABLE productos ADD INDEX IF NOT EXISTS idx_empresa (empresa_id);")
+    except: pass
+    try:
+        cursor.execute("ALTER TABLE clientes ADD INDEX IF NOT EXISTS idx_empresa (empresa_id);")
+    except: pass
+    try:
+        cursor.execute("ALTER TABLE historial_inventario ADD INDEX IF NOT EXISTS idx_empresa (empresa_id);")
+    except: pass
+    try:
+        cursor.execute("ALTER TABLE caja_sesion ADD INDEX IF NOT EXISTS idx_empresa_usuario (empresa_id, usuario_id);")
+    except: pass
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("✅ Índices creados/verificados.")
+
+def crear_super_admin_si_no_existe():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Crear tabla usuarios si no existe
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            telefono VARCHAR(50),
+            role VARCHAR(50) DEFAULT 'cajero',
+            empresa_id INT,
+            INDEX (empresa_id)
+        )
+    """)
+    conn.commit()
+
+    # Asegurar columna fecha_vencimiento en productos
+    try:
+        cursor.execute("ALTER TABLE productos ADD COLUMN fecha_vencimiento DATE DEFAULT NULL")
+        conn.commit()
+        print("✅ Columna fecha_vencimiento agregada a productos")
+    except Exception as e:
+        print("ℹ️ La columna fecha_vencimiento ya existe o no se pudo agregar:", e)
+
+    # Crear super_admin si no existe
+    cursor.execute("SELECT id FROM usuarios WHERE username = 'super_admin'")
+    existe = cursor.fetchone()
+    if not existe:
+        password = "koko.080502"
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode()
+        cursor.execute("""
+            INSERT INTO usuarios (username, password_hash, email, role, empresa_id)
+            VALUES (%s, %s, %s, %s, %s)
+        """, ("super_admin", hashed, "admin@corebilling.com", "super_admin", None))
+        conn.commit()
+        print("✅ Super admin creado con contraseña: koko.080502")
+    else:
+        password = "koko.080502"
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode()
+        cursor.execute("UPDATE usuarios SET password_hash = %s WHERE username = 'super_admin'", (hashed,))
+        conn.commit()
+        print("✅ Contraseña de super admin actualizada a: koko.080502")
+
+    cursor.close()
+    conn.close()
+
+# ========== RUTAS API COMPLETAS ==========
+
+# ----- AUTENTICACIÓN -----
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -182,7 +266,7 @@ def check_session():
 def logout():
     return jsonify({'status': 'OK'}), 200
 
-# ========== REGISTRO DE EMPRESA ==========
+# ----- REGISTRO DE EMPRESA -----
 @app.route('/api/registro-empresa', methods=['POST'])
 def registro_empresa():
     data = request.json
@@ -217,7 +301,7 @@ def registro_empresa():
         cursor.close()
         conn.close()
 
-# ========== EMPRESA ==========
+# ----- EMPRESA -----
 @app.route('/api/empresa', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_empresa():
@@ -333,7 +417,7 @@ def guardar_tasa():
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== USUARIOS ==========
+# ----- USUARIOS -----
 @app.route('/api/usuarios', methods=['GET'])
 @requiere_rol('admin')
 def listar_usuarios():
@@ -405,7 +489,7 @@ def eliminar_usuario(id):
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== CLIENTES ==========
+# ----- CLIENTES -----
 @app.route('/api/clientes', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_clientes():
@@ -476,7 +560,7 @@ def eliminar_cliente(id):
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== PRODUCTOS ==========
+# ----- PRODUCTOS (CON FECHA DE VENCIMIENTO) -----
 @app.route('/api/productos', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_productos():
@@ -583,7 +667,7 @@ def eliminar_producto(codigo):
         cursor.close()
         conn.close()
 
-# ========== MOVIMIENTOS INVENTARIO ==========
+# ----- MOVIMIENTOS INVENTARIO -----
 @app.route('/api/movimiento-inventario', methods=['POST'])
 @requiere_rol('admin')
 def registrar_movimiento_inventario():
@@ -627,7 +711,7 @@ def registrar_movimiento_inventario():
         crear_alerta(empresa_id, 'stock_bajo', f"Producto {codigo} stock {nuevo_stock}")
     return jsonify({'status': 'OK', 'nuevo_stock': nuevo_stock}), 200
 
-# ========== RECETAS ==========
+# ----- RECETAS -----
 @app.route('/api/recetas', methods=['GET'])
 @requiere_rol('cajero')
 def listar_recetas():
@@ -741,7 +825,7 @@ def eliminar_receta(id):
         cursor.close()
         conn.close()
 
-# ========== KITS ==========
+# ----- KITS Y DESPIECE -----
 @app.route('/api/kits', methods=['GET'])
 @requiere_rol('admin')
 def listar_kits():
@@ -843,7 +927,6 @@ def eliminar_kit(id):
         cursor.close()
         conn.close()
 
-# ========== DESPIECE ==========
 @app.route('/api/despiece', methods=['POST'])
 @requiere_rol('admin')
 def realizar_despiece():
@@ -938,7 +1021,7 @@ def realizar_despiece_selectivo():
         cursor.close()
         conn.close()
 
-# ========== CAJA ==========
+# ----- CAJA -----
 @app.route('/api/mi-caja', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_mi_caja():
@@ -1004,7 +1087,6 @@ def cerrar_mi_caja():
         return jsonify({'error': 'No hay caja abierta'}), 400
     caja_id = caja['id']
 
-    # Facturas que NO son Casa ni Crédito (ventas reales)
     cursor.execute("""
         SELECT fc.total_usd, fc.subtotal_usd, fc.iva_usd, fc.monto_servicio_usd
         FROM facturas_cabecera fc
@@ -1026,7 +1108,6 @@ def cerrar_mi_caja():
     base_imponible_bs = base_imponible_usd * tasa
     iva_total_bs = iva_total_usd * tasa
 
-    # Cobros reales (excluyendo administración, Casa y Crédito)
     cursor.execute("""
         SELECT fp.metodo_pago, SUM(fp.monto_usd) as total_usd, SUM(fp.monto_bs) as total_bs
         FROM facturas_pagos fp
@@ -1051,7 +1132,6 @@ def cerrar_mi_caja():
         if m not in pagos_dict:
             pagos_dict[m] = {'usd': 0.0, 'bs': 0.0}
 
-    # Pagos por administración (abonos)
     cursor.execute("""
         SELECT SUM(fp.monto_usd) as total_admin_usd, SUM(fp.monto_bs) as total_admin_bs
         FROM facturas_pagos fp
@@ -1062,7 +1142,6 @@ def cerrar_mi_caja():
     total_admin_usd = float(admin_row['total_admin_usd'] or 0)
     total_admin_bs = float(admin_row['total_admin_bs'] or 0)
 
-    # Gastos internos (Casa)
     cursor.execute("""
         SELECT SUM(fc.subtotal_usd) as total_casa_usd,
                SUM(fc.subtotal_usd * fc.tasa_cambio) as total_casa_bs
@@ -1073,7 +1152,6 @@ def cerrar_mi_caja():
     total_casa_usd = float(casa_row['total_casa_usd'] or 0)
     total_casa_bs = float(casa_row['total_casa_bs'] or 0)
 
-    # Crédito (Fiado)
     cursor.execute("""
         SELECT SUM(fc.subtotal_usd) as total_credito_usd,
                SUM(fc.subtotal_usd * fc.tasa_cambio) as total_credito_bs
@@ -1084,7 +1162,6 @@ def cerrar_mi_caja():
     total_credito_usd = float(credito_row['total_credito_usd'] or 0)
     total_credito_bs = float(credito_row['total_credito_bs'] or 0)
 
-    # Actualizar contador de reporte Z
     cursor.execute("SELECT ultimo_reporte_z FROM empresas WHERE id = %s", (empresa_id,))
     row = cursor.fetchone()
     if row and row['ultimo_reporte_z'] is not None:
@@ -1203,7 +1280,7 @@ def cierre_general():
     conn.close()
     return jsonify({'status': 'OK', 'mensaje': 'Cierre general completado'}), 200
 
-# ========== FACTURAS ==========
+# ----- FACTURAS -----
 @app.route('/api/facturas', methods=['POST'])
 @requiere_rol('cajero')
 def guardar_factura():
@@ -1460,7 +1537,7 @@ def listar_facturas():
     if fecha_hasta:
         query += " AND DATE(fc.fecha) <= %s"
         params.append(fecha_hasta)
-    query += " ORDER BY fc.fecha DESC LIMIT 500"  # Limit to avoid overloading
+    query += " ORDER BY fc.fecha DESC"
     cursor.execute(query, params)
     facturas = cursor.fetchall()
     for f in facturas:
@@ -1611,14 +1688,14 @@ def eliminar_factura(id):
         cursor.close()
         conn.close()
 
-# ========== ALERTAS ==========
+# ----- ALERTAS -----
 @app.route('/api/alertas', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_alertas():
     empresa_id = request.empresa_id
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM alertas WHERE empresa_id = %s AND leida = 0 ORDER BY fecha DESC LIMIT 50", (empresa_id,))
+    cursor.execute("SELECT * FROM alertas WHERE empresa_id = %s AND leida = 0 ORDER BY fecha DESC", (empresa_id,))
     alertas = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1636,7 +1713,7 @@ def marcar_alerta_leida(id):
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== REPORTE X ==========
+# ----- REPORTE X -----
 @app.route('/api/reporte-x', methods=['GET'])
 @requiere_rol('cajero')
 def reporte_detallado():
@@ -1679,7 +1756,7 @@ def reporte_detallado():
         'total_bs': (total_usd + total_servicio) * tasa
     }), 200
 
-# ========== TOP PRODUCTOS ==========
+# ----- TOP PRODUCTOS -----
 @app.route('/api/top-productos', methods=['GET'])
 @requiere_rol('cajero')
 def top_productos():
@@ -1729,7 +1806,7 @@ def top_productos():
         r['total_cantidad'] = int(r['total_cantidad']) if 'total_cantidad' in r else 0
     return jsonify(resultados), 200
 
-# ========== HISTORIAL CIERRES ==========
+# ----- HISTORIAL CIERRES -----
 @app.route('/api/historial-cierres', methods=['GET'])
 @requiere_rol('cajero')
 def historial_cierres():
@@ -1747,7 +1824,7 @@ def historial_cierres():
                 FROM historial_cierres h
                 JOIN usuarios u ON h.usuario_id = u.id
                 WHERE h.empresa_id = %s AND h.usuario_id = %s
-                ORDER BY h.fecha_cierre DESC LIMIT 100
+                ORDER BY h.fecha_cierre DESC
             """, (empresa_id, usuario_id))
         else:
             cursor.execute("""
@@ -1756,7 +1833,7 @@ def historial_cierres():
                 FROM historial_cierres h
                 JOIN usuarios u ON h.usuario_id = u.id
                 WHERE h.empresa_id = %s
-                ORDER BY h.fecha_cierre DESC LIMIT 100
+                ORDER BY h.fecha_cierre DESC
             """, (empresa_id,))
     else:
         cursor.execute("""
@@ -1765,7 +1842,7 @@ def historial_cierres():
             FROM historial_cierres h
             JOIN usuarios u ON h.usuario_id = u.id
             WHERE h.empresa_id = %s AND h.usuario_id = %s
-            ORDER BY h.fecha_cierre DESC LIMIT 100
+            ORDER BY h.fecha_cierre DESC
         """, (empresa_id, user_id))
     registros = cursor.fetchall()
     for r in registros:
@@ -1778,7 +1855,7 @@ def historial_cierres():
     conn.close()
     return jsonify(registros), 200
 
-# ========== HISTORIAL INVENTARIO ==========
+# ----- HISTORIAL INVENTARIO -----
 @app.route('/api/historial-inventario', methods=['GET'])
 @requiere_rol('admin')
 def obtener_historial_inventario():
@@ -1790,7 +1867,7 @@ def obtener_historial_inventario():
                cantidad_anterior, cantidad_nueva, nota
         FROM historial_inventario
         WHERE empresa_id = %s
-        ORDER BY fecha DESC LIMIT 500
+        ORDER BY fecha DESC
     """, (empresa_id,))
     registros = cursor.fetchall()
     for r in registros:
@@ -1802,7 +1879,6 @@ def obtener_historial_inventario():
     conn.close()
     return jsonify(registros), 200
 
-# ========== REINICIAR HISTORIAL DE INVENTARIO ==========
 @app.route('/api/reiniciar-historial-inventario', methods=['POST'])
 @requiere_rol('admin')
 def reiniciar_historial_inventario():
@@ -1831,7 +1907,7 @@ def reiniciar_historial_inventario():
         cursor.close()
         conn.close()
 
-# ========== GRÁFICOS ==========
+# ----- GRÁFICOS -----
 @app.route('/api/sales-stats', methods=['GET'])
 @requiere_rol('cajero')
 def sales_stats():
@@ -1865,7 +1941,7 @@ def sales_stats():
     conn.close()
     return jsonify({'diarias': diarias, 'por_metodo': por_metodo}), 200
 
-# ========== EXPORTACIONES ==========
+# ----- EXPORTACIONES -----
 def exportar_a_csv(consulta_sql, params, nombre_archivo):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1935,7 +2011,7 @@ def exportar_facturas():
     """
     return exportar_a_csv(consulta, (empresa_id,), 'historial_facturas')
 
-# ========== PROVEEDORES ==========
+# ----- PROVEEDORES -----
 @app.route('/api/proveedores', methods=['GET'])
 @requiere_rol('admin')
 def listar_proveedores():
@@ -1993,7 +2069,7 @@ def eliminar_proveedor(id):
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== ÓRDENES DE COMPRA ==========
+# ----- ÓRDENES DE COMPRA -----
 @app.route('/api/ordenes-compra', methods=['GET'])
 @requiere_rol('admin')
 def listar_ordenes_compra():
@@ -2085,7 +2161,7 @@ def crear_orden_compra():
         cursor.close()
         conn.close()
 
-# ========== SUPER ADMIN ==========
+# ----- SUPER ADMIN -----
 @app.route('/api/super/empresas', methods=['GET'])
 @requiere_super_admin
 def super_listar_empresas():
@@ -2229,7 +2305,7 @@ def super_listar_cierres_empresa(empresa_id):
         FROM historial_cierres h
         JOIN usuarios u ON h.usuario_id = u.id
         WHERE h.empresa_id = %s
-        ORDER BY h.fecha_cierre DESC LIMIT 100
+        ORDER BY h.fecha_cierre DESC
     """, (empresa_id,))
     registros = cursor.fetchall()
     for r in registros:
@@ -2258,57 +2334,7 @@ def super_eliminar_cierre(id):
         cursor.close()
         conn.close()
 
-# ========== CREAR SUPER ADMIN SI NO EXISTE ==========
-def crear_super_admin_si_no_existe():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    
-    # Crear tabla usuarios si no existe
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(255) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
-            email VARCHAR(255),
-            telefono VARCHAR(50),
-            role VARCHAR(50) DEFAULT 'cajero',
-            empresa_id INT,
-            INDEX (empresa_id)
-        )
-    """)
-    conn.commit()
-    
-    # ========== NUEVO: Asegurar columna fecha_vencimiento en productos ==========
-    try:
-        cursor.execute("ALTER TABLE productos ADD COLUMN fecha_vencimiento DATE DEFAULT NULL")
-        conn.commit()
-        print("✅ Columna fecha_vencimiento agregada a productos")
-    except Exception as e:
-        # Si la columna ya existe, se ignora
-        print("ℹ️ La columna fecha_vencimiento ya existe o no se pudo agregar:", e)
-    
-    # Crear super_admin si no existe
-    cursor.execute("SELECT id FROM usuarios WHERE username = 'super_admin'")
-    existe = cursor.fetchone()
-    if not existe:
-        password = "koko.080502"
-        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode()
-        cursor.execute("""
-            INSERT INTO usuarios (username, password_hash, email, role, empresa_id)
-            VALUES (%s, %s, %s, %s, %s)
-        """, ("super_admin", hashed, "admin@corebilling.com", "super_admin", None))
-        conn.commit()
-        print("✅ Super admin creado con contraseña: koko.080502")
-    else:
-        password = "koko.080502"
-        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode()
-        cursor.execute("UPDATE usuarios SET password_hash = %s WHERE username = 'super_admin'", (hashed,))
-        conn.commit()
-        print("✅ Contraseña de super admin actualizada a: koko.080502")
-    cursor.close()
-    conn.close()
-
-# ========== RUTAS ESTÁTICAS ==========
+# ----- RUTAS ESTÁTICAS -----
 @app.route('/')
 @app.route('/<path:filename>')
 def serve_frontend(filename='index.html'):
@@ -2319,10 +2345,12 @@ def serve_frontend(filename='index.html'):
     except FileNotFoundError:
         return jsonify({'error': 'Not found'}), 404
 
-# ========== INICIO ==========
+# ----- INICIO -----
 if __name__ == '__main__':
+    crear_indices()
     crear_super_admin_si_no_existe()
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 else:
     # Para producción con Gunicorn
+    crear_indices()
     crear_super_admin_si_no_existe()
