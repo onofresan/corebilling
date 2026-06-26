@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 import jwt
 from flask_socketio import SocketIO, emit
 import stripe
+import time
 
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
@@ -24,7 +25,7 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_...')
 STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', 'pk_test_...')
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
 UPLOAD_FOLDER = 'static/logos'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -32,6 +33,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# CORS - permite cualquier origen
 CORS(app, origins="*", supports_credentials=True)
 
 def allowed_file(filename):
@@ -474,7 +476,7 @@ def eliminar_cliente(id):
     conn.close()
     return jsonify({'status': 'OK'}), 200
 
-# ========== PRODUCTOS (CON FECHA DE VENCIMIENTO) ==========
+# ========== PRODUCTOS ==========
 @app.route('/api/productos', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_productos():
@@ -1002,6 +1004,7 @@ def cerrar_mi_caja():
         return jsonify({'error': 'No hay caja abierta'}), 400
     caja_id = caja['id']
 
+    # Facturas que NO son Casa ni Crédito (ventas reales)
     cursor.execute("""
         SELECT fc.total_usd, fc.subtotal_usd, fc.iva_usd, fc.monto_servicio_usd
         FROM facturas_cabecera fc
@@ -1023,6 +1026,7 @@ def cerrar_mi_caja():
     base_imponible_bs = base_imponible_usd * tasa
     iva_total_bs = iva_total_usd * tasa
 
+    # Cobros reales (excluyendo administración, Casa y Crédito)
     cursor.execute("""
         SELECT fp.metodo_pago, SUM(fp.monto_usd) as total_usd, SUM(fp.monto_bs) as total_bs
         FROM facturas_pagos fp
@@ -1047,6 +1051,7 @@ def cerrar_mi_caja():
         if m not in pagos_dict:
             pagos_dict[m] = {'usd': 0.0, 'bs': 0.0}
 
+    # Pagos por administración (abonos)
     cursor.execute("""
         SELECT SUM(fp.monto_usd) as total_admin_usd, SUM(fp.monto_bs) as total_admin_bs
         FROM facturas_pagos fp
@@ -1057,6 +1062,7 @@ def cerrar_mi_caja():
     total_admin_usd = float(admin_row['total_admin_usd'] or 0)
     total_admin_bs = float(admin_row['total_admin_bs'] or 0)
 
+    # Gastos internos (Casa)
     cursor.execute("""
         SELECT SUM(fc.subtotal_usd) as total_casa_usd,
                SUM(fc.subtotal_usd * fc.tasa_cambio) as total_casa_bs
@@ -1067,6 +1073,7 @@ def cerrar_mi_caja():
     total_casa_usd = float(casa_row['total_casa_usd'] or 0)
     total_casa_bs = float(casa_row['total_casa_bs'] or 0)
 
+    # Crédito (Fiado)
     cursor.execute("""
         SELECT SUM(fc.subtotal_usd) as total_credito_usd,
                SUM(fc.subtotal_usd * fc.tasa_cambio) as total_credito_bs
@@ -1077,6 +1084,7 @@ def cerrar_mi_caja():
     total_credito_usd = float(credito_row['total_credito_usd'] or 0)
     total_credito_bs = float(credito_row['total_credito_bs'] or 0)
 
+    # Actualizar contador de reporte Z
     cursor.execute("SELECT ultimo_reporte_z FROM empresas WHERE id = %s", (empresa_id,))
     row = cursor.fetchone()
     if row and row['ultimo_reporte_z'] is not None:
@@ -1452,7 +1460,7 @@ def listar_facturas():
     if fecha_hasta:
         query += " AND DATE(fc.fecha) <= %s"
         params.append(fecha_hasta)
-    query += " ORDER BY fc.fecha DESC"
+    query += " ORDER BY fc.fecha DESC LIMIT 500"  # Limit to avoid overloading
     cursor.execute(query, params)
     facturas = cursor.fetchall()
     for f in facturas:
@@ -1610,7 +1618,7 @@ def obtener_alertas():
     empresa_id = request.empresa_id
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM alertas WHERE empresa_id = %s AND leida = 0 ORDER BY fecha DESC", (empresa_id,))
+    cursor.execute("SELECT * FROM alertas WHERE empresa_id = %s AND leida = 0 ORDER BY fecha DESC LIMIT 50", (empresa_id,))
     alertas = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1739,7 +1747,7 @@ def historial_cierres():
                 FROM historial_cierres h
                 JOIN usuarios u ON h.usuario_id = u.id
                 WHERE h.empresa_id = %s AND h.usuario_id = %s
-                ORDER BY h.fecha_cierre DESC
+                ORDER BY h.fecha_cierre DESC LIMIT 100
             """, (empresa_id, usuario_id))
         else:
             cursor.execute("""
@@ -1748,7 +1756,7 @@ def historial_cierres():
                 FROM historial_cierres h
                 JOIN usuarios u ON h.usuario_id = u.id
                 WHERE h.empresa_id = %s
-                ORDER BY h.fecha_cierre DESC
+                ORDER BY h.fecha_cierre DESC LIMIT 100
             """, (empresa_id,))
     else:
         cursor.execute("""
@@ -1757,7 +1765,7 @@ def historial_cierres():
             FROM historial_cierres h
             JOIN usuarios u ON h.usuario_id = u.id
             WHERE h.empresa_id = %s AND h.usuario_id = %s
-            ORDER BY h.fecha_cierre DESC
+            ORDER BY h.fecha_cierre DESC LIMIT 100
         """, (empresa_id, user_id))
     registros = cursor.fetchall()
     for r in registros:
@@ -1782,7 +1790,7 @@ def obtener_historial_inventario():
                cantidad_anterior, cantidad_nueva, nota
         FROM historial_inventario
         WHERE empresa_id = %s
-        ORDER BY fecha DESC
+        ORDER BY fecha DESC LIMIT 500
     """, (empresa_id,))
     registros = cursor.fetchall()
     for r in registros:
@@ -2221,7 +2229,7 @@ def super_listar_cierres_empresa(empresa_id):
         FROM historial_cierres h
         JOIN usuarios u ON h.usuario_id = u.id
         WHERE h.empresa_id = %s
-        ORDER BY h.fecha_cierre DESC
+        ORDER BY h.fecha_cierre DESC LIMIT 100
     """, (empresa_id,))
     registros = cursor.fetchall()
     for r in registros:
@@ -2270,6 +2278,16 @@ def crear_super_admin_si_no_existe():
     """)
     conn.commit()
     
+    # ========== NUEVO: Asegurar columna fecha_vencimiento en productos ==========
+    try:
+        cursor.execute("ALTER TABLE productos ADD COLUMN fecha_vencimiento DATE DEFAULT NULL")
+        conn.commit()
+        print("✅ Columna fecha_vencimiento agregada a productos")
+    except Exception as e:
+        # Si la columna ya existe, se ignora
+        print("ℹ️ La columna fecha_vencimiento ya existe o no se pudo agregar:", e)
+    
+    # Crear super_admin si no existe
     cursor.execute("SELECT id FROM usuarios WHERE username = 'super_admin'")
     existe = cursor.fetchone()
     if not existe:
@@ -2306,4 +2324,5 @@ if __name__ == '__main__':
     crear_super_admin_si_no_existe()
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 else:
+    # Para producción con Gunicorn
     crear_super_admin_si_no_existe()
