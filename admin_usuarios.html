@@ -4,130 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Administrar Usuarios</title>
     <style>
-        .users-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#f8fafc; font-family:'Segoe UI', sans-serif; display:flex; flex-direction:column; min-height:100vh; }
+        .sidebar { position:fixed; top:0; left:-260px; width:260px; height:100%; background:#0f172a; transition:0.3s; z-index:1000; overflow-y:auto; box-shadow:2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar.open { left:0; }
+        .sidebar h4 { color:#6366f1; text-align:center; padding:24px 0; font-size:1.5rem; }
+        .sidebar a { display:block; color:#94a3b8; padding:12px 20px; text-decoration:none; transition:0.2s; }
+        .sidebar a:hover, .sidebar a.active { background:#1e293b; color:white; }
+        .sidebar .salir { color:#f87171 !important; margin-top:20px; }
+        .main-content { flex:1; padding:16px; transition:0.3s; }
+        .menu-toggle { background:#4f46e5; color:white; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; margin-bottom:15px; display:inline-block; font-size:1rem; }
+        @media (min-width:768px) {
+            .sidebar { left:0; }
+            .main-content { margin-left:260px; }
+            .menu-toggle { display:none; }
         }
-        .users-grid .form-section {
-            flex: 1;
-            min-width: 280px;
-        }
-        .users-grid .list-section {
-            flex: 2;
-            min-width: 320px;
-        }
-        .input-group {
-            margin-bottom: 14px;
-        }
-        .input-group label {
-            display: block;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: #334155;
-            margin-bottom: 4px;
-        }
-        .input-group input,
-        .input-group select {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
-            transition: all 0.2s;
-            background: white;
-        }
-        .input-group input:focus,
-        .input-group select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
-            outline: none;
-        }
-        .table-container {
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-            background: white;
-            margin-top: 8px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        th {
-            background: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-            padding: 12px 10px;
-            border-bottom: 2px solid #e2e8f0;
-            text-align: left;
-        }
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-        tr:hover td {
-            background: #f8fafc;
-        }
-        .btn-accion {
-            padding: 4px 12px;
-            border-radius: 40px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin: 0 2px;
-            font-size: 0.75rem;
-        }
-        .btn-accion.warning { background: #f59e0b; color: white; }
-        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
-        .btn-accion.danger { background: #ef4444; color: white; }
-        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
-        .modal-content {
-            max-width: 440px;
-        }
-        .modal-content .input-group {
-            margin-bottom: 14px;
-        }
-        .modal-content .input-group label {
-            display: block;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: #334155;
-            margin-bottom: 4px;
-        }
-        .modal-content .input-group input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
-            transition: all 0.2s;
-        }
-        .modal-content .input-group input:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
-            outline: none;
-        }
-        .flex-btns {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-        h3 {
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-        @media (max-width: 640px) {
-            .users-grid { flex-direction: column; }
-            th, td { font-size: 0.75rem; padding: 6px 4px; }
-            .modal-content { padding: 16px; }
+        .card { background:white; border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .btn-primary { background:#4f46e5; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; }
+        .btn-danger { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+        .btn-warning { background:#f59e0b; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+        .form-group { margin-bottom:12px; }
+        .form-group label { display:block; font-weight:600; margin-bottom:4px; }
+        .form-group input, .form-group select { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
+        .table-container { overflow-x:auto; margin-top:20px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:12px; border-bottom:1px solid #e2e8f0; text-align:left; }
+        th { background:#f8fafc; }
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1100; }
+        .modal-content { background:white; max-width:400px; width:90%; padding:20px; border-radius:16px; }
+        .close-modal { float:right; font-size:24px; cursor:pointer; }
+        .flex-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+        @media (max-width:640px) {
+            th, td { padding:8px; font-size:12px; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
@@ -135,7 +45,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -154,55 +64,30 @@
 </div>
 <div class="main-content">
     <button class="menu-toggle" id="menuToggle">☰ Menú</button>
-
     <div class="card">
-        <h2 style="font-weight:700;">👥 Gestión de Usuarios</h2>
-
-        <div class="users-grid">
-            <!-- Formulario de creación -->
-            <div class="form-section">
+        <h2>👥 Gestión de Usuarios</h2>
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:250px;">
                 <h3>Crear nuevo usuario</h3>
                 <form id="formUsuario">
-                    <div class="input-group">
-                        <label>👤 Usuario</label>
-                        <input type="text" id="username" required>
-                    </div>
-                    <div class="input-group">
-                        <label>🔒 Contraseña</label>
-                        <input type="password" id="password" required>
-                    </div>
-                    <div class="input-group">
-                        <label>📧 Correo</label>
-                        <input type="email" id="email">
-                    </div>
-                    <div class="input-group">
-                        <label>🎯 Rol</label>
+                    <div class="form-group"><label>Usuario</label><input type="text" id="username" required></div>
+                    <div class="form-group"><label>Contraseña</label><input type="password" id="password" required></div>
+                    <div class="form-group"><label>Correo</label><input type="email" id="email"></div>
+                    <div class="form-group"><label>Rol</label>
                         <select id="role">
                             <option value="cajero">Cajero</option>
                             <option value="admin">Administrador</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn-success" style="width:100%;">Crear Usuario</button>
+                    <button type="submit" class="btn-primary">Crear Usuario</button>
                 </form>
             </div>
-
-            <!-- Lista de usuarios -->
-            <div class="list-section">
+            <div style="flex:2; min-width:300px;">
                 <h3>Lista de usuarios</h3>
                 <div class="table-container">
                     <table id="tablaUsuarios">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Usuario</th>
-                                <th>Rol</th>
-                                <th>Email</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-usuarios">
-                            <tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
-                        </tbody>
+                        <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th><th>Email</th><th>Acciones</th></tr></thead>
+                        <tbody></tbody>
                     </table>
                 </div>
             </div>
@@ -211,26 +96,17 @@
 </div>
 
 <!-- Modal para editar usuario -->
-<div id="modalEditar" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
-    <div class="modal-content" style="background:white; max-width:440px; width:95%; padding:24px; border-radius:28px;">
-        <span class="close-modal" onclick="cerrarModalEditar()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
-        <h3 style="margin-bottom:16px;">Editar Usuario</h3>
+<div id="modalEditar" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModalEditar()">&times;</span>
+        <h3>Editar Usuario</h3>
         <form id="formEditar">
             <input type="hidden" id="editUserId">
-            <div class="input-group">
-                <label>Nuevo nombre de usuario</label>
-                <input type="text" id="editUsername" placeholder="Dejar vacío para no cambiar">
-            </div>
-            <div class="input-group">
-                <label>Nueva contraseña</label>
-                <input type="password" id="editPassword" placeholder="Dejar vacío para no cambiar">
-            </div>
-            <div class="input-group">
-                <label>Confirmar contraseña</label>
-                <input type="password" id="editConfirmPassword" placeholder="Repite la nueva contraseña">
-            </div>
+            <div class="form-group"><label>Nuevo nombre de usuario</label><input type="text" id="editUsername" placeholder="Dejar vacío para no cambiar"></div>
+            <div class="form-group"><label>Nueva contraseña</label><input type="password" id="editPassword" placeholder="Dejar vacío para no cambiar"></div>
+            <div class="form-group"><label>Confirmar contraseña</label><input type="password" id="editConfirmPassword"></div>
             <div class="flex-btns">
-                <button type="submit" class="btn-success">Guardar cambios</button>
+                <button type="submit" class="btn-primary">Guardar cambios</button>
                 <button type="button" class="btn-danger" onclick="cerrarModalEditar()">Cancelar</button>
             </div>
         </form>
@@ -239,10 +115,9 @@
 
 <script>
     const API_URL = '/api';
-    let socket = null;
-    let empresaId = null;
+    let socket = null, empresaId = null;
 
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m; }); }
 
     async function verificarSesion() {
         const token = localStorage.getItem('token');
@@ -253,11 +128,7 @@
             const data = await res.json();
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
-            if (data.role !== 'admin') {
-                alert('Acceso denegado. Solo administradores.');
-                window.location.href = 'dashboard.html';
-                return null;
-            }
+            if (data.role !== 'admin') { alert('Acceso denegado'); window.location.href = 'index.html'; return null; }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
             conectarWebSocket();
@@ -267,59 +138,47 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
 
     function mostrarToast(mensaje) {
         const toast = document.createElement('div');
-        toast.className = 'alert-toast';
+        toast.style.position='fixed'; toast.style.bottom='20px'; toast.style.right='20px';
+        toast.style.background='#1e293b'; toast.style.color='white'; toast.style.padding='12px 20px';
+        toast.style.borderRadius='12px'; toast.style.zIndex='1100';
         toast.innerText = mensaje;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
+        setTimeout(()=>toast.remove(),5000);
     }
 
     async function cargarUsuarios() {
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } });
         const usuarios = await res.json();
-        const tbody = document.getElementById('tbody-usuarios');
+        const tbody = document.querySelector('#tablaUsuarios tbody');
         tbody.innerHTML = '';
-        if (usuarios.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No hay usuarios registrados</td></tr>';
-            return;
-        }
         usuarios.forEach(u => {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${u.id}</td>
-                    <td>${escapeHtml(u.username)}</td>
-                    <td><span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 12px; border-radius:40px; font-size:0.7rem; font-weight:600;">${escapeHtml(u.role)}</span></td>
-                    <td>${escapeHtml(u.email || '')}</td>
-                    <td>
-                        <button class="btn-accion warning" onclick="abrirModalEditar(${u.id}, '${escapeHtml(u.username)}')">✏️</button>
-                        <button class="btn-accion danger" onclick="eliminarUsuario(${u.id})">🗑️</button>
-                    </td>
-                </tr>
-            `;
+            tbody.innerHTML += `<tr>
+                <td>${u.id}</td>
+                <td>${escapeHtml(u.username)}</td>
+                <td>${escapeHtml(u.role)}</td>
+                <td>${escapeHtml(u.email||'')}</td>
+                <td>
+                    <button class="btn-warning" onclick="abrirModalEditar(${u.id}, '${escapeHtml(u.username)}')">✏️ Editar</button>
+                    <button class="btn-danger" onclick="eliminarUsuario(${u.id})">🗑️ Eliminar</button>
+                </td>
+            </tr>`;
         });
     }
 
     async function eliminarUsuario(id) {
         if (!confirm('¿Eliminar este usuario?')) return;
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/usuarios/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-            alert('Usuario eliminado');
-            cargarUsuarios();
-        } else {
-            const err = await res.json();
-            alert('Error: ' + (err.error || 'No se pudo eliminar'));
-        }
+        const res = await fetch(`${API_URL}/usuarios/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) { alert('Usuario eliminado'); cargarUsuarios(); }
+        else { const err = await res.json(); alert('Error: ' + err.error); }
     }
 
     window.abrirModalEditar = function(id, username) {
@@ -330,10 +189,7 @@
         document.getElementById('modalEditar').style.display = 'flex';
     };
 
-    function cerrarModalEditar() {
-        document.getElementById('modalEditar').style.display = 'none';
-        document.getElementById('formEditar').reset();
-    }
+    function cerrarModalEditar() { document.getElementById('modalEditar').style.display = 'none'; }
 
     document.getElementById('formUsuario').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -355,7 +211,7 @@
             cargarUsuarios();
         } else {
             const err = await res.json();
-            alert('Error: ' + (err.error || 'No se pudo crear el usuario'));
+            alert('Error: ' + (err.error || 'Error desconocido'));
         }
     });
 
@@ -365,41 +221,23 @@
         const username = document.getElementById('editUsername').value.trim();
         const password = document.getElementById('editPassword').value;
         const confirm = document.getElementById('editConfirmPassword').value;
-        if (password && password !== confirm) {
-            alert('Las contraseñas no coinciden');
-            return;
-        }
+        if (password && password !== confirm) { alert('Las contraseñas no coinciden'); return; }
         const payload = {};
         if (username) payload.username = username;
         if (password) payload.password = password;
-        if (Object.keys(payload).length === 0) {
-            alert('No se ingresaron cambios');
-            return;
-        }
+        if (Object.keys(payload).length === 0) { alert('No se ingresaron cambios'); return; }
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/usuarios/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
         });
-        if (res.ok) {
-            alert('Usuario actualizado');
-            cerrarModalEditar();
-            cargarUsuarios();
-        } else {
-            const err = await res.json();
-            alert('Error: ' + (err.error || 'No se pudo actualizar'));
-        }
+        if (res.ok) { alert('Usuario actualizado'); cerrarModalEditar(); cargarUsuarios(); }
+        else { const err = await res.json(); alert('Error: ' + (err.error || 'No se pudo actualizar')); }
     });
 
-    document.getElementById('menuToggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
-    });
-    document.getElementById('logoutBtn').addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('token');
-        window.location.href = 'login.html';
-    });
+    document.getElementById('menuToggle').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
+    document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); localStorage.removeItem('token'); window.location.href='login.html'; });
 
     verificarSesion().then(() => cargarUsuarios());
     window.cerrarModalEditar = cerrarModalEditar;
