@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <!-- <link rel="manifest" href="/manifest.json"> -->  <!-- Comentado para evitar error 404 -->
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Compras</title>
     <style>
@@ -221,7 +220,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    const API_URL = '/api';
     let productos = [];
     let proveedores = [];
     let ordenProductos = [];
@@ -254,7 +253,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -282,7 +281,6 @@
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
         const all = await res.json();
-        // Solo productos normales o ingredientes (no recetas ni kits)
         productos = all.filter(p => p.tipo_producto !== 'receta' && p.tipo_producto !== 'kit_padre');
     }
 
@@ -310,16 +308,13 @@
         });
     }
 
-    // Función para reasignar índices después de eliminar una fila
     function reasignarIndices() {
         const rows = document.querySelectorAll('.producto-row');
         rows.forEach((row, newIdx) => {
-            // Actualizar data-idx en select, cantidad y precio
             row.querySelector('.prod-codigo').dataset.idx = newIdx;
             row.querySelector('.prod-cantidad').dataset.idx = newIdx;
             row.querySelector('.prod-precio').dataset.idx = newIdx;
         });
-        // También actualizar el array ordenProductos para que coincida con el orden de las filas
         const nuevos = [];
         rows.forEach(row => {
             const codigo = row.querySelector('.prod-codigo').value || '';
@@ -378,11 +373,10 @@
         });
     }
 
-    // Función para eliminar una fila y reasignar índices
     window.eliminarFila = function(btn) {
         const row = btn.closest('.producto-row');
         row.remove();
-        reasignarIndices();  // Reconstruir el array y los índices
+        reasignarIndices();
     };
 
     function recalcularTotal() {
@@ -401,7 +395,6 @@
         document.getElementById('proveedorId').value = '';
         document.getElementById('totalUsd').innerText = '0.00';
         document.getElementById('modalOrden').style.display = 'flex';
-        // Agregar una fila por defecto
         agregarProducto();
     };
 
@@ -438,7 +431,7 @@
                 alert('✅ Orden registrada y stock actualizado');
                 cerrarModalOrden();
                 cargarOrdenes();
-                cargarProductos(); // refrescar productos para mostrar stock actualizado
+                cargarProductos();
             } else {
                 const err = await res.json();
                 alert('❌ Error: ' + (err.error || 'Error al registrar orden'));
