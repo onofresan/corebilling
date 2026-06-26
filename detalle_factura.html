@@ -4,224 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Detalle de Factura</title>
     <style>
-        body {
-            background: #f1f5f9;
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 900px;
-            width: 100%;
-            background: white;
-            border-radius: 28px;
-            padding: 28px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            margin-bottom: 20px;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 16px;
-            margin-bottom: 20px;
-        }
-        .header h1 {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0;
-        }
-        .header .badge-estado {
-            display: inline-block;
-            padding: 6px 16px;
-            border-radius: 40px;
-            font-weight: 600;
-            font-size: 0.8rem;
-        }
-        .badge-activa {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        .badge-anulada {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-            background: #f8fafc;
-            padding: 16px 20px;
-            border-radius: 16px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-        }
-        .info-grid .item {
-            display: flex;
-            flex-direction: column;
-        }
-        .info-grid .item .label {
-            font-weight: 600;
-            color: #475569;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .info-grid .item .value {
-            font-weight: 500;
-            color: #0f172a;
-            margin-top: 2px;
-        }
-        .extras-box {
-            background: #fef3c7;
-            padding: 12px 16px;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 8px;
-            font-size: 0.85rem;
-        }
-        .extras-box.casa {
-            background: #e0f2fe;
-        }
-        h3 {
-            font-weight: 600;
-            margin: 20px 0 12px;
-            color: #0f172a;
-        }
-        .table-wrapper {
-            overflow-x: auto;
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        th {
-            background: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-            padding: 12px 14px;
-            border-bottom: 2px solid #e2e8f0;
-            text-align: left;
-        }
-        td {
-            padding: 10px 14px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        tr:last-child td {
-            border-bottom: none;
-        }
-        tr:hover td {
-            background: #f8fafc;
-        }
-        .resumen-iva {
-            background: #eef2ff;
-            padding: 12px 16px;
-            border-radius: 12px;
-            margin: 16px 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            font-weight: 500;
-        }
-        .resumen-iva span {
-            color: #1e293b;
-        }
-        .total-box {
-            text-align: right;
-            padding: 16px 20px;
-            background: #0f172a;
-            color: white;
-            border-radius: 16px;
-            margin-top: 12px;
-        }
-        .total-box .total-usd {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #34d399;
-        }
-        .total-box .total-bs {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #94a3b8;
-        }
-        .pagos-table {
-            margin-top: 8px;
-        }
-        .pagos-table table {
-            font-size: 0.85rem;
-        }
-        .action-buttons {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 16px;
-        }
-        .action-buttons button {
-            padding: 10px 24px;
-            border-radius: 40px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-pdf {
-            background: #10b981;
-            color: white;
-        }
-        .btn-pdf:hover {
-            background: #059669;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(16,185,129,0.3);
-        }
-        .btn-cerrar {
-            background: #64748b;
-            color: white;
-        }
-        .btn-cerrar:hover {
-            background: #475569;
-            transform: translateY(-2px);
-        }
-        .btn-imprimir {
-            background: #f59e0b;
-            color: white;
-        }
-        .btn-imprimir:hover {
-            background: #d97706;
-            transform: translateY(-2px);
-        }
-        @media print {
-            body { background: white; padding: 0; }
-            .container { box-shadow: none; padding: 16px; }
-            .action-buttons { display: none; }
-            .header .badge-estado { border: 1px solid #ccc; }
-        }
-        @media (max-width: 640px) {
-            .container { padding: 16px; }
-            .info-grid { grid-template-columns: 1fr; }
-            .header h1 { font-size: 1.2rem; }
-            th, td { font-size: 0.75rem; padding: 6px 8px; }
-            .total-box .total-usd { font-size: 1.4rem; }
-            .resumen-iva { font-size: 0.8rem; }
-        }
+        /* ... estilos iguales a los anteriores ... */
+        body { background: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .container { max-width: 900px; width: 100%; background: white; border-radius: 28px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
+        .header h1 { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0; }
+        .badge-estado { display: inline-block; padding: 6px 16px; border-radius: 40px; font-weight: 600; font-size: 0.8rem; }
+        .badge-activa { background: #d1fae5; color: #065f46; }
+        .badge-anulada { background: #fee2e2; color: #991b1b; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; background: #f8fafc; padding: 16px 20px; border-radius: 16px; margin-bottom: 20px; font-size: 0.9rem; }
+        .info-grid .item { display: flex; flex-direction: column; }
+        .info-grid .item .label { font-weight: 600; color: #475569; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .info-grid .item .value { font-weight: 500; color: #0f172a; margin-top: 2px; }
+        .extras-box { background: #fef3c7; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 0.85rem; }
+        .extras-box.casa { background: #e0f2fe; }
+        h3 { font-weight: 600; margin: 20px 0 12px; color: #0f172a; }
+        .table-wrapper { overflow-x: auto; border-radius: 16px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: #f8fafc; color: #475569; font-weight: 600; padding: 12px 14px; border-bottom: 2px solid #e2e8f0; text-align: left; }
+        td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+        tr:last-child td { border-bottom: none; }
+        .resumen-iva { background: #eef2ff; padding: 12px 16px; border-radius: 12px; margin: 16px 0; display: flex; flex-wrap: wrap; gap: 16px; font-weight: 500; }
+        .total-box { text-align: right; padding: 16px 20px; background: #0f172a; color: white; border-radius: 16px; margin-top: 12px; }
+        .total-box .total-usd { font-size: 1.8rem; font-weight: 700; color: #34d399; }
+        .total-box .total-bs { font-size: 1.2rem; font-weight: 600; color: #94a3b8; }
+        .pagos-table { margin-top: 8px; }
+        .action-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+        .action-buttons button { padding: 10px 24px; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-pdf { background: #10b981; color: white; }
+        .btn-pdf:hover { background: #059669; transform: translateY(-2px); }
+        .btn-cerrar { background: #64748b; color: white; }
+        .btn-cerrar:hover { background: #475569; transform: translateY(-2px); }
+        .btn-imprimir { background: #f59e0b; color: white; }
+        .btn-imprimir:hover { background: #d97706; transform: translateY(-2px); }
+        @media print { body { background: white; padding: 0; } .container { box-shadow: none; padding: 16px; } .action-buttons { display: none; } }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 <div class="container" id="facturaContainer">
@@ -241,37 +62,22 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `http://${window.location.hostname}:5000/api`;
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m);
-    }
-    function toNum(v, d = 0) {
-        let n = parseFloat(v);
-        return isNaN(n) ? d : n;
-    }
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
 
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = 'login.html';
-            return null;
-        }
+        if (!token) { window.location.href = 'login.html'; return null; }
         try {
-            const res = await fetch(`${API_URL}/check-session`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (!res.ok) throw new Error();
             const data = await res.json();
             if (!data.logged_in) throw new Error();
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             return data;
-        } catch(e) {
-            localStorage.removeItem('token');
-            window.location.href = 'login.html';
-            return null;
-        }
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
     }
 
     async function cargarDetalle() {
@@ -282,9 +88,7 @@
         }
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/facturas/${id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/facturas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (!res.ok) throw new Error('Error al cargar factura');
             const data = await res.json();
             const f = data.factura;
@@ -369,7 +173,7 @@
                     <span>Subtotal sin IVA: $${toNum(f.subtotal_usd, 0).toFixed(2)}</span>
                     <span>IVA Total: $${toNum(f.iva_usd, 0).toFixed(2)}</span>
                     <span>Servicio (${f.porcentaje_servicio || 0}%): $${toNum(f.monto_servicio_usd, 0).toFixed(2)}</span>
-                    <span>Total con IVA + Servicio: <strong>$$${toNum(f.total_usd, 0).toFixed(2)}</strong></span>
+                    <span>Total con IVA + Servicio: <strong>$${toNum(f.total_usd, 0).toFixed(2)}</strong></span>
                 </div>
             `;
 
@@ -384,7 +188,7 @@
                                 <tr><th>Método</th><th style="text-align:right;">Monto USD</th><th style="text-align:right;">Monto Bs</th><th>Referencia</th><th>Nota</th></tr>
                             </thead>
                             <tbody>
-                    `;
+                `;
                 data.pagos.forEach(p => {
                     pagosHtml += `
                         <tr>
@@ -399,7 +203,7 @@
                 pagosHtml += `</tbody></table></div>`;
             }
 
-            // Totales finales
+            // Totales
             const totalHtml = `
                 <div class="total-box">
                     <div class="total-usd">$${toNum(f.total_usd, 0).toFixed(2)} USD</div>
@@ -422,7 +226,6 @@
                 </div>
             `;
 
-            // Ensamblar todo
             const fullHtml = `
                 ${infoHtml}
                 ${extrasHtml}
@@ -436,27 +239,132 @@
             document.getElementById('detalle').innerHTML = fullHtml;
             document.getElementById('actionButtons').style.display = 'flex';
 
-            // PDF
-            document.getElementById('btnPDF').onclick = () => {
-                const element = document.getElementById('facturaContainer');
-                const opt = {
-                    margin: [0.3, 0.3, 0.3, 0.3],
-                    filename: `factura_${id}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, letterRendering: true, useCORS: true },
-                    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-                };
-                html2pdf().set(opt).from(element).save();
-            };
-
-            // Imprimir
-            document.getElementById('btnImprimir').onclick = () => {
-                window.print();
-            };
+            // PDF con jsPDF (mejorado)
+            document.getElementById('btnPDF').onclick = () => generarPDF(f, data);
+            document.getElementById('btnImprimir').onclick = () => window.print();
 
         } catch (err) {
             document.getElementById('detalle').innerHTML = `<p style="color:#ef4444; text-align:center;">❌ Error: ${escapeHtml(err.message)}</p>`;
         }
+    }
+
+    // ===== GENERAR PDF MODERNO =====
+    function generarPDF(f, data) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Encabezado
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(40, 40, 80);
+        doc.text('DETALLE DE FACTURA', pageWidth/2, 20, { align: 'center' });
+
+        // Información de la factura (izquierda)
+        doc.setFontSize(10);
+        doc.setTextColor(60);
+        const lines = [
+            `N° Factura: ${f.numero}`,
+            `Fecha: ${new Date(f.fecha).toLocaleString()}`,
+            `Cliente: ${f.cliente_nombre || 'Cliente General'}`,
+            `RIF: ${f.cliente_rif || 'J-00000000-0'}`,
+            `Cajero: ${f.cajero || 'N/A'}`,
+            `Método: ${f.metodo_pago}`,
+            `Referencia: ${f.referencia || 'N/A'}`,
+            `Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}`
+        ];
+        let y = 32;
+        lines.forEach(line => {
+            doc.text(line, 14, y);
+            y += 6;
+        });
+        y += 4;
+
+        // Tabla de productos
+        const tableData = data.productos.map(p => [
+            p.nombre,
+            p.cantidad,
+            `$${toNum(p.precio_unitario).toFixed(2)}`,
+            `$${toNum(p.subtotal_con_iva).toFixed(2)}`
+        ]);
+        doc.autoTable({
+            startY: y,
+            head: [['Producto', 'Cant', 'Precio Unit.', 'Subtotal']],
+            body: tableData,
+            theme: 'striped',
+            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+            columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 20 }, 2: { cellWidth: 35 }, 3: { cellWidth: 35 } },
+            margin: { left: 14, right: 14 },
+            didDrawPage: function(data) {
+                // Pie de página
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
+            }
+        });
+        y = doc.lastAutoTable.finalY + 6;
+
+        // Resumen IVA y totales
+        const subtotal = toNum(f.subtotal_usd);
+        const iva = toNum(f.iva_usd);
+        const servicio = toNum(f.monto_servicio_usd);
+        const total = toNum(f.total_usd);
+        const totalBs = total * toNum(f.tasa_cambio);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(`Subtotal sin IVA: $${subtotal.toFixed(2)}`, 14, y);
+        y += 6;
+        doc.text(`IVA Total: $${iva.toFixed(2)}`, 14, y);
+        y += 6;
+        doc.text(`Servicio (${f.porcentaje_servicio || 0}%): $${servicio.toFixed(2)}`, 14, y);
+        y += 8;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(0, 128, 0);
+        doc.text(`Total con IVA + Servicio: $${total.toFixed(2)}`, 14, y);
+        y += 6;
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text(`Total en Bs: Bs ${totalBs.toFixed(2)}`, 14, y);
+
+        // Pagos (si existen)
+        if (data.pagos && data.pagos.length > 0) {
+            y += 10;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.text('Detalle de Pagos', 14, y);
+            y += 6;
+            const pagosData = data.pagos.map(p => [
+                p.metodo_pago,
+                `$${toNum(p.monto_usd).toFixed(2)}`,
+                `Bs ${toNum(p.monto_bs).toFixed(2)}`,
+                p.referencia || '',
+                p.nota || ''
+            ]);
+            doc.autoTable({
+                startY: y,
+                head: [['Método', 'Monto USD', 'Monto Bs', 'Referencia', 'Nota']],
+                body: pagosData,
+                theme: 'striped',
+                headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+                styles: { fontSize: 8 },
+                columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 25 }, 2: { cellWidth: 25 }, 3: { cellWidth: 30 }, 4: { cellWidth: 30 } },
+                margin: { left: 14, right: 14 },
+                didDrawPage: function(data) {
+                    doc.setFontSize(8);
+                    doc.setTextColor(150);
+                    doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
+                }
+            });
+            y = doc.lastAutoTable.finalY + 6;
+        }
+
+        // Pie de página fijo
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text('Documento generado por CoreBilling', pageWidth/2, 285, { align: 'center' });
+
+        doc.save(`factura_${f.numero}.pdf`);
     }
 
     verificarSesion().then(() => cargarDetalle());
