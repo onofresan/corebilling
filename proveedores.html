@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
     <title>CoreBilling - Proveedores</title>
     <style>
         .header-box {
@@ -59,7 +58,7 @@
         .btn-accion.danger { background: #ef4444; color: white; }
         .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
         .modal-content {
-            max-width: 500px;
+            max-width: 480px;
         }
         .modal-content .input-group {
             margin-bottom: 14px;
@@ -71,14 +70,16 @@
             color: #334155;
             margin-bottom: 4px;
         }
-        .modal-content .input-group input {
+        .modal-content .input-group input,
+        .modal-content .input-group textarea {
             width: 100%;
             padding: 10px 14px;
             border: 1.5px solid #e2e8f0;
             border-radius: 12px;
             transition: all 0.2s;
         }
-        .modal-content .input-group input:focus {
+        .modal-content .input-group input:focus,
+        .modal-content .input-group textarea:focus {
             border-color: #4f46e5;
             box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
             outline: none;
@@ -88,11 +89,9 @@
             gap: 10px;
             justify-content: flex-end;
             margin-top: 16px;
-            flex-wrap: wrap;
         }
         @media (max-width: 640px) {
             th, td { font-size: 0.75rem; padding: 6px 4px; }
-            .modal-content { padding: 16px; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
@@ -100,7 +99,7 @@
 <body>
 <div class="sidebar" id="sidebar">
     <h4>CoreBilling</h4>
-    <a href="dashboard.html">📊 Dashboard</a>
+    <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
@@ -111,7 +110,7 @@
     <a href="gestion_recetas.html">🍽️ Recetas</a>
     <a href="gestion_kits.html">🔪 Despiece</a>
     <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
-    <a href="proveedores.html" class="active admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
     <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
     <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
     <a href="estadisticas.html">📈 Estadísticas</a>
@@ -149,7 +148,7 @@
 
 <!-- Modal para nuevo/editar proveedor -->
 <div id="modalProveedor" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
-    <div class="modal-content" style="background:white; max-width:500px; width:95%; padding:24px; border-radius:28px;">
+    <div class="modal-content" style="background:white; max-width:480px; width:95%; padding:24px; border-radius:28px;">
         <span class="close-modal" onclick="cerrarModal()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
         <h3 id="modalTitle" style="margin-bottom:16px;">Nuevo Proveedor</h3>
         <form id="formProveedor">
@@ -185,6 +184,7 @@
 <script>
     const API_URL = '/api';
     let proveedores = [];
+    let userRole = null;
     let socket = null;
     let empresaId = null;
 
@@ -199,9 +199,10 @@
             const data = await res.json();
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
+            userRole = data.role;
             if (data.role !== 'admin') {
                 alert('Acceso denegado. Solo administradores.');
-                window.location.href = 'dashboard.html';
+                window.location.href = 'index.html';
                 return null;
             }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
@@ -213,7 +214,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io('http://localhost:5000');
+        socket = io();
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -228,30 +229,36 @@
 
     async function cargarProveedores() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/proveedores`, { headers: { 'Authorization': `Bearer ${token}` } });
-        proveedores = await res.json();
         const tbody = document.getElementById('tbody-proveedores');
-        tbody.innerHTML = '';
-        if (proveedores.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">No hay proveedores registrados</td></tr>';
-            return;
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
+        try {
+            const res = await fetch(`${API_URL}/proveedores`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error('Error al cargar');
+            proveedores = await res.json();
+            if (proveedores.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">No hay proveedores registrados</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            proveedores.forEach(p => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${p.id}</td>
+                        <td>${escapeHtml(p.nombre)}</td>
+                        <td>${escapeHtml(p.rif || '')}</td>
+                        <td>${escapeHtml(p.telefono || '')}</td>
+                        <td>${escapeHtml(p.email || '')}</td>
+                        <td>${escapeHtml(p.direccion || '')}</td>
+                        <td>
+                            <button class="btn-accion warning" onclick="editarProveedor(${p.id})">✏️</button>
+                            <button class="btn-accion danger" onclick="eliminarProveedor(${p.id})">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#ef4444;">❌ Error: ${escapeHtml(e.message)}</td></tr>`;
         }
-        proveedores.forEach(p => {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${p.id}</td>
-                    <td>${escapeHtml(p.nombre)}</td>
-                    <td>${escapeHtml(p.rif || '')}</td>
-                    <td>${escapeHtml(p.telefono || '')}</td>
-                    <td>${escapeHtml(p.email || '')}</td>
-                    <td>${escapeHtml(p.direccion || '')}</td>
-                    <td>
-                        <button class="btn-accion warning" onclick="editarProveedor(${p.id})">✏️</button>
-                        <button class="btn-accion danger" onclick="eliminarProveedor(${p.id})">🗑️</button>
-                    </td>
-                </tr>
-            `;
-        });
     }
 
     function abrirModal(proveedor = null) {
@@ -268,7 +275,6 @@
     function cerrarModal() {
         document.getElementById('modalProveedor').style.display = 'none';
         document.getElementById('formProveedor').reset();
-        document.getElementById('proveedorId').value = '';
     }
 
     window.editarProveedor = function(id) {
@@ -277,7 +283,7 @@
     };
 
     window.eliminarProveedor = async function(id) {
-        if (!confirm('¿Eliminar este proveedor? Se eliminarán sus órdenes de compra asociadas.')) return;
+        if (!confirm('¿Eliminar este proveedor?')) return;
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/proveedores/${id}`, {
             method: 'DELETE',
@@ -287,8 +293,7 @@
             alert('Proveedor eliminado');
             cargarProveedores();
         } else {
-            const err = await res.json();
-            alert('Error: ' + (err.error || 'No se pudo eliminar'));
+            alert('Error al eliminar');
         }
     };
 
@@ -306,7 +311,7 @@
         const url = id ? `${API_URL}/proveedores/${id}` : `${API_URL}/proveedores`;
         const method = id ? 'PUT' : 'POST';
         const res = await fetch(url, {
-            method,
+            method: method,
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
         });
