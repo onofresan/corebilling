@@ -2,12 +2,10 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <link rel="stylesheet" href="estilos.css">
-    <link rel="icon" href="/static/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CoreBilling - Iniciar Sesión</title>
+    <link rel="stylesheet" href="estilos.css">
     <style>
-        /* Estilos exclusivos del login */
         body {
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             min-height: 100vh;
@@ -16,11 +14,9 @@
             justify-content: center;
             padding: 20px;
             margin: 0;
+            font-family: 'Segoe UI', sans-serif;
         }
-        .login-container {
-            width: 100%;
-            max-width: 440px;
-        }
+        .login-container { width: 100%; max-width: 440px; }
         .login-card {
             background: white;
             border-radius: 32px;
@@ -65,6 +61,7 @@
             transition: all 0.2s;
             background-color: #f8fafc;
             outline: none;
+            font-size: 1rem;
         }
         .input-group input:focus {
             border-color: #4f46e5;
@@ -113,6 +110,21 @@
             margin-top: 16px;
             display: none;
         }
+        .loader-overlay {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .loader-overlay .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(79,70,229,0.2);
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -132,8 +144,12 @@
                     <label>🔒 Contraseña</label>
                     <input type="password" id="password" placeholder="••••••••" required>
                 </div>
-                <button type="submit" class="btn-login">Ingresar</button>
+                <button type="submit" class="btn-login" id="loginBtn">Ingresar</button>
                 <div id="errorMsg" class="error-message"></div>
+                <div id="loaderOverlay" class="loader-overlay">
+                    <div class="spinner"></div>
+                    <span>Verificando...</span>
+                </div>
             </form>
             <div class="register-link">
                 ¿No tienes una empresa? <a href="registro.html">Regístrate aquí</a>
@@ -143,16 +159,35 @@
 </div>
 
 <script>
-    // URL de la API (relativa para que funcione en producción)
     const API_URL = '/api';
 
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    (function() {
+        if (localStorage.getItem('token')) {
+            window.location.href = 'index.html';
+        }
+    })();
+
+    const form = document.getElementById('loginForm');
+    const errorDiv = document.getElementById('errorMsg');
+    const loginBtn = document.getElementById('loginBtn');
+    const loader = document.getElementById('loaderOverlay');
+
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const usuario = document.getElementById('usuario').value;
-        const contrasena = document.getElementById('password').value;
-        const errorDiv = document.getElementById('errorMsg');
         errorDiv.style.display = 'none';
         errorDiv.innerText = '';
+
+        const usuario = document.getElementById('usuario').value.trim();
+        const contrasena = document.getElementById('password').value;
+
+        if (!usuario || !contrasena) {
+            mostrarError('Completa todos los campos');
+            return;
+        }
+
+        loginBtn.disabled = true;
+        loginBtn.style.opacity = '0.6';
+        loader.style.display = 'block';
 
         try {
             const res = await fetch(`${API_URL}/login`, {
@@ -162,20 +197,29 @@
             });
             const data = await res.json();
 
-            if (!res.ok) throw new Error(data.error || 'Credenciales inválidas');
+            if (!res.ok) {
+                throw new Error(data.error || 'Credenciales inválidas');
+            }
 
             localStorage.setItem('token', data.token);
-
             if (data.role === 'super_admin') {
                 window.location.href = 'super_admin.html';
             } else {
-                window.location.href = 'dashboard.html';
+                window.location.href = 'index.html';
             }
         } catch (err) {
-            errorDiv.innerText = err.message;
-            errorDiv.style.display = 'block';
+            mostrarError(err.message);
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.style.opacity = '1';
+            loader.style.display = 'none';
         }
     });
+
+    function mostrarError(msg) {
+        errorDiv.innerText = msg;
+        errorDiv.style.display = 'block';
+    }
 </script>
 </body>
 </html>
