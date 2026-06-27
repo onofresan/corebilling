@@ -49,7 +49,7 @@ dbconfig = {
     "password": os.environ.get('DB_PASSWORD', 'Koko.2590'),
     "database": os.environ.get('DB_NAME', 'facturacion'),
     "pool_name": "mypool",
-    "pool_size": 5,
+    "pool_size": 2,
 }
 connection_pool = pooling.MySQLConnectionPool(**dbconfig)
 
