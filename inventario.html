@@ -5,93 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <title>CoreBilling - Inventario</title>
+    <title>CoreBilling - Historial de Facturas</title>
     <style>
-        .metrics {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
+        .header-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
         }
-        .metric-card {
-            background: white;
-            border-radius: 20px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border: 1px solid #e2e8f0;
-        }
-        .metric-card .value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        .metric-card .label {
-            font-size: 0.85rem;
-            color: #64748b;
-            margin-top: 4px;
-        }
-        .metric-card .icon {
-            font-size: 1.5rem;
-            margin-bottom: 6px;
-        }
-        .form-inline {
+        .filtros {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
             align-items: flex-end;
+            margin-bottom: 20px;
         }
-        .form-inline .input-group {
+        .filtros .input-group {
             flex: 1;
-            min-width: 120px;
+            min-width: 150px;
         }
-        .form-inline .input-group label {
+        .filtros .input-group label {
             display: block;
             font-size: 0.75rem;
             font-weight: 600;
             color: #475569;
             margin-bottom: 4px;
         }
-        .form-inline input, .form-inline select {
+        .filtros input, .filtros select {
             width: 100%;
-            padding: 8px 12px;
+            padding: 10px 14px;
             border: 1.5px solid #e2e8f0;
             border-radius: 12px;
             font-size: 0.9rem;
             transition: all 0.2s;
             background: white;
         }
-        .form-inline input:focus, .form-inline select:focus {
+        .filtros input:focus, .filtros select:focus {
             border-color: #4f46e5;
             box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
             outline: none;
         }
-        .form-inline button {
+        .filtros button {
             padding: 10px 20px;
             border-radius: 40px;
             border: none;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            white-space: nowrap;
         }
-        .btn-success { background: #10b981; color: white; }
-        .btn-success:hover { background: #059669; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-danger:hover { background: #dc2626; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(239,68,68,0.3); }
-        .badge {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        .badge-normal { background: #dbeafe; color: #1e40af; }
-        .badge-ingrediente { background: #fef3c7; color: #92400e; }
-        .badge-receta { background: #d1fae5; color: #065f46; }
-        .badge-kit-padre { background: #fed7aa; color: #9a3412; }
-        .badge-kit-hijo { background: #e0e7ff; color: #3730a3; }
-        .stock-bajo { background: #fee2e2 !important; color: #991b1b !important; font-weight: 600; }
+        .filtros .btn-primary { background: #4f46e5; color: white; }
+        .filtros .btn-primary:hover { background: #4338ca; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+        .filtros .btn-warning { background: #f59e0b; color: white; }
+        .filtros .btn-warning:hover { background: #d97706; transform: translateY(-2px); }
         .table-container {
             border-radius: 16px;
             border: 1px solid #e2e8f0;
@@ -119,7 +86,25 @@
         tr:hover td {
             background: #f8fafc;
         }
-        .btn-warning, .btn-danger {
+        .estado-activa {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 2px 12px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .estado-anulada {
+            display: inline-block;
+            background: #ef4444;
+            color: white;
+            padding: 2px 12px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .btn-accion {
             padding: 4px 10px;
             border-radius: 40px;
             border: none;
@@ -127,14 +112,18 @@
             cursor: pointer;
             transition: all 0.2s;
             margin: 0 2px;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
         }
-        .btn-warning { background: #f59e0b; color: white; }
-        .btn-warning:hover { background: #d97706; transform: translateY(-2px); }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-danger:hover { background: #dc2626; transform: translateY(-2px); }
+        .btn-accion.info { background: #3b82f6; color: white; }
+        .btn-accion.info:hover { background: #2563eb; transform: translateY(-2px); }
+        .btn-accion.success { background: #10b981; color: white; }
+        .btn-accion.success:hover { background: #059669; transform: translateY(-2px); }
+        .btn-accion.warning { background: #f59e0b; color: white; }
+        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
+        .btn-accion.danger { background: #ef4444; color: white; }
+        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
         .modal-content {
-            max-width: 480px;
+            max-width: 440px;
         }
         .modal-content .input-group {
             margin-bottom: 14px;
@@ -146,7 +135,6 @@
             color: #334155;
             margin-bottom: 4px;
         }
-        .modal-content .input-group input,
         .modal-content .input-group textarea {
             width: 100%;
             padding: 10px 14px;
@@ -154,7 +142,6 @@
             border-radius: 12px;
             transition: all 0.2s;
         }
-        .modal-content .input-group input:focus,
         .modal-content .input-group textarea:focus {
             border-color: #4f46e5;
             box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
@@ -166,31 +153,34 @@
             justify-content: flex-end;
             margin-top: 16px;
         }
-        #buscarInventario {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 16px;
-            font-size: 1rem;
-            transition: all 0.2s;
-            margin-bottom: 16px;
+        .paginacion {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
         }
-        #buscarInventario:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 4px rgba(79,70,229,0.1);
-            outline: none;
+        .paginacion button {
+            padding: 6px 14px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #e2e8f0;
+        }
+        .paginacion button:hover {
+            background: #cbd5e1;
+            transform: translateY(-2px);
+        }
+        .paginacion button.active {
+            background: #4f46e5;
+            color: white;
         }
         @media (max-width: 640px) {
-            .form-inline .input-group { min-width: 100%; }
+            .filtros .input-group { min-width: 100%; }
             th, td { font-size: 0.75rem; padding: 6px 4px; }
-        }
-        .vencido {
-            background-color: #fee2e2 !important;
-            color: #991b1b !important;
-        }
-        .por-vencer {
-            background-color: #fef3c7 !important;
-            color: #92400e !important;
+            .btn-accion { font-size: 0.65rem; padding: 3px 6px; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
@@ -200,10 +190,10 @@
     <h4>CoreBilling</h4>
     <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
-    <a href="inventario.html" class="active">📦 Inventario</a>
+    <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
     <a href="reporte.html">📊 Reportes</a>
-    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="lista_facturas.html" class="active">📜 Historial</a>
     <a href="historial_cierres.html">📋 Cierres Z</a>
     <a href="historial_inventario.html">📦 Historial Inventario</a>
     <a href="gestion_recetas.html">🍽️ Recetas</a>
@@ -218,155 +208,106 @@
 <div class="main-content">
     <button class="menu-toggle" id="menuToggle">☰ Menú</button>
 
-    <!-- Métricas -->
-    <div class="metrics">
-        <div class="metric-card">
-            <div class="icon">💰</div>
-            <div class="value" id="total-costo">$0.00</div>
-            <div class="label">Capital invertido</div>
+    <div class="card">
+        <div class="header-box">
+            <h2 style="font-weight:700;">📜 Historial de Facturas</h2>
+            <div>
+                <button class="btn-accion info" onclick="cargarFacturas()" style="padding:8px 20px; border-radius:40px;">⟳ Actualizar</button>
+                <button class="btn-accion success" onclick="exportarCSV()" style="padding:8px 20px; border-radius:40px;">📄 Exportar CSV</button>
+            </div>
         </div>
-        <div class="metric-card">
-            <div class="icon">📈</div>
-            <div class="value" id="total-venta">$0.00</div>
-            <div class="label">Valor en venta</div>
-        </div>
-        <div class="metric-card">
-            <div class="icon">✨</div>
-            <div class="value" id="total-ganancia">$0.00</div>
-            <div class="label">Ganancia potencial</div>
-        </div>
-        <div class="metric-card">
-            <div class="icon">📦</div>
-            <div class="value" id="total-items">0</div>
-            <div class="label">Ítems en catálogo</div>
-        </div>
-    </div>
 
-    <!-- Buscador -->
-    <input type="text" id="buscarInventario" placeholder="🔍 Buscar por código, nombre, categoría...">
+        <div class="filtros">
+            <div class="input-group">
+                <label>🔍 Buscar</label>
+                <input type="text" id="searchInput" placeholder="#factura o cliente...">
+            </div>
+            <div class="input-group">
+                <label>📅 Desde</label>
+                <input type="date" id="fechaDesde">
+            </div>
+            <div class="input-group">
+                <label>📅 Hasta</label>
+                <input type="date" id="fechaHasta">
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <button class="btn-primary" onclick="aplicarFiltros()">Buscar</button>
+                <button class="btn-warning" onclick="limpiarFiltros()">Limpiar</button>
+            </div>
+        </div>
 
-    <!-- Formulario de producto -->
-    <div class="card" id="formCard">
-        <h5 style="font-weight:600; margin-bottom:16px;">Registrar / Modificar Producto</h5>
-        <form id="form-producto" class="form-inline">
-            <div class="input-group">
-                <label>Código</label>
-                <input type="text" id="codigo" placeholder="Ej: PROD001" required>
-            </div>
-            <div class="input-group">
-                <label>Nombre</label>
-                <input type="text" id="nombre" placeholder="Descripción" required>
-            </div>
-            <div class="input-group">
-                <label>Categoría</label>
-                <select id="categoria">
-                    <option value="otros">Otros</option>
-                    <option value="licor">Licor</option>
-                    <option value="viveres">Víveres</option>
-                    <option value="confiteria">Confitería</option>
-                    <option value="enlatados">Enlatados</option>
-                    <option value="bebidas">Bebidas</option>
-                    <option value="carnes">Carnes</option>
-                    <option value="frutas">Frutas</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label>Unidad</label>
-                <select id="unidad_medida">
-                    <option value="unidad">Unidad</option>
-                    <option value="kg">Kilogramo (kg)</option>
-                    <option value="g">Gramo (g)</option>
-                    <option value="l">Litro (l)</option>
-                    <option value="ml">Mililitro (ml)</option>
-                    <option value="paquete">Paquete</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label>Tipo</label>
-                <select id="tipo_producto">
-                    <option value="normal">Normal</option>
-                    <option value="ingrediente">Ingrediente</option>
-                    <option value="receta">Receta</option>
-                    <option value="kit_padre">Kit Padre</option>
-                    <option value="kit_hijo">Kit Hijo</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label>Costo ($)</label>
-                <input type="number" step="0.01" id="costo" placeholder="0.00" required>
-            </div>
-            <div class="input-group">
-                <label>Venta ($)</label>
-                <input type="number" step="0.01" id="venta" placeholder="0.00" required>
-            </div>
-            <div class="input-group">
-                <label>IVA (%)</label>
-                <input type="number" step="0.01" id="iva" value="16" style="width:80px;">
-            </div>
-            <div class="input-group">
-                <label>Stock</label>
-                <input type="number" step="any" id="stock" placeholder="0" required>
-            </div>
-            <div class="input-group">
-                <label>📅 Fecha Vencimiento</label>
-                <input type="date" id="fecha_vencimiento">
-            </div>
-            <button type="submit" class="btn-success">+ Cargar</button>
-            <button type="button" class="btn-danger" onclick="limpiarFormulario()">Cancelar</button>
-        </form>
-    </div>
+        <div class="table-container">
+            <table id="tablaFacturas">
+                <thead>
+                    <tr>
+                        <th>N°</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Cajero</th>
+                        <th>Tasa</th>
+                        <th>Total Bs</th>
+                        <th>Total USD</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-facturas">
+                    <tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
 
-    <!-- Tabla de productos -->
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>CÓDIGO</th>
-                    <th>DESCRIPCIÓN</th>
-                    <th>CAT</th>
-                    <th>UNIDAD</th>
-                    <th>TIPO</th>
-                    <th>COSTO</th>
-                    <th>VENTA</th>
-                    <th>IVA%</th>
-                    <th>GANANCIA</th>
-                    <th>STOCK</th>
-                    <th>VENCIMIENTO</th>
-                    <th>ACCIONES</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-productos">
-                <tr><td colspan="12" style="text-align:center; padding:30px; color:#94a3b8;">Cargando productos...</td></tr>
-            </tbody>
-        </table>
+        <div class="paginacion" id="paginacion">
+            <button onclick="cambiarPagina('prev')">◀ Anterior</button>
+            <span id="pagina-info">Página 1</span>
+            <button onclick="cambiarPagina('next')">Siguiente ▶</button>
+        </div>
     </div>
 </div>
 
-<!-- Modal para nota en edición/eliminación -->
-<div id="modalNota" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+<!-- Modal para motivo de anulación/eliminación -->
+<div id="modalMotivo" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
     <div class="modal-content" style="background:white; max-width:440px; width:95%; padding:24px; border-radius:28px;">
-        <span class="close-modal" onclick="cerrarModalNota()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
-        <h3 id="modalNotaTitle" style="margin-bottom:16px;">Motivo</h3>
+        <span class="close-modal" onclick="cerrarModalMotivo()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 id="modalMotivoTitle" style="margin-bottom:16px;">Motivo</h3>
         <div class="input-group">
-            <label>Nota / Motivo *</label>
-            <textarea id="notaTexto" rows="3" style="width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px;"></textarea>
+            <label>Motivo *</label>
+            <textarea id="motivoTexto" rows="3" style="width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px;"></textarea>
         </div>
         <div class="flex-btns">
-            <button id="btnConfirmarNota" class="btn-success">Confirmar</button>
-            <button id="btnCancelarNota" class="btn-danger">Cancelar</button>
+            <button id="btnConfirmarMotivo" class="btn-success">Confirmar</button>
+            <button id="btnCancelarMotivo" class="btn-danger">Cancelar</button>
         </div>
     </div>
 </div>
 
 <script>
     const API_URL = '/api';
-    let productos = [];
+
+    // ===== CACHÉ =====
+    const CACHE_DURATION = 60 * 1000; // 1 minuto para facturas
+
+    function getCache(key) {
+        const data = localStorage.getItem(key);
+        const time = localStorage.getItem(key + '_time');
+        if (data && time && (Date.now() - parseInt(time)) < CACHE_DURATION) {
+            return JSON.parse(data);
+        }
+        return null;
+    }
+
+    function setCache(key, data) {
+        localStorage.setItem(key, JSON.stringify(data));
+        localStorage.setItem(key + '_time', String(Date.now()));
+    }
+
     let userRole = null;
-    let editingCodigo = null;
-    let windowNotaEdicion = '';
     let pendingAction = null;
     let socket = null;
     let empresaId = null;
+    let paginaActual = 0;
+    const LIMITE = 50;
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -381,12 +322,7 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
-            if (data.role === 'admin') {
-                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
-                document.getElementById('formCard').style.display = 'block';
-            } else {
-                document.getElementById('formCard').style.display = 'none';
-            }
+            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             conectarWebSocket();
             return data;
@@ -408,205 +344,186 @@
         setTimeout(() => toast.remove(), 5000);
     }
 
-    async function cargarInventario() {
+    async function cargarFacturas() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
-        productos = await res.json();
-        let totalCosto = 0, totalVenta = 0, totalGanancia = 0;
-        const tbody = document.getElementById('tabla-productos');
-        tbody.innerHTML = '';
-        if (productos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; color:#94a3b8;">No hay productos registrados</td></tr>';
-            document.getElementById('total-items').innerText = '0';
-            document.getElementById('total-costo').innerText = '$0.00';
-            document.getElementById('total-venta').innerText = '$0.00';
-            document.getElementById('total-ganancia').innerText = '$0.00';
+        const search = document.getElementById('searchInput').value;
+        const fechaDesde = document.getElementById('fechaDesde').value;
+        const fechaHasta = document.getElementById('fechaHasta').value;
+        
+        let url = `${API_URL}/facturas?limit=${LIMITE}&offset=${paginaActual * LIMITE}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (fechaDesde) url += `&fecha_desde=${fechaDesde}`;
+        if (fechaHasta) url += `&fecha_hasta=${fechaHasta}`;
+
+        const tbody = document.getElementById('tabla-facturas');
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
+
+        // Intentar desde caché
+        let cacheKey = 'facturas_' + paginaActual;
+        let cached = getCache(cacheKey);
+        if (cached) {
+            renderizarFacturas(cached);
             return;
         }
-        const hoy = new Date();
-        const tresDias = new Date(hoy.getTime() + 3 * 24 * 60 * 60 * 1000);
-        productos.forEach(p => {
-            const costo = toNum(p.costo);
-            const venta = toNum(p.venta);
-            const ganancia = venta - costo;
-            const stock = toNum(p.stock);
-            totalCosto += costo * stock;
-            totalVenta += venta * stock;
-            totalGanancia += ganancia * stock;
-            let tipoClase = '';
-            if (p.tipo_producto === 'normal') tipoClase = 'badge-normal';
-            else if (p.tipo_producto === 'ingrediente') tipoClase = 'badge-ingrediente';
-            else if (p.tipo_producto === 'receta') tipoClase = 'badge-receta';
-            else if (p.tipo_producto === 'kit_padre') tipoClase = 'badge-kit-padre';
-            else if (p.tipo_producto === 'kit_hijo') tipoClase = 'badge-kit-hijo';
-            let stockClass = '';
-            if (stock < 5 && p.tipo_producto !== 'receta') stockClass = 'stock-bajo';
-            // Vencimiento
-            let vencimientoClase = '';
-            let vencimientoTexto = p.fecha_vencimiento || '—';
-            if (p.fecha_vencimiento) {
-                const fechaVen = new Date(p.fecha_vencimiento + 'T00:00:00');
-                if (fechaVen < hoy) vencimientoClase = 'vencido';
-                else if (fechaVen <= tresDias) vencimientoClase = 'por-vencer';
+
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            const facturas = await res.json();
+            setCache(cacheKey, facturas);
+            renderizarFacturas(facturas);
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;">Error: ${e.message}</td></tr>`;
+        }
+    }
+
+    function renderizarFacturas(facturas) {
+        const tbody = document.getElementById('tabla-facturas');
+        if (!facturas || facturas.length === 0) {
+            if (paginaActual === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">No hay facturas registradas</td></tr>';
+            } else {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">No hay más facturas</td></tr>';
             }
-            let acciones = (userRole === 'admin') ?
-                `<button class="btn-warning" onclick="editarConNota('${escapeHtml(p.codigo)}')">✏️</button>
-                 <button class="btn-danger" onclick="eliminarConNota('${escapeHtml(p.codigo)}')">🗑️</button>` :
-                '<span style="color:#94a3b8; font-size:0.8rem;">🔒</span>';
+            document.getElementById('pagina-info').innerText = `Página ${paginaActual + 1}`;
+            return;
+        }
+        tbody.innerHTML = '';
+        facturas.forEach(f => {
+            const estadoHtml = f.estado === 'activa'
+                ? '<span class="estado-activa">Activa</span>'
+                : '<span class="estado-anulada">Anulada</span>';
+            let acciones = `
+                <button class="btn-accion info" onclick="verDetalle(${f.id})">Ver</button>
+                <button class="btn-accion success" onclick="imprimirFactura(${f.id})">🖨️</button>
+            `;
+            if (userRole === 'admin') {
+                acciones += `<button class="btn-accion warning" onclick="editarFactura(${f.id})">Editar</button>`;
+                if (f.estado === 'activa') {
+                    acciones += `<button class="btn-accion warning" onclick="abrirModalAnular(${f.id})">Anular</button>`;
+                }
+                acciones += `<button class="btn-accion danger" onclick="abrirModalEliminar(${f.id})">Eliminar</button>`;
+            }
             tbody.innerHTML += `
-                <tr class="${stockClass} ${vencimientoClase}">
-                    <td>${escapeHtml(p.codigo)}</td>
-                    <td>${escapeHtml(p.nombre)}</td>
-                    <td>${escapeHtml(p.categoria || '')}</td>
-                    <td>${escapeHtml(p.unidad_medida || 'unidad')}</td>
-                    <td><span class="badge ${tipoClase}">${escapeHtml(p.tipo_producto)}</span></td>
-                    <td>$${costo.toFixed(2)}</td>
-                    <td>$${venta.toFixed(2)}</td>
-                    <td>${p.iva}%</td>
-                    <td>$${ganancia.toFixed(2)}</td>
-                    <td>${stock.toFixed(2)}</td>
-                    <td>${escapeHtml(vencimientoTexto)}</td>
+                <tr>
+                    <td>#${f.id}</td>
+                    <td>${f.fecha}</td>
+                    <td>${escapeHtml(f.cliente_nombre)}</td>
+                    <td>${escapeHtml(f.cajero || 'N/A')}</td>
+                    <td>${toNum(f.tasa_cambio).toFixed(2)}</td>
+                    <td>Bs ${toNum(f.monto_bs).toFixed(2)}</td>
+                    <td>$${toNum(f.total_usd).toFixed(2)}</td>
+                    <td>${estadoHtml}</td>
                     <td>${acciones}</td>
                 </tr>
             `;
         });
-        document.getElementById('total-costo').innerText = `$${totalCosto.toFixed(2)}`;
-        document.getElementById('total-venta').innerText = `$${totalVenta.toFixed(2)}`;
-        document.getElementById('total-ganancia').innerText = `$${totalGanancia.toFixed(2)}`;
-        document.getElementById('total-items').innerText = productos.length;
-
-        aplicarFiltro();
+        document.getElementById('pagina-info').innerText = `Página ${paginaActual + 1}`;
     }
 
-    function aplicarFiltro() {
-        const filtro = document.getElementById('buscarInventario').value.toLowerCase();
-        const filas = document.querySelectorAll('#tabla-productos tr');
-        filas.forEach(fila => {
-            if (fila.cells.length > 0) {
-                const texto = fila.innerText.toLowerCase();
-                fila.style.display = texto.includes(filtro) ? '' : 'none';
-            }
-        });
+    function aplicarFiltros() {
+        paginaActual = 0;
+        // Limpiar caché para recargar con filtros
+        localStorage.removeItem('facturas_0');
+        cargarFacturas();
     }
 
-    document.getElementById('buscarInventario').addEventListener('input', aplicarFiltro);
-
-    function mostrarModalNota(titulo, callback) {
-        document.getElementById('modalNotaTitle').innerText = titulo;
-        document.getElementById('notaTexto').value = '';
-        document.getElementById('modalNota').style.display = 'flex';
-        const confirmar = document.getElementById('btnConfirmarNota');
-        const cancelar = document.getElementById('btnCancelarNota');
-        const nuevaConfirmacion = () => {
-            const nota = document.getElementById('notaTexto').value.trim();
-            if (!nota) { alert('Debe ingresar una nota/motivo'); return; }
-            confirmar.removeEventListener('click', nuevaConfirmacion);
-            cancelar.removeEventListener('click', nuevaCancelacion);
-            document.getElementById('modalNota').style.display = 'none';
-            callback(nota);
-        };
-        const nuevaCancelacion = () => {
-            confirmar.removeEventListener('click', nuevaConfirmacion);
-            cancelar.removeEventListener('click', nuevaCancelacion);
-            document.getElementById('modalNota').style.display = 'none';
-        };
-        confirmar.onclick = nuevaConfirmacion;
-        cancelar.onclick = nuevaCancelacion;
+    function limpiarFiltros() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('fechaDesde').value = '';
+        document.getElementById('fechaHasta').value = '';
+        paginaActual = 0;
+        localStorage.removeItem('facturas_0');
+        cargarFacturas();
     }
 
-    function cerrarModalNota() {
-        document.getElementById('modalNota').style.display = 'none';
+    function cambiarPagina(direccion) {
+        if (direccion === 'prev' && paginaActual > 0) {
+            paginaActual--;
+        } else if (direccion === 'next') {
+            paginaActual++;
+        }
+        // Limpiar caché para la nueva página
+        localStorage.removeItem('facturas_' + paginaActual);
+        cargarFacturas();
     }
 
-    window.editarConNota = function(codigo) {
-        const p = productos.find(x => x.codigo === codigo);
-        if (!p) return;
-        mostrarModalNota('Motivo de modificación', async (nota) => {
-            document.getElementById('codigo').value = p.codigo;
-            document.getElementById('codigo').readOnly = true;
-            document.getElementById('nombre').value = p.nombre;
-            document.getElementById('categoria').value = p.categoria || 'otros';
-            document.getElementById('unidad_medida').value = p.unidad_medida || 'unidad';
-            document.getElementById('tipo_producto').value = p.tipo_producto || 'normal';
-            document.getElementById('costo').value = toNum(p.costo);
-            document.getElementById('venta').value = toNum(p.venta);
-            document.getElementById('iva').value = toNum(p.iva, 16);
-            document.getElementById('stock').value = toNum(p.stock);
-            document.getElementById('fecha_vencimiento').value = p.fecha_vencimiento || '';
-            windowNotaEdicion = nota;
-            editingCodigo = codigo;
-            alert("Datos cargados. Modifica y presiona 'Cargar'.");
-        });
-    };
+    window.verDetalle = (id) => window.open(`detalle_factura.html?id=${id}`, '_blank');
+    window.editarFactura = (id) => window.location.href = `facturar.html?edit_id=${id}`;
 
-    window.eliminarConNota = function(codigo) {
-        mostrarModalNota('Motivo de eliminación', async (nota) => {
-            if (confirm('¿Eliminar producto?')) {
-                const token = localStorage.getItem('token');
-                const res = await fetch(`${API_URL}/productos/${codigo}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ nota: nota })
-                });
-                if (res.ok) {
-                    alert('Producto eliminado');
-                    cargarInventario();
-                } else {
-                    const err = await res.json();
-                    alert('Error: ' + err.error);
-                }
-            }
-        });
-    };
-
-    document.getElementById('form-producto').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const costo = parseFloat(document.getElementById('costo').value);
-        const venta = parseFloat(document.getElementById('venta').value);
-        const stock = parseFloat(document.getElementById('stock').value);
-        if (costo < 0 || venta < 0 || stock < 0) { alert('Valores no negativos'); return; }
-        const payload = {
-            codigo: document.getElementById('codigo').value,
-            nombre: document.getElementById('nombre').value,
-            categoria: document.getElementById('categoria').value,
-            unidad_medida: document.getElementById('unidad_medida').value,
-            tipo_producto: document.getElementById('tipo_producto').value,
-            costo: costo,
-            venta: venta,
-            iva: parseFloat(document.getElementById('iva').value) || 16,
-            stock: stock,
-            fecha_vencimiento: document.getElementById('fecha_vencimiento').value || null,
-            nota: windowNotaEdicion || 'Modificación sin nota'
-        };
+    async function imprimirFactura(id) {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/productos`, {
-            method: 'POST',
+        const res = await fetch(`${API_URL}/facturas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        const f = data.factura;
+        let html = `<div style="padding:20px; font-family:monospace;">
+            <h2>Factura N° ${f.numero}</h2>
+            <div>Cliente: ${escapeHtml(f.cliente_nombre)}</div>
+            <div>Fecha: ${f.fecha}</div>
+            <div>Tasa: Bs ${f.tasa_cambio}</div>
+            <div>Total: $${f.total_usd}</div>
+            <table border="1" style="width:100%; margin-top:10px;">
+                <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th></tr></thead>
+                <tbody>`;
+        data.productos.forEach(p => {
+            html += `<tr><td>${escapeHtml(p.nombre)}</td><td>${p.cantidad}</td><td>$${p.precio_unitario}</td><td>$${p.subtotal_con_iva}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        const win = window.open();
+        win.document.write(html);
+        win.print();
+    }
+
+    function abrirModalAnular(id) {
+        pendingAction = { type: 'anular', id: id };
+        document.getElementById('modalMotivoTitle').innerText = 'Motivo de Anulación';
+        document.getElementById('motivoTexto').value = '';
+        document.getElementById('modalMotivo').style.display = 'flex';
+    }
+    function abrirModalEliminar(id) {
+        pendingAction = { type: 'eliminar', id: id };
+        document.getElementById('modalMotivoTitle').innerText = 'Motivo de Eliminación';
+        document.getElementById('motivoTexto').value = '';
+        document.getElementById('modalMotivo').style.display = 'flex';
+    }
+    function cerrarModalMotivo() {
+        document.getElementById('modalMotivo').style.display = 'none';
+        pendingAction = null;
+    }
+
+    document.getElementById('btnConfirmarMotivo').onclick = async () => {
+        const motivo = document.getElementById('motivoTexto').value.trim();
+        if (!motivo) { alert('Debe ingresar un motivo'); return; }
+        if (!pendingAction) return;
+        const token = localStorage.getItem('token');
+        let url, method;
+        if (pendingAction.type === 'anular') {
+            url = `${API_URL}/facturas/anular/${pendingAction.id}`;
+            method = 'POST';
+        } else {
+            url = `${API_URL}/facturas/${pendingAction.id}`;
+            method = 'DELETE';
+        }
+        const res = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ motivo })
         });
         if (res.ok) {
-            alert('Producto guardado');
-            cargarInventario();
-            limpiarFormulario();
-            windowNotaEdicion = '';
-            editingCodigo = null;
+            alert(`Factura ${pendingAction.type === 'anular' ? 'anulada' : 'eliminada'}`);
+            cerrarModalMotivo();
+            // Limpiar caché
+            localStorage.removeItem('facturas_' + paginaActual);
+            cargarFacturas();
         } else {
-            alert('Error al guardar');
+            const err = await res.json();
+            alert('Error: ' + err.error);
         }
-    });
+    };
+    document.getElementById('btnCancelarMotivo').onclick = cerrarModalMotivo;
 
-    function limpiarFormulario() {
-        document.getElementById('form-producto').reset();
-        document.getElementById('codigo').readOnly = false;
-        document.getElementById('categoria').value = 'otros';
-        document.getElementById('unidad_medida').value = 'unidad';
-        document.getElementById('tipo_producto').value = 'normal';
-        document.getElementById('iva').value = '16';
-        document.getElementById('fecha_vencimiento').value = '';
-        windowNotaEdicion = '';
-        editingCodigo = null;
+    function exportarCSV() {
+        window.open(`${API_URL}/exportar/facturas`, '_blank');
     }
-    window.limpiarFormulario = limpiarFormulario;
 
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
@@ -617,7 +534,15 @@
         window.location.href = 'login.html';
     });
 
-    verificarSesion().then(() => cargarInventario());
+    verificarSesion().then(() => cargarFacturas());
+    window.cargarFacturas = cargarFacturas;
+    window.aplicarFiltros = aplicarFiltros;
+    window.limpiarFiltros = limpiarFiltros;
+    window.cambiarPagina = cambiarPagina;
+    window.imprimirFactura = imprimirFactura;
+    window.abrirModalAnular = abrirModalAnular;
+    window.abrirModalEliminar = abrirModalEliminar;
+    window.cerrarModalMotivo = cerrarModalMotivo;
 </script>
 </body>
 </html>
