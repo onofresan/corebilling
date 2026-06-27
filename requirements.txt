@@ -7,3 +7,4 @@ PyJWT==2.8.0
 stripe==7.5.0
 python-dotenv==1.0.0
 gunicorn==21.2.0
+flask-caching
