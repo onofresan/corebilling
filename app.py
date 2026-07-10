@@ -12,6 +12,7 @@ import io
 import traceback
 from decimal import Decimal
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import NotFound
 import jwt
 from flask_socketio import SocketIO, emit
 import stripe
@@ -54,11 +55,11 @@ DB_CONFIG = {
 try:
     connection_pool = pooling.MySQLConnectionPool(
         pool_name="mypool",
-        pool_size=5,
+        pool_size=3,
         pool_reset_session=True,
         **DB_CONFIG
     )
-    print(f"✅ Pool de conexiones creado con tamaño: 5")
+    print(f"✅ Pool de conexiones creado con tamaño: 3")
 except Exception as e:
     print(f"❌ Error creando pool de conexiones: {e}")
     print("⚠️ Usando conexión directa como fallback...")
@@ -4960,23 +4961,28 @@ def super_eliminar_cierre(id):
 def serve_frontend(filename='login.html'):
     if filename.startswith('api/') or filename.startswith('socket.io/'):
         return jsonify({'error': 'Not found'}), 404
-    try:
-        return send_from_directory('../frontend', filename)
-    except FileNotFoundError:
+    # ⚠️ IMPORTANTE: send_from_directory lanza werkzeug.exceptions.NotFound
+    # (NO FileNotFoundError) cuando el archivo no existe. Si solo se atrapa
+    # FileNotFoundError, el primer intento que falle interrumpe todo con un
+    # 404 y el resto de las carpetas de respaldo nunca se llegan a probar.
+    # Por eso probamos varias ubicaciones típicas, en orden de más a menos
+    # probable según cómo esté organizado el repo (todo en la raíz, o
+    # separado en una carpeta 'frontend').
+    for carpeta in ('.', 'frontend', '../frontend'):
         try:
-            return send_from_directory('.', filename)
-        except FileNotFoundError:
-            return jsonify({'error': 'Not found'}), 404
+            return send_from_directory(carpeta, filename)
+        except (FileNotFoundError, NotFound, NotADirectoryError):
+            continue
+    return jsonify({'error': 'Not found'}), 404
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    try:
-        return send_from_directory('static', filename)
-    except FileNotFoundError:
+    for carpeta in ('static', 'frontend/static', '../frontend/static'):
         try:
-            return send_from_directory('../frontend/static', filename)
-        except FileNotFoundError:
-            return jsonify({'error': 'Archivo no encontrado'}), 404
+            return send_from_directory(carpeta, filename)
+        except (FileNotFoundError, NotFound, NotADirectoryError):
+            continue
+    return jsonify({'error': 'Archivo no encontrado'}), 404
 
 # ========== MANEJADORES DE ERRORES ==========
 @app.errorhandler(404)
