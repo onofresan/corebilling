@@ -11,7 +11,6 @@
         .caja-total { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 24px; padding: 24px; color: white; }
         .caja-total #total-bs { font-size: 2.2rem; font-weight: 700; color: #34d399; }
         .btn-procesar { background: linear-gradient(135deg, #10b981, #059669) !important; border: none !important; border-radius: 40px !important; font-weight: 700 !important; padding: 14px !important; width: 100%; margin-top: 12px; color: white; }
-        .btn-stripe { background: linear-gradient(135deg, #6366f1, #4f46e5) !important; border: none !important; border-radius: 40px !important; font-weight: 700 !important; padding: 12px !important; width: 100%; margin-top: 8px; color: white; }
         .input-group { margin-bottom: 14px; }
         .input-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
         .input-group input, .input-group select { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; transition: all 0.2s; background: white; }
@@ -46,29 +45,75 @@
         #lista-abonos ul { list-style: none; padding: 0; }
         #lista-abonos ul li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #e2e8f0; }
         .btn-remove-abono { background: transparent; border: none; color: #ef4444; cursor: pointer; }
-        .btn-procesando { opacity: 0.6; pointer-events: none; }
+        .badge-habitacion { background: #dbeafe; color: #1e40af; font-size: 0.6rem; padding: 2px 8px; border-radius: 40px; margin-left: 4px; }
+        .error-msg { background: #fee2e2; color: #991b1b; padding: 12px 16px; border-radius: 12px; border-left: 4px solid #dc2626; margin-bottom: 12px; display: none; }
+        .success-msg { background: #d1fae5; color: #065f46; padding: 12px 16px; border-radius: 12px; border-left: 4px solid #10b981; margin-bottom: 12px; display: none; }
+        
+        /* ===== CAMPOS DE HOTEL - SIEMPRE VISIBLES CUANDO HAY HABITACIÓN ===== */
+        .hotel-campos-factura {
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+            display: none;
+        }
+        .hotel-campos-factura.visible {
+            display: block !important;
+        }
+        .hotel-campos-factura h5 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .hotel-campos-factura .input-group {
+            margin-bottom: 10px;
+        }
+        .hotel-campos-factura .input-group:last-child {
+            margin-bottom: 0;
+        }
+        .hotel-campos-factura .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .badge-hotel {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 40px;
+            margin-left: 4px;
+            font-weight: 600;
+        }
+        .disponibilidad-msg {
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 8px;
+            display: none;
+            font-weight: 600;
+        }
+        .disponibilidad-msg.disponible {
+            background: #d1fae5;
+            color: #065f46;
+            display: block;
+        }
+        .disponibilidad-msg.no-disponible {
+            background: #fee2e2;
+            color: #991b1b;
+            display: block;
+        }
+        
         @media (max-width: 640px) {
             .search-row input { font-size: 0.9rem; }
             th, td { font-size: 0.8rem; padding: 6px 4px; }
             .input-cant, .input-descuento { width: 50px; font-size: 0.8rem; }
             .input-nota { width: 70px; }
+            .hotel-campos-factura .grid-2 { grid-template-columns: 1fr; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script>
-        window.stripeLoaded = false;
-        window.stripeInstance = null;
-        function loadStripe() {
-            return new Promise((resolve) => {
-                if (typeof Stripe !== 'undefined') { window.stripeLoaded = true; resolve(Stripe); return; }
-                const script = document.createElement('script');
-                script.src = 'https://js.stripe.com/v3/';
-                script.onload = () => { if (typeof Stripe !== 'undefined') { window.stripeLoaded = true; resolve(Stripe); } else { console.warn('Stripe no disponible'); resolve(null); } };
-                script.onerror = () => { console.warn('Error al cargar Stripe'); resolve(null); };
-                document.head.appendChild(script);
-            });
-        }
-    </script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
@@ -77,6 +122,7 @@
     <a href="facturar.html" class="active">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
     <a href="clientes.html">👥 Clientes</a>
+    <a href="hoteleria.html">🏨 Hotelería</a>
     <a href="reporte.html">📊 Reportes</a>
     <a href="lista_facturas.html">📜 Historial</a>
     <a href="historial_cierres.html">📋 Cierres Z</a>
@@ -113,12 +159,17 @@
         </div>
     </div>
 
+    <!-- Mensajes -->
+    <div id="errorMsg" class="error-msg"></div>
+    <div id="successMsg" class="success-msg"></div>
+
     <!-- Barra de herramientas -->
     <div class="card">
         <div class="toolbar" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
             <button class="btn-primary" id="nuevaFacturaBtn">➕ Nueva Factura</button>
+            <button class="btn-warning" onclick="forzarMostrarHotel()">🏨 Mostrar Hotel</button>
             <select id="listaFacturas" style="padding:10px; border-radius:12px; border:1px solid #e2e8f0; background:white;">
-                <option value="">-- Seleccionar factura guardada --</option>
+                <option value="">-- Facturas guardadas --</option>
             </select>
             <button class="btn-warning" id="cargarFacturaBtn">📂 Cargar</button>
             <button class="btn-success" id="guardarFacturaBtn">💾 Guardar</button>
@@ -132,7 +183,7 @@
         <div style="flex:2; min-width:250px;">
             <div class="card">
                 <form id="form-escaner" class="search-row">
-                    <input type="text" id="codigo-buscar" list="productos-list" placeholder="🔍 Escanear código o buscar producto / receta..." autofocus>
+                    <input type="text" id="codigo-buscar" list="productos-list" placeholder="🔍 Código, producto, receta o número de habitación..." autofocus>
                     <datalist id="productos-list"></datalist>
                     <button type="submit" id="btnAgregar">Agregar</button>
                 </form>
@@ -193,7 +244,6 @@
                     <div class="input-group"><label>📆 Saldo financiado</label><input id="cashea-financiado" readonly style="background:#f1f5f9;"></div>
                     <div class="input-group"><label>📅 Cuotas</label><input type="number" id="cashea-cuotas" value="1" min="1"></div>
                 </div>
-                <!-- Pagos por Administración -->
                 <div id="grupo-administracion" style="display:none;">
                     <h5>💰 Pagos por Administración (Abonos)</h5>
                     <div class="input-group">
@@ -202,6 +252,39 @@
                     </div>
                     <button class="btn-primary" id="btnAgregarAbono" style="width:100%;">➕ Registrar Abono</button>
                     <div id="lista-abonos"><span style="color:#94a3b8;">Sin abonos registrados</span></div>
+                </div>
+
+                <!-- ===== CAMPOS DE HOTEL ===== -->
+                <div id="hotel-campos-factura" class="hotel-campos-factura">
+                    <h5>🏨 Datos de la Estadía</h5>
+                    <p style="font-size:0.8rem; color:#64748b; margin-bottom:10px;">
+                        ⚠️ Se ha detectado una habitación en el carrito. Completa los datos de la estadía.
+                    </p>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>📅 Fecha Entrada *</label>
+                            <input type="date" id="hotel_fecha_entrada" onchange="verificarDisponibilidadCarrito()">
+                        </div>
+                        <div class="input-group">
+                            <label>📅 Fecha Salida *</label>
+                            <input type="date" id="hotel_fecha_salida" onchange="verificarDisponibilidadCarrito()">
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>⏰ Hora Entrada</label>
+                            <input type="time" id="hotel_hora_entrada" value="15:00">
+                        </div>
+                        <div class="input-group">
+                            <label>⏰ Hora Salida</label>
+                            <input type="time" id="hotel_hora_salida" value="12:00">
+                        </div>
+                    </div>
+                    <div id="hotel_disponibilidad_msg" class="disponibilidad-msg"></div>
+                    <div class="input-group">
+                        <label>📝 Nota adicional</label>
+                        <input type="text" id="hotel_nota" placeholder="Observaciones de la estadía...">
+                    </div>
                 </div>
 
                 <div class="input-group">
@@ -225,7 +308,6 @@
                 </div>
                 <h3 id="total-bs" style="margin-top:12px;">0.00 Bs</h3>
                 <button class="btn-procesar" id="btn-facturar">✅ PROCESAR FACTURA</button>
-                <button class="btn-stripe" id="btnStripe">💳 Pagar con Tarjeta (Stripe)</button>
             </div>
         </div>
     </div>
@@ -271,26 +353,11 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    // ============================================================
+    // CONFIGURACIÓN Y ESTADO GLOBAL
+    // ============================================================
+    const API_URL = `${window.location.origin}/api`;
 
-    // ===== CACHÉ CON LOCALSTORAGE =====
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
-
-    function getCache(key) {
-        const data = localStorage.getItem(key);
-        const time = localStorage.getItem(key + '_time');
-        if (data && time && (Date.now() - parseInt(time)) < CACHE_DURATION) {
-            return JSON.parse(data);
-        }
-        return null;
-    }
-
-    function setCache(key, data) {
-        localStorage.setItem(key, JSON.stringify(data));
-        localStorage.setItem(key + '_time', String(Date.now()));
-    }
-
-    // ===== ESTADO GLOBAL =====
     let carritoActual = [];
     let facturasGuardadas = {};
     let facturaActualId = null;
@@ -298,6 +365,7 @@
     let miCajaEstado = 'cerrada';
     let listaProductos = [];
     let listaRecetas = [];
+    let listaHabitaciones = [];
     let servicioPorcentaje = 0;
     let servicioMonto = 0;
     let tasaActual = 544.58;
@@ -305,72 +373,92 @@
     let totalFacturaActual = 0;
     let socket = null;
     let empresaId = null;
-    let stripe = null;
     let abonosAdmin = [];
-    let abriendoCaja = false;
-    let procesandoFactura = false; // 👈 CONTROL PARA EVITAR DOBLE CLIC
+    let hayHotelEnCarrito = false;
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
 
-    // ===== AUTENTICACIÓN =====
+    function mostrarError(mensaje) {
+        const el = document.getElementById('errorMsg');
+        if (el) {
+            el.innerText = mensaje;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 8000);
+        } else {
+            alert(mensaje);
+        }
+    }
+
+    function mostrarSuccess(mensaje) {
+        const el = document.getElementById('successMsg');
+        if (el) {
+            el.innerText = mensaje;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        } else {
+            alert(mensaje);
+        }
+    }
+
+    // ============================================================
+    // AUTENTICACIÓN
+    // ============================================================
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return null; }
+        if (!token) { 
+            window.location.href = 'login.html'; 
+            return null; 
+        }
         try {
-            const res = await fetch(`${API_URL}/check-session`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch(`${API_URL}/check-session`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
             });
-            if (!res.ok) throw new Error('Sesión inválida');
+            if (!res.ok) {
+                localStorage.removeItem('token');
+                window.location.href = 'login.html';
+                return null;
+            }
             const data = await res.json();
-            if (!data.logged_in) throw new Error('No autenticado');
+            if (!data.logged_in) {
+                localStorage.removeItem('token');
+                window.location.href = 'login.html';
+                return null;
+            }
             empresaId = data.empresa_id;
             userRole = data.role;
-            if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
-            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            
+            if (data.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+            }
+            if (data.role === 'super_admin') {
+                window.location.href = 'super_admin.html';
+                return null;
+            }
             conectarWebSocket();
             return data;
-        } catch(e) {
-            console.error('Error en verificarSesion:', e);
-            localStorage.removeItem('token');
-            window.location.href = 'login.html';
-            return null;
+        } catch(e) { 
+            console.error('Error en verificación de sesión:', e);
+            localStorage.removeItem('token'); 
+            window.location.href = 'login.html'; 
+            return null; 
         }
     }
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io();
+        socket = io(window.location.origin);
         socket.emit('join', { empresa_id: empresaId });
-        socket.on('nueva_alerta', (data) => {
-            mostrarToast(data.mensaje);
-        });
+        socket.on('nueva_alerta', (data) => { mostrarSuccess(data.mensaje); });
     }
 
-    function mostrarToast(mensaje) {
-        const toast = document.createElement('div');
-        toast.className = 'alert-toast';
-        toast.innerText = mensaje;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
-    }
-
-    // ===== CARGA DE DATOS CON CACHÉ =====
+    // ============================================================
+    // CARGA DE DATOS
+    // ============================================================
     async function cargarEmpresa() {
         const token = localStorage.getItem('token');
-        // Intentar desde caché
-        let cached = getCache('empresa');
-        if (cached) {
-            aplicarEmpresa(cached);
-            return;
-        }
         const res = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
         const emp = await res.json();
-        setCache('empresa', emp);
-        aplicarEmpresa(emp);
-    }
-
-    function aplicarEmpresa(emp) {
         document.getElementById('lbl-empresa-nombre').innerText = escapeHtml(emp.nombre || 'CoreBilling');
         document.getElementById('lbl-empresa-detalles').innerHTML = `<span>${escapeHtml(emp.rif || '')}</span> | <span>📞 ${escapeHtml(emp.telefono || '')}</span>`;
         const dir = document.getElementById('lbl-empresa-direccion');
@@ -382,7 +470,7 @@
         const logo = document.getElementById('empresa-logo');
         const placeholder = document.getElementById('logo-placeholder');
         if (emp.logo_url && emp.logo_url !== '') {
-            logo.src = emp.logo_url;
+            logo.src = `${window.location.origin}${emp.logo_url}`;
             logo.style.display = 'block';
             placeholder.style.display = 'none';
             logo.onerror = function() { this.style.display = 'none'; placeholder.style.display = 'block'; };
@@ -394,148 +482,633 @@
 
     async function cargarClientes() {
         const token = localStorage.getItem('token');
-        let cached = getCache('clientes');
-        if (cached) {
-            llenarSelectClientes(cached);
-            return;
-        }
         const res = await fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } });
         const clientes = await res.json();
-        setCache('clientes', clientes);
-        llenarSelectClientes(clientes);
-    }
-
-    function llenarSelectClientes(clientes) {
         const select = document.getElementById('cliente-id');
         select.innerHTML = '<option value="">-- Cliente General --</option>';
-        clientes.forEach(c => {
-            select.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)} (${escapeHtml(c.rif)})</option>`;
-        });
+        clientes.forEach(c => { select.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)} (${escapeHtml(c.rif)})</option>`; });
     }
 
     async function cargarProductosRecetas() {
         const token = localStorage.getItem('token');
-
-        let cached = getCache('productos');
-        if (cached) {
-            listaProductos = cached;
-            listaRecetas = getCache('recetas') || [];
-            llenarDatalist();
-            return;
+        
+        try {
+            const resP = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (resP.ok) {
+                listaProductos = await resP.json();
+                console.log('✅ Productos cargados:', listaProductos.length);
+            } else {
+                console.error('❌ Error al cargar productos:', resP.status);
+                listaProductos = [];
+            }
+        } catch (e) {
+            console.error('❌ Error cargando productos:', e);
+            listaProductos = [];
         }
 
-        const resP = await fetch(`${API_URL}/productos`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        listaProductos = await resP.json();
-        setCache('productos', listaProductos);
+        try {
+            const resR = await fetch(`${API_URL}/recetas`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (resR.ok) {
+                listaRecetas = await resR.json();
+                console.log('✅ Recetas cargadas:', listaRecetas.length);
+            } else {
+                console.error('❌ Error al cargar recetas:', resR.status);
+                listaRecetas = [];
+            }
+        } catch (e) {
+            console.error('❌ Error cargando recetas:', e);
+            listaRecetas = [];
+        }
 
-        const resR = await fetch(`${API_URL}/recetas`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        listaRecetas = await resR.json();
-        setCache('recetas', listaRecetas);
+        try {
+            const resHab = await fetch(`${API_URL}/habitaciones`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (resHab.ok) {
+                listaHabitaciones = await resHab.json();
+                console.log('✅ Habitaciones cargadas:', listaHabitaciones.length);
+            } else {
+                console.error('❌ Error al cargar habitaciones:', resHab.status);
+                listaHabitaciones = [];
+            }
+        } catch (e) {
+            console.error('❌ Error cargando habitaciones:', e);
+            listaHabitaciones = [];
+        }
 
-        llenarDatalist();
-    }
-
-    function llenarDatalist() {
+        // Llenar el datalist
         const datalist = document.getElementById('productos-list');
         datalist.innerHTML = '';
+        
         listaProductos.forEach(p => {
-            if (p.tipo_producto !== 'ingrediente') {
+            if (p.tipo_producto !== 'ingrediente' && p.tipo_producto !== 'kit_hijo') {
                 const opt = document.createElement('option');
                 opt.value = p.codigo;
                 opt.text = `${p.codigo} - ${p.nombre} ($${p.venta})`;
                 datalist.appendChild(opt);
             }
         });
+        
         listaRecetas.forEach(r => {
             const opt = document.createElement('option');
-            opt.value = `receta:${r.codigo}`;
+            opt.value = r.codigo;
             opt.text = `🍽️ ${r.codigo} - ${r.nombre} ($${r.precio_venta})`;
             datalist.appendChild(opt);
         });
+        
+        listaHabitaciones.forEach(h => {
+            const codigo = h.codigo_producto || `HAB_${h.id}`;
+            const estadoEmoji = h.estado === 'disponible' ? '🟢' : 
+                               h.estado === 'reservada' ? '🟡' : '🔴';
+            const opt = document.createElement('option');
+            opt.value = h.numero.toString();
+            opt.text = `🏨 ${h.numero} - ${h.nombre || h.tipo} ($${h.precio_noche}/noche) ${estadoEmoji} ${h.estado} 🔖${codigo}`;
+            datalist.appendChild(opt);
+        });
+        
+        console.log('📋 Datalist actualizado con', datalist.options.length, 'opciones');
     }
 
-    // ===== CAJA =====
+    // ============================================================
+    // CAJA
+    // ============================================================
     async function cargarEstadoMiCaja() {
         const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) throw new Error('Error al obtener estado de caja');
-            const data = await res.json();
-            miCajaEstado = data.estado;
-            const span = document.getElementById('estadoCajaUsuario');
-            const btnAbrir = document.getElementById('btnAbrirCaja');
-            const btnCerrar = document.getElementById('btnCerrarCaja');
-            if (data.estado === 'abierta') {
-                span.innerText = '🔓 ABIERTA'; span.className = 'estado-caja estado-abierta';
-                btnAbrir.style.display = 'none'; btnCerrar.style.display = 'inline-block';
-            } else {
-                span.innerText = '🔒 CERRADA'; span.className = 'estado-caja estado-cerrada';
-                btnAbrir.style.display = 'inline-block'; btnCerrar.style.display = 'none';
+        const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        miCajaEstado = data.estado;
+        const span = document.getElementById('estadoCajaUsuario');
+        const btnAbrir = document.getElementById('btnAbrirCaja');
+        const btnCerrar = document.getElementById('btnCerrarCaja');
+        if (data.estado === 'abierta') {
+            span.innerText = '🔓 ABIERTA'; span.className = 'estado-caja estado-abierta';
+            btnAbrir.style.display = 'none'; btnCerrar.style.display = 'inline-block';
+        } else {
+            span.innerText = '🔒 CERRADA'; span.className = 'estado-caja estado-cerrada';
+            btnAbrir.style.display = 'inline-block'; btnCerrar.style.display = 'none';
+        }
+    }
+    document.getElementById('btnAbrirCaja').onclick = async () => {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_URL}/abrir-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        cargarEstadoMiCaja();
+        mostrarSuccess('✅ Caja abierta correctamente');
+    };
+    document.getElementById('btnCerrarCaja').onclick = async () => {
+        if (!confirm('¿Cerrar caja?')) return;
+        const token = localStorage.getItem('token');
+        await fetch(`${API_URL}/cerrar-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        cargarEstadoMiCaja();
+        mostrarSuccess('✅ Caja cerrada correctamente');
+    };
+
+    // ============================================================
+    // FUNCIÓN PARA FORZAR MOSTRAR CAMPOS DE HOTEL
+    // ============================================================
+    function forzarMostrarHotel() {
+        const hotelCampos = document.getElementById('hotel-campos-factura');
+        if (hotelCampos) {
+            hotelCampos.style.display = 'block';
+            hotelCampos.style.visibility = 'visible';
+            hotelCampos.style.opacity = '1';
+            hotelCampos.classList.add('visible');
+            mostrarSuccess('🏨 Campos de hotel mostrados');
+            
+            // Poner fechas por defecto si están vacías
+            const hoy = new Date();
+            const manana = new Date(hoy);
+            manana.setDate(hoy.getDate() + 1);
+            const hoyStr = hoy.toISOString().split('T')[0];
+            const mananaStr = manana.toISOString().split('T')[0];
+            
+            if (!document.getElementById('hotel_fecha_entrada').value) {
+                document.getElementById('hotel_fecha_entrada').value = hoyStr;
             }
-        } catch (e) {
-            console.error('Error al cargar estado de caja:', e);
+            if (!document.getElementById('hotel_fecha_salida').value) {
+                document.getElementById('hotel_fecha_salida').value = mananaStr;
+            }
+            if (!document.getElementById('hotel_hora_entrada').value) {
+                document.getElementById('hotel_hora_entrada').value = '15:00';
+            }
+            if (!document.getElementById('hotel_hora_salida').value) {
+                document.getElementById('hotel_hora_salida').value = '12:00';
+            }
+            if (!document.getElementById('hotel_nota').value) {
+                document.getElementById('hotel_nota').value = '';
+            }
+            
+            verificarDisponibilidadCarrito();
+        } else {
+            mostrarError('❌ No se encontraron los campos de hotel');
         }
     }
 
-    document.getElementById('btnAbrirCaja').onclick = async () => {
-        if (abriendoCaja) return;
-        abriendoCaja = true;
-        if (!confirm('¿Abrir tu caja?')) { abriendoCaja = false; return; }
-        const token = localStorage.getItem('token');
+    // ============================================================
+    // VERIFICAR DISPONIBILIDAD DE HABITACIÓN EN CARRITO
+    // ============================================================
+    async function verificarDisponibilidadCarrito() {
+        const msgDiv = document.getElementById('hotel_disponibilidad_msg');
+        const fechaEntrada = document.getElementById('hotel_fecha_entrada').value;
+        const fechaSalida = document.getElementById('hotel_fecha_salida').value;
+        
+        if (!hayHotelEnCarrito || !fechaEntrada || !fechaSalida) {
+            msgDiv.style.display = 'none';
+            msgDiv.className = 'disponibilidad-msg';
+            return;
+        }
+        
+        // Obtener la habitación del carrito
+        const itemHabitacion = carritoActual.find(item => item.esHabitacion === true);
+        if (!itemHabitacion) {
+            msgDiv.style.display = 'none';
+            return;
+        }
+        
+        const habitacionId = itemHabitacion.habitacion_id;
+        if (!habitacionId) {
+            msgDiv.style.display = 'none';
+            return;
+        }
+        
         try {
-            const res = await fetch(`${API_URL}/abrir-caja`, {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/disponibilidad/${habitacionId}/verificar`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ fecha_entrada: fechaEntrada, fecha_salida: fechaSalida })
             });
             const data = await res.json();
-            if (res.ok) {
-                mostrarToast('Caja abierta correctamente');
-                await cargarEstadoMiCaja();
+            
+            if (data.disponible) {
+                msgDiv.style.display = 'block';
+                msgDiv.className = 'disponibilidad-msg disponible';
+                msgDiv.innerHTML = '✅ La habitación está DISPONIBLE para las fechas seleccionadas';
             } else {
-                alert('Error: ' + (data.error || 'No se pudo abrir la caja'));
+                msgDiv.style.display = 'block';
+                msgDiv.className = 'disponibilidad-msg no-disponible';
+                let msg = '❌ La habitación NO está disponible para las fechas seleccionadas.';
+                if (data.bloqueadas > 0) msg += ` (${data.bloqueadas} bloqueo(s) manual(es))`;
+                if (data.reservas > 0) msg += ` (${data.reservas} reserva(s) activa(s))`;
+                msgDiv.innerHTML = msg;
             }
-        } catch (e) {
-            alert('Error de conexión: ' + e.message);
-        } finally {
-            abriendoCaja = false;
+        } catch (err) {
+            console.error('Error verificando disponibilidad:', err);
+            msgDiv.style.display = 'none';
         }
-    };
+    }
 
-    document.getElementById('btnCerrarCaja').onclick = async () => {
-        if (!confirm('¿Cerrar caja? Se generará reporte Z.')) return;
+    // ============================================================
+    // MOSTRAR/OCULTAR CAMPOS DE HOTEL
+    // ============================================================
+    function actualizarCamposHotel() {
+        // Verificar si hay algún producto de hotel en el carrito
+        hayHotelEnCarrito = carritoActual.some(item => item.esHabitacion === true);
+        const hotelCampos = document.getElementById('hotel-campos-factura');
+        
+        console.log('🏨 ¿Hay hotel en carrito?', hayHotelEnCarrito);
+        console.log('📦 Carrito actual:', carritoActual);
+        
+        if (hayHotelEnCarrito) {
+            hotelCampos.style.display = 'block';
+            hotelCampos.style.visibility = 'visible';
+            hotelCampos.style.opacity = '1';
+            hotelCampos.classList.add('visible');
+            
+            // Si no hay fechas, poner las de hoy y mañana por defecto
+            const hoy = new Date();
+            const manana = new Date(hoy);
+            manana.setDate(hoy.getDate() + 1);
+            
+            const hoyStr = hoy.toISOString().split('T')[0];
+            const mananaStr = manana.toISOString().split('T')[0];
+            
+            if (!document.getElementById('hotel_fecha_entrada').value) {
+                document.getElementById('hotel_fecha_entrada').value = hoyStr;
+            }
+            if (!document.getElementById('hotel_fecha_salida').value) {
+                document.getElementById('hotel_fecha_salida').value = mananaStr;
+            }
+            if (!document.getElementById('hotel_hora_entrada').value) {
+                document.getElementById('hotel_hora_entrada').value = '15:00';
+            }
+            if (!document.getElementById('hotel_hora_salida').value) {
+                document.getElementById('hotel_hora_salida').value = '12:00';
+            }
+            
+            verificarDisponibilidadCarrito();
+        } else {
+            hotelCampos.style.display = 'none';
+            hotelCampos.classList.remove('visible');
+            const msgDiv = document.getElementById('hotel_disponibilidad_msg');
+            msgDiv.style.display = 'none';
+            msgDiv.className = 'disponibilidad-msg';
+        }
+    }
+
+    // ============================================================
+    // CREAR PRODUCTO DE HABITACIÓN EN LA BD
+    // ============================================================
+    async function crearProductoHabitacion(habitacion) {
         const token = localStorage.getItem('token');
+        const codigo = habitacion.codigo_producto || `HAB_${habitacion.numero}`;
+        const nombre = `Habitación ${habitacion.numero} - ${habitacion.tipo || 'Estandar'}`;
+        const precio = parseFloat(habitacion.precio_noche) || 0;
+
+        // Verificar si ya existe
+        const resCheck = await fetch(`${API_URL}/productos/${codigo}`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        
+        if (resCheck.ok) {
+            console.log('✅ Producto de habitación ya existe:', codigo);
+            return true;
+        }
+
+        const payload = {
+            codigo: codigo,
+            nombre: nombre,
+            categoria: 'habitacion',
+            unidad_medida: 'noche',
+            tipo_producto: 'normal',
+            costo: 0,
+            venta: precio,
+            iva: 16,
+            stock: 1,
+            nota: `Producto creado automáticamente para habitación ${habitacion.numero}`
+        };
+
         try {
-            const res = await fetch(`${API_URL}/cerrar-caja`, {
+            const res = await fetch(`${API_URL}/productos`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify(payload)
             });
-            const data = await res.json();
+            
             if (res.ok) {
-                alert(`✅ Caja cerrada. Total: $${toNum(data.reporte?.total_cobrado_usd).toFixed(2)}`);
-                await cargarEstadoMiCaja();
+                console.log('✅ Producto de habitación creado:', codigo);
+                // Recargar lista de productos
+                const resP = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (resP.ok) {
+                    listaProductos = await resP.json();
+                }
+                return true;
             } else {
-                alert('❌ Error: ' + data.error);
+                const err = await res.json();
+                console.error('❌ Error creando producto de habitación:', err);
+                return false;
             }
         } catch (e) {
-            alert('Error de conexión: ' + e.message);
+            console.error('❌ Error de conexión:', e);
+            return false;
         }
+    }
+
+    // ============================================================
+    // AGREGAR PRODUCTO AL CARRITO
+    // ============================================================
+    function agregarProductoAlCarrito(producto) {
+        if (!producto) return false;
+
+        const existente = carritoActual.find(i => i.codigo === producto.codigo);
+        if (existente) {
+            existente.cantidad += 1;
+        } else {
+            carritoActual.push({
+                codigo: producto.codigo,
+                nombre: producto.nombre,
+                precio: producto.precio,
+                iva: producto.iva || 16,
+                cantidad: 1,
+                descuento: 0,
+                nota_desc: producto.nota_desc || '',
+                esHabitacion: producto.esHabitacion || false,
+                habitacion_id: producto.habitacion_id || null,
+                numero_habitacion: producto.numero_habitacion || null
+            });
+        }
+        actualizarTabla();
+        
+        // ✅ FORZAR campos de hotel si es habitación
+        if (producto.esHabitacion) {
+            setTimeout(function() {
+                forzarMostrarHotel();
+                actualizarCamposHotel();
+            }, 100);
+        }
+        
+        actualizarCamposHotel();
+        mostrarSuccess('✅ ' + producto.nombre + ' agregado al carrito');
+        return true;
+    }
+
+    // ============================================================
+    // AGREGAR PRODUCTO DESDE EL FORMULARIO
+    // ============================================================
+    async function agregarProductoDesdeFormulario() {
+        const input = document.getElementById('codigo-buscar');
+        let texto = input.value.trim();
+        
+        console.log('🔍 Buscando:', texto);
+
+        if (!texto) {
+            mostrarError('❌ Escribe un código o nombre de producto');
+            return;
+        }
+
+        // ===== 1. BUSCAR EN HABITACIONES (DESDE HOTEL) =====
+        // ⚠️ IMPORTANTE: esta búsqueda va PRIMERO. Cada habitación tiene un
+        // producto "HAB_x" espejo en el inventario, así que si buscáramos
+        // primero en productos, siempre encontraría ese espejo y la
+        // habitación quedaría marcada como esHabitacion:false, y nunca se
+        // actualizaría a "ocupada" al facturar. Por eso las habitaciones
+        // se resuelven antes que el inventario general.
+        let habEncontrada = null;
+        
+        // Buscar por número de habitación
+        habEncontrada = listaHabitaciones.find(h => {
+            const numStr = String(h.numero || '').trim();
+            return numStr === texto || numStr.toLowerCase() === texto.toLowerCase();
+        });
+        
+        // Buscar por código de producto
+        if (!habEncontrada) {
+            habEncontrada = listaHabitaciones.find(h => {
+                const codigo = h.codigo_producto || `HAB_${h.id}`;
+                return codigo.toLowerCase() === texto.toLowerCase();
+            });
+        }
+        
+        // Buscar por nombre
+        if (!habEncontrada) {
+            habEncontrada = listaHabitaciones.find(h => 
+                h.nombre && h.nombre.toLowerCase().includes(texto.toLowerCase())
+            );
+        }
+
+        if (habEncontrada) {
+            console.log('✅ Habitación encontrada en HOTEL:', habEncontrada);
+            
+            // Verificar disponibilidad
+            if (habEncontrada.estado !== 'disponible' && habEncontrada.estado !== 'reservada') {
+                mostrarError('❌ La habitación está "' + habEncontrada.estado + '". No está disponible para facturar.');
+                return;
+            }
+            
+            // Verificar disponibilidad por fechas si ya están seleccionadas
+            const fechaEntrada = document.getElementById('hotel_fecha_entrada').value;
+            const fechaSalida = document.getElementById('hotel_fecha_salida').value;
+            
+            if (fechaEntrada && fechaSalida) {
+                try {
+                    const token = localStorage.getItem('token');
+                    const resVerificar = await fetch(`${API_URL}/disponibilidad/${habEncontrada.id}/verificar`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ fecha_entrada: fechaEntrada, fecha_salida: fechaSalida })
+                    });
+                    const verificar = await resVerificar.json();
+                    
+                    if (!verificar.disponible) {
+                        let msg = `❌ La habitación ${habEncontrada.numero} no está disponible para las fechas seleccionadas.`;
+                        if (verificar.bloqueadas > 0) msg += ` (${verificar.bloqueadas} bloqueo(s) manual(es))`;
+                        if (verificar.reservas > 0) msg += ` (${verificar.reservas} reserva(s) activa(s))`;
+                        mostrarError(msg);
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error verificando disponibilidad:', err);
+                    mostrarError('Error verificando disponibilidad de la habitación');
+                    return;
+                }
+            }
+            
+            const codigoProducto = habEncontrada.codigo_producto || `HAB_${habEncontrada.numero}`;
+            
+            // Verificar si el producto existe en la base de datos
+            const token = localStorage.getItem('token');
+            const existeProducto = listaProductos.some(p => p.codigo === codigoProducto);
+            
+            if (!existeProducto) {
+                console.log('🔄 Producto de habitación no existe, creando...');
+                const creado = await crearProductoHabitacion(habEncontrada);
+                if (!creado) {
+                    mostrarError('❌ Error al crear el producto de la habitación');
+                    return;
+                }
+            }
+            
+            const producto = {
+                codigo: codigoProducto,
+                nombre: '🏨 Habitación ' + habEncontrada.numero + ' - ' + (habEncontrada.tipo || 'Estandar'),
+                precio: parseFloat(habEncontrada.precio_noche) || 0,
+                iva: 16,
+                nota_desc: 'Habitación ' + habEncontrada.numero,
+                esHabitacion: true,
+                habitacion_id: habEncontrada.id,
+                numero_habitacion: habEncontrada.numero,
+                estado_habitacion: habEncontrada.estado
+            };
+            
+            console.log('📦 Agregando habitación con esHabitacion:', producto.esHabitacion);
+            
+            agregarProductoAlCarrito(producto);
+            
+            // ✅ FORZAR campos de hotel
+            setTimeout(function() {
+                forzarMostrarHotel();
+                actualizarCamposHotel();
+            }, 200);
+            
+            input.value = '';
+            input.focus();
+            return;
+        }
+
+        // ===== 2. BUSCAR EN PRODUCTOS (INVENTARIO) =====
+        let prodEncontrado = listaProductos.find(p => 
+            p.codigo && p.codigo.toLowerCase() === texto.toLowerCase()
+        );
+        
+        if (!prodEncontrado) {
+            prodEncontrado = listaProductos.find(p => 
+                p.nombre && p.nombre.toLowerCase().includes(texto.toLowerCase())
+            );
+        }
+
+        if (prodEncontrado) {
+            console.log('✅ Producto encontrado:', prodEncontrado);
+            const producto = {
+                codigo: prodEncontrado.codigo,
+                nombre: prodEncontrado.nombre,
+                precio: parseFloat(prodEncontrado.venta) || 0,
+                iva: parseFloat(prodEncontrado.iva) || 16,
+                nota_desc: '',
+                esHabitacion: false
+            };
+            agregarProductoAlCarrito(producto);
+            input.value = '';
+            input.focus();
+            return;
+        }
+
+        // ===== 3. BUSCAR EN RECETAS =====
+        let recetaEncontrada = listaRecetas.find(r => 
+            r.codigo && r.codigo.toLowerCase() === texto.toLowerCase()
+        );
+        
+        if (!recetaEncontrada) {
+            recetaEncontrada = listaRecetas.find(r => 
+                r.nombre && r.nombre.toLowerCase().includes(texto.toLowerCase())
+            );
+        }
+
+        if (recetaEncontrada) {
+            console.log('✅ Receta encontrada:', recetaEncontrada);
+            const producto = {
+                codigo: recetaEncontrada.codigo,
+                nombre: recetaEncontrada.nombre + ' 🍽️',
+                precio: parseFloat(recetaEncontrada.precio_venta) || 0,
+                iva: 16,
+                nota_desc: '🍽️ Receta',
+                esHabitacion: false
+            };
+            agregarProductoAlCarrito(producto);
+            input.value = '';
+            input.focus();
+            return;
+        }
+
+        // ===== 4. SI NO SE ENCUENTRA NADA =====
+        console.error('❌ No encontrado.');
+        mostrarError('❌ No se encontró: "' + texto + '". Verifica que exista en el inventario o en hotelería.');
+    }
+
+    // ============================================================
+    // ELIMINAR DEL CARRITO
+    // ============================================================
+    window.eliminarDelCarrito = function(idx) {
+        carritoActual.splice(idx, 1);
+        actualizarTabla();
+        actualizarCamposHotel();
+        mostrarSuccess('🗑️ Producto eliminado del carrito');
     };
 
-    // ===== CARRITO Y CÁLCULOS =====
+    // ============================================================
+    // ACTUALIZAR TABLA DEL CARRITO
+    // ============================================================
+    function actualizarTabla() {
+        const tbody = document.getElementById('carrito-items');
+        tbody.innerHTML = '';
+        if (carritoActual.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">Carrito vacío</td></tr>';
+            actualizarTotales();
+            return;
+        }
+        let idx = 0;
+        for (let item of carritoActual) {
+            const precioSinIva = item.precio / (1 + item.iva / 100);
+            const ivaUnitario = item.precio - precioSinIva;
+            let subtotalCon = item.precio * item.cantidad;
+            const descuento = toNum(item.descuento);
+            subtotalCon -= descuento;
+
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = item.codigo;
+            row.insertCell(1).innerHTML = `${escapeHtml(item.nombre)} ${item.esHabitacion ? '<span class="badge-hotel">🏨 Habitación</span>' : ''}`;
+            row.insertCell(2).innerHTML = `<input type="number" step="any" class="input-cant" value="${item.cantidad}" data-idx="${idx}">`;
+            row.insertCell(3).innerText = `$${precioSinIva.toFixed(2)}`;
+            row.insertCell(4).innerText = `${item.iva}%`;
+            row.insertCell(5).innerText = `$${ivaUnitario.toFixed(2)}`;
+            row.insertCell(6).innerText = `$${item.precio.toFixed(2)}`;
+            row.insertCell(7).innerHTML = `<input type="number" step="any" class="input-descuento" value="${item.descuento || 0}" data-idx="${idx}">`;
+            row.insertCell(8).innerHTML = `<input type="text" class="input-nota" value="${escapeHtml(item.nota_desc || '')}" data-idx="${idx}" placeholder="Nota">`;
+            row.insertCell(9).innerText = `$${subtotalCon.toFixed(2)}`;
+            row.insertCell(10).innerHTML = `<button class="btn-remove" onclick="eliminarDelCarrito(${idx})">✖</button>`;
+            idx++;
+        }
+
+        document.querySelectorAll('.input-cant').forEach(inp => inp.addEventListener('change', (e) => {
+            let i = parseInt(e.target.dataset.idx);
+            let val = parseFloat(e.target.value);
+            if (!isNaN(val) && val > 0) carritoActual[i].cantidad = val;
+            else carritoActual[i].cantidad = 1;
+            actualizarTabla(); 
+        }));
+
+        document.querySelectorAll('.input-descuento').forEach(inp => inp.addEventListener('change', (e) => {
+            let i = parseInt(e.target.dataset.idx);
+            carritoActual[i].descuento = parseFloat(e.target.value) || 0;
+            actualizarTabla(); 
+        }));
+
+        document.querySelectorAll('.input-nota').forEach(inp => inp.addEventListener('change', (e) => {
+            let i = parseInt(e.target.dataset.idx);
+            carritoActual[i].nota_desc = e.target.value;
+        }));
+
+        actualizarTotales();
+        actualizarCamposHotel();
+    }
+
+    // ============================================================
+    // CÁLCULO DE TOTALES
+    // ============================================================
     function actualizarTotales() {
         let subtotalSinIVA = 0, totalIVA = 0, totalConIVA = 0;
         carritoActual.forEach(item => {
             const precioSinIva = item.precio / (1 + item.iva / 100);
             const ivaUnitario = item.precio - precioSinIva;
-            const subtotalSin = precioSinIva * item.cantidad;
             let subtotalCon = item.precio * item.cantidad;
             const descuento = toNum(item.descuento);
             subtotalCon -= descuento;
-            subtotalSinIVA += subtotalSin;
+            subtotalSinIVA += precioSinIva * item.cantidad;
             totalIVA += ivaUnitario * item.cantidad;
             totalConIVA += subtotalCon;
         });
@@ -567,66 +1140,57 @@
         document.getElementById('cashea-financiado').value = financiado.toFixed(2);
     }
 
-    window.eliminarDelCarrito = function(idx) {
-        carritoActual.splice(idx, 1);
-        actualizarTabla();
-        guardarFacturaActual();
-    };
-
-    function actualizarTabla() {
-        const tbody = document.getElementById('carrito-items');
-        tbody.innerHTML = '';
-        if (carritoActual.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">Carrito vacío</td></tr>';
-            actualizarTotales();
-            return;
+    // ============================================================
+    // BORRADORES
+    // ============================================================
+    function cargarBorradoresGuardados() {
+        try {
+            const saved = localStorage.getItem('facturas_transito');
+            if (saved) {
+                facturasGuardadas = JSON.parse(saved);
+                const facturasValidas = {};
+                Object.keys(facturasGuardadas).forEach(id => {
+                    const factura = facturasGuardadas[id];
+                    if (factura.carrito && factura.carrito.length > 0) {
+                        facturasValidas[id] = factura;
+                    }
+                });
+                facturasGuardadas = facturasValidas;
+                if (Object.keys(facturasValidas).length !== Object.keys(facturasGuardadas).length) {
+                    localStorage.setItem('facturas_transito', JSON.stringify(facturasValidas));
+                }
+                actualizarListaFacturas();
+            }
+        } catch(e) { 
+            localStorage.removeItem('facturas_transito'); 
+            facturasGuardadas = {}; 
         }
-        let idx = 0;
-        for (let item of carritoActual) {
-            const precioSinIva = item.precio / (1 + item.iva / 100);
-            const ivaUnitario = item.precio - precioSinIva;
-            let subtotalCon = item.precio * item.cantidad;
-            const descuento = toNum(item.descuento);
-            subtotalCon -= descuento;
-            const row = tbody.insertRow();
-            row.insertCell(0).innerText = item.codigo;
-            row.insertCell(1).innerText = escapeHtml(item.nombre);
-            row.insertCell(2).innerHTML = `<input type="number" step="any" class="input-cant" value="${item.cantidad}" data-idx="${idx}">`;
-            row.insertCell(3).innerText = `$${precioSinIva.toFixed(2)}`;
-            row.insertCell(4).innerText = `${item.iva}%`;
-            row.insertCell(5).innerText = `$${ivaUnitario.toFixed(2)}`;
-            row.insertCell(6).innerText = `$${item.precio.toFixed(2)}`;
-            row.insertCell(7).innerHTML = `<input type="number" step="any" class="input-descuento" value="${item.descuento || 0}" data-idx="${idx}">`;
-            row.insertCell(8).innerHTML = `<input type="text" class="input-nota" value="${escapeHtml(item.nota_desc || '')}" data-idx="${idx}">`;
-            row.insertCell(9).innerText = `$${subtotalCon.toFixed(2)}`;
-            row.insertCell(10).innerHTML = `<button class="btn-remove" onclick="eliminarDelCarrito(${idx})">✖</button>`;
-            idx++;
-        }
-        document.querySelectorAll('.input-cant').forEach(inp => inp.addEventListener('change', (e) => {
-            let i = parseInt(e.target.dataset.idx);
-            let val = parseFloat(e.target.value);
-            if (!isNaN(val) && val > 0) carritoActual[i].cantidad = val;
-            else carritoActual[i].cantidad = 1;
-            actualizarTabla(); guardarFacturaActual();
-        }));
-        document.querySelectorAll('.input-descuento').forEach(inp => inp.addEventListener('change', (e) => {
-            let i = parseInt(e.target.dataset.idx);
-            carritoActual[i].descuento = parseFloat(e.target.value) || 0;
-            actualizarTabla(); guardarFacturaActual();
-        }));
-        document.querySelectorAll('.input-nota').forEach(inp => inp.addEventListener('change', (e) => {
-            let i = parseInt(e.target.dataset.idx);
-            carritoActual[i].nota_desc = e.target.value;
-            guardarFacturaActual();
-        }));
-        actualizarTotales();
     }
 
-    // ===== BORRADORES =====
     function guardarFacturaActual() {
+        if (carritoActual.length === 0) {
+            mostrarError('❌ No hay productos en el carrito para guardar');
+            return;
+        }
+        
+        const productosInvalidos = carritoActual.filter(p => !p.nombre || p.precio <= 0);
+        if (productosInvalidos.length > 0) {
+            mostrarError('❌ Hay productos con datos inválidos');
+            return;
+        }
+        
         if (!facturaActualId) facturaActualId = Date.now().toString();
         const clienteSelect = document.getElementById('cliente-id');
         const clienteNombre = clienteSelect.options[clienteSelect.selectedIndex]?.text || 'Cliente General';
+        
+        const hotelData = {
+            fecha_entrada: document.getElementById('hotel_fecha_entrada').value,
+            fecha_salida: document.getElementById('hotel_fecha_salida').value,
+            hora_entrada: document.getElementById('hotel_hora_entrada').value,
+            hora_salida: document.getElementById('hotel_hora_salida').value,
+            nota: document.getElementById('hotel_nota').value
+        };
+        
         facturasGuardadas[facturaActualId] = {
             carrito: JSON.parse(JSON.stringify(carritoActual)),
             cliente_id: clienteSelect.value,
@@ -635,18 +1199,24 @@
             moneda: document.getElementById('moneda-pago').value,
             metodo: document.getElementById('metodo-pago').value,
             referencia: document.getElementById('pago-referencia').value,
-            servicio_porcentaje: servicioPorcentaje
+            servicio_porcentaje: servicioPorcentaje,
+            hotel: hotelData
         };
         localStorage.setItem('facturas_transito', JSON.stringify(facturasGuardadas));
         actualizarListaFacturas();
+        mostrarSuccess('💾 Factura guardada correctamente');
     }
 
     function actualizarListaFacturas() {
         const select = document.getElementById('listaFacturas');
-        select.innerHTML = '<option value="">-- Seleccionar factura guardada --</option>';
+        select.innerHTML = '<option value="">-- Facturas guardadas --</option>';
         Object.keys(facturasGuardadas).forEach(id => {
-            const nombre = facturasGuardadas[id].cliente_nombre || 'Sin cliente';
-            select.innerHTML += `<option value="${id}">${escapeHtml(nombre)} - ${id}</option>`;
+            const factura = facturasGuardadas[id];
+            if (factura.carrito && factura.carrito.length > 0) {
+                const nombre = factura.cliente_nombre || 'Sin cliente';
+                const totalItems = factura.carrito.length;
+                select.innerHTML += `<option value="${id}">${escapeHtml(nombre)} - ${totalItems} productos - ${id}</option>`;
+            }
         });
     }
 
@@ -661,13 +1231,25 @@
         document.getElementById('metodo-pago').value = data.metodo || 'Efectivo';
         document.getElementById('pago-referencia').value = data.referencia || '';
         document.getElementById('servicio-porcentaje').value = data.servicio_porcentaje || 0;
+        
+        if (data.hotel) {
+            document.getElementById('hotel_fecha_entrada').value = data.hotel.fecha_entrada || '';
+            document.getElementById('hotel_fecha_salida').value = data.hotel.fecha_salida || '';
+            document.getElementById('hotel_hora_entrada').value = data.hotel.hora_entrada || '15:00';
+            document.getElementById('hotel_hora_salida').value = data.hotel.hora_salida || '12:00';
+            document.getElementById('hotel_nota').value = data.hotel.nota || '';
+        }
+        
         controlarPago();
         actualizarTabla();
         actualizarServicio();
+        actualizarCamposHotel();
+        verificarDisponibilidadCarrito();
+        mostrarSuccess('📂 Factura cargada correctamente');
     }
 
     function nuevaFactura() {
-        facturaActualId = Date.now().toString();
+        facturaActualId = null;
         carritoActual = [];
         abonosAdmin = [];
         actualizarListaAbonos();
@@ -678,22 +1260,41 @@
         document.getElementById('servicio-porcentaje').value = 0;
         document.getElementById('cashea-inicial').value = 0;
         document.getElementById('cashea-cuotas').value = 1;
+        document.getElementById('hotel_fecha_entrada').value = '';
+        document.getElementById('hotel_fecha_salida').value = '';
+        document.getElementById('hotel_hora_entrada').value = '15:00';
+        document.getElementById('hotel_hora_salida').value = '12:00';
+        document.getElementById('hotel_nota').value = '';
+        document.getElementById('hotel-campos-factura').style.display = 'none';
+        document.getElementById('hotel-campos-factura').classList.remove('visible');
         controlarPago();
         actualizarTabla();
-        guardarFacturaActual();
         pagosTemp = [];
+        const msgDiv = document.getElementById('hotel_disponibilidad_msg');
+        msgDiv.style.display = 'none';
+        msgDiv.className = 'disponibilidad-msg';
+        mostrarSuccess('📄 Nueva factura iniciada');
     }
 
     function eliminarFacturaSeleccionada() {
         const id = document.getElementById('listaFacturas').value;
-        if (!id) return;
-        if (confirm('¿Eliminar este borrador?')) {
-            delete facturasGuardadas[id];
-            localStorage.setItem('facturas_transito', JSON.stringify(facturasGuardadas));
-            actualizarListaFacturas();
-            if (Object.keys(facturasGuardadas).length === 0) nuevaFactura();
-            else cargarFactura(Object.keys(facturasGuardadas)[0]);
+        if (!id) {
+            mostrarError('❌ Selecciona una factura para eliminar');
+            return;
         }
+        if (!confirm('¿Eliminar este borrador?')) return;
+        
+        delete facturasGuardadas[id];
+        localStorage.setItem('facturas_transito', JSON.stringify(facturasGuardadas));
+        actualizarListaFacturas();
+        
+        if (Object.keys(facturasGuardadas).length === 0) {
+            nuevaFactura();
+        } else {
+            const primeraId = Object.keys(facturasGuardadas)[0];
+            cargarFactura(primeraId);
+        }
+        mostrarSuccess('🗑️ Borrador eliminado');
     }
 
     document.getElementById('nuevaFacturaBtn').onclick = nuevaFactura;
@@ -704,36 +1305,24 @@
     };
     document.getElementById('eliminarBorradorBtn').onclick = eliminarFacturaSeleccionada;
 
-    // ===== BÚSQUEDA =====
-    document.getElementById('form-escaner').addEventListener('submit', async (e) => {
+    // ============================================================
+    // BÚSQUEDA Y AGREGADO
+    // ============================================================
+    document.getElementById('form-escaner').addEventListener('submit', (e) => {
         e.preventDefault();
-        const input = document.getElementById('codigo-buscar').value.trim();
-        if (!input) return;
-        let esReceta = input.startsWith('receta:');
-        let codigo = esReceta ? input.replace('receta:', '') : input;
-        let prod = null;
-        if (esReceta) prod = listaRecetas.find(r => r.codigo.toLowerCase() === codigo.toLowerCase() || r.nombre.toLowerCase().includes(codigo.toLowerCase()));
-        else prod = listaProductos.find(p => p.codigo.toLowerCase() === codigo.toLowerCase() || p.nombre.toLowerCase().includes(codigo.toLowerCase()));
-        if (!prod) { alert('Producto o receta no encontrado'); return; }
-        let item = {
-            codigo: prod.codigo,
-            nombre: prod.nombre,
-            precio: esReceta ? prod.precio_venta : prod.venta,
-            iva: esReceta ? 16 : prod.iva,
-            cantidad: 1,
-            descuento: 0,
-            nota_desc: ''
-        };
-        const existente = carritoActual.find(i => i.codigo === item.codigo);
-        if (existente) existente.cantidad++;
-        else carritoActual.push(item);
-        actualizarTabla();
-        guardarFacturaActual();
-        document.getElementById('codigo-buscar').value = '';
-        document.getElementById('codigo-buscar').focus();
+        agregarProductoDesdeFormulario();
     });
 
-    // ===== MÉTODOS DE PAGO =====
+    document.getElementById('codigo-buscar').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            agregarProductoDesdeFormulario();
+        }
+    });
+
+    // ============================================================
+    // MÉTODOS DE PAGO
+    // ============================================================
     function controlarPago() {
         const metodo = document.getElementById('metodo-pago').value;
         document.getElementById('grupo-referencia').style.display = (metodo === 'Cashea' || metodo === 'Casa' || metodo === 'Credito') ? 'none' : 'block';
@@ -747,7 +1336,6 @@
     document.getElementById('cashea-inicial').addEventListener('input', actualizarCashea);
     document.getElementById('cashea-cuotas').addEventListener('input', actualizarCashea);
 
-    // Botones Cashea
     const btnContainer = document.getElementById('botones-cashea');
     [25, 30, 35, 40, 45, 50, 60].forEach(pct => {
         let btn = document.createElement('button');
@@ -761,13 +1349,16 @@
         btnContainer.appendChild(btn);
     });
 
-    // ===== ABONOS ADMINISTRACIÓN =====
+    // ============================================================
+    // ABONOS ADMINISTRACIÓN
+    // ============================================================
     document.getElementById('btnAgregarAbono').addEventListener('click', function() {
         const monto = parseFloat(document.getElementById('monto-administracion').value);
-        if (!monto || monto <= 0) { alert('Ingrese un monto válido'); return; }
+        if (!monto || monto <= 0) { mostrarError('❌ Ingrese un monto válido'); return; }
         abonosAdmin.push({ monto: monto, fecha: new Date().toLocaleString() });
         actualizarListaAbonos();
         document.getElementById('monto-administracion').value = '0';
+        mostrarSuccess(`✅ Abono de $${monto.toFixed(2)} registrado`);
     });
 
     function actualizarListaAbonos() {
@@ -790,105 +1381,249 @@
     window.quitarAbono = function(idx) {
         abonosAdmin.splice(idx, 1);
         actualizarListaAbonos();
+        mostrarSuccess('🗑️ Abono eliminado');
     };
 
-    // ===== PROCESAR FACTURA CON CONTROL DE DUPLICADOS =====
+    // ============================================================
+    // PROCESAR FACTURA (CORREGIDO)
+    // ============================================================
     async function procesarFactura(imprimir) {
-        if (procesandoFactura) return; // 👈 EVITA DOBLE CLIC
-        if (carritoActual.length === 0) return alert('Carrito vacío');
-        if (miCajaEstado !== 'abierta') return alert('Debes abrir tu caja');
+        if (carritoActual.length === 0) {
+            mostrarError('❌ El carrito está vacío');
+            return;
+        }
+        
+        if (miCajaEstado !== 'abierta') {
+            mostrarError('❌ Debes abrir tu caja antes de facturar');
+            return;
+        }
 
-        // Deshabilitar botones durante el procesamiento
-        procesandoFactura = true;
-        document.getElementById('procesarEImprimirBtn').disabled = true;
-        document.getElementById('procesarSinImprimirBtn').disabled = true;
-        document.querySelector('.btn-procesar').classList.add('btn-procesando');
+        // Verificar disponibilidad de habitación si hay una en el carrito
+        if (hayHotelEnCarrito) {
+            const itemHabitacion = carritoActual.find(item => item.esHabitacion === true);
+            if (itemHabitacion) {
+                const fechaEntrada = document.getElementById('hotel_fecha_entrada').value;
+                const fechaSalida = document.getElementById('hotel_fecha_salida').value;
+                
+                if (!fechaEntrada || !fechaSalida) {
+                    mostrarError('❌ Para facturar una habitación, debes ingresar la fecha de entrada y salida');
+                    return;
+                }
+                
+                const token = localStorage.getItem('token');
+                try {
+                    const resVerificar = await fetch(`${API_URL}/disponibilidad/${itemHabitacion.habitacion_id}/verificar`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ fecha_entrada: fechaEntrada, fecha_salida: fechaSalida })
+                    });
+                    const verificar = await resVerificar.json();
+                    
+                    if (!verificar.disponible) {
+                        let msg = `❌ La habitación no está disponible para las fechas seleccionadas.`;
+                        if (verificar.bloqueadas > 0) msg += ` (${verificar.bloqueadas} bloqueo(s) manual(es))`;
+                        if (verificar.reservas > 0) msg += ` (${verificar.reservas} reserva(s) activa(s))`;
+                        mostrarError(msg);
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error verificando disponibilidad:', err);
+                    mostrarError('Error verificando disponibilidad de la habitación');
+                    return;
+                }
+            }
+        }
+
+        const token = localStorage.getItem('token');
+        const codigos = carritoActual.map(item => item.codigo);
+        
+        try {
+            const resCheck = await fetch(`${API_URL}/productos`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            const productosDB = await resCheck.json();
+            const codigosDB = productosDB.map(p => p.codigo);
+            
+            const productosInvalidos = carritoActual.filter(item => !codigosDB.includes(item.codigo));
+            if (productosInvalidos.length > 0) {
+                for (let item of productosInvalidos) {
+                    if (item.esHabitacion && item.habitacion_id) {
+                        const hab = listaHabitaciones.find(h => h.id === item.habitacion_id);
+                        if (hab) {
+                            await crearProductoHabitacion(hab);
+                        }
+                    }
+                }
+                
+                const resReload = await fetch(`${API_URL}/productos`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                const productosReload = await resReload.json();
+                const codigosReload = productosReload.map(p => p.codigo);
+                
+                const aunInvalidos = carritoActual.filter(item => !codigosReload.includes(item.codigo));
+                if (aunInvalidos.length > 0) {
+                    const nombresInvalidos = aunInvalidos.map(p => p.nombre).join(', ');
+                    mostrarError(`❌ Los siguientes productos no existen: ${nombresInvalidos}`);
+                    return;
+                }
+            }
+        } catch (e) {
+            mostrarError('❌ Error verificando productos: ' + e.message);
+            return;
+        }
+
+        abonosAdmin.forEach(a => {
+            pagosTemp.push({
+                metodo_pago: 'Administracion',
+                moneda: 'USD',
+                monto: a.monto,
+                referencia: 'Abono',
+                nota: 'Pago por administración',
+                es_administracion: true
+            });
+        });
+
+        const articulos = carritoActual.map(item => ({
+            producto_id: item.codigo,
+            cantidad: item.cantidad,
+            descuento: item.descuento || 0,
+            nota_descuento: item.nota_desc || ''
+        }));
+
+        const payload = {
+            articulos: articulos,
+            cliente_id: document.getElementById('cliente-id').value || null,
+            tasa_cambio: parseFloat(document.getElementById('tasa-cambio').value) || 544.58,
+            moneda: document.getElementById('moneda-pago').value,
+            metodo_pago: document.getElementById('metodo-pago').value,
+            referencia: document.getElementById('pago-referencia').value || '',
+            pagos: pagosTemp,
+            porcentaje_servicio: servicioPorcentaje,
+            cashea_inicial: parseFloat(document.getElementById('cashea-inicial').value) || 0,
+            cashea_cuotas: parseInt(document.getElementById('cashea-cuotas').value) || 1
+        };
+
+        // ✅ AGREGAR DATOS DE HOTEL SI HAY HABITACIONES
+        if (hayHotelEnCarrito) {
+            const fechaEntrada = document.getElementById('hotel_fecha_entrada').value;
+            const fechaSalida = document.getElementById('hotel_fecha_salida').value;
+            
+            if (!fechaEntrada || !fechaSalida) {
+                mostrarError('❌ Para facturar una habitación, debes ingresar la fecha de entrada y salida');
+                return;
+            }
+            
+            payload.hotel = {
+                fecha_entrada: fechaEntrada,
+                fecha_salida: fechaSalida,
+                hora_entrada: document.getElementById('hotel_hora_entrada').value || '15:00',
+                hora_salida: document.getElementById('hotel_hora_salida').value || '12:00',
+                nota: document.getElementById('hotel_nota').value || ''
+            };
+            
+            // ✅ Agregar información de habitaciones en carrito
+            payload.habitaciones_en_carrito = carritoActual
+                .filter(item => item.esHabitacion === true)
+                .map(item => ({
+                    codigo: item.codigo,
+                    habitacion_id: item.habitacion_id,
+                    numero: item.numero_habitacion
+                }));
+        }
+
+        console.log('📤 Enviando factura:', JSON.stringify(payload, null, 2));
 
         try {
-            abonosAdmin.forEach(a => {
-                pagosTemp.push({
-                    metodo_pago: 'Administracion',
-                    moneda: 'USD',
-                    monto: a.monto,
-                    referencia: 'Abono',
-                    nota: 'Pago por administración',
-                    es_administracion: true
-                });
-            });
-
-            const articulos = carritoActual.map(item => ({
-                producto_id: item.codigo,
-                cantidad: item.cantidad,
-                descuento: item.descuento || 0,
-                nota_descuento: item.nota_desc || ''
-            }));
-            const payload = {
-                articulos,
-                cliente_id: document.getElementById('cliente-id').value || null,
-                tasa_cambio: parseFloat(document.getElementById('tasa-cambio').value) || 544.58,
-                moneda: document.getElementById('moneda-pago').value,
-                metodo_pago: document.getElementById('metodo-pago').value,
-                referencia: document.getElementById('pago-referencia').value || '',
-                pagos: pagosTemp,
-                porcentaje_servicio: servicioPorcentaje,
-                cashea_inicial: parseFloat(document.getElementById('cashea-inicial').value) || 0,
-                cashea_cuotas: parseInt(document.getElementById('cashea-cuotas').value) || 1
-            };
-            const token = localStorage.getItem('token');
             const res = await fetch(`${API_URL}/facturas`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
                 body: JSON.stringify(payload)
             });
+            
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error al guardar factura');
-
-            alert('Factura guardada correctamente');
+            console.log('📥 Respuesta del servidor:', data);
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al procesar la factura');
+            }
+            
+            // Si se facturó una habitación, actualizar su estado (el backend ya lo hace, pero confirmamos)
+            if (hayHotelEnCarrito) {
+                mostrarSuccess(`🏠 Habitación facturada - Estado actualizado a OCUPADA`);
+            }
+            
+            mostrarSuccess(`✅ Factura #${data.factura_id} guardada correctamente`);
             cerrarModalPagos();
-            // Limpiar caché de productos y facturas para que se actualicen
-            localStorage.removeItem('productos');
-            localStorage.removeItem('productos_time');
-            localStorage.removeItem('facturas');
-            localStorage.removeItem('facturas_time');
-
             if (imprimir) await generarPDFFactura(data.factura_id);
             nuevaFactura();
         } catch (err) {
-            alert('Error: ' + err.message);
-        } finally {
-            procesandoFactura = false;
-            document.getElementById('procesarEImprimirBtn').disabled = false;
-            document.getElementById('procesarSinImprimirBtn').disabled = false;
-            document.querySelector('.btn-procesar').classList.remove('btn-procesando');
+            console.error('❌ Error en facturación:', err);
+            mostrarError('❌ Error al procesar factura: ' + err.message);
         }
     }
 
     async function generarPDFFactura(facturaId) {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/facturas/${facturaId}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        const f = data.factura;
-        let html = `<div style="padding:20px; font-family:monospace;">
-            <h2>Factura N° ${f.numero}</h2>
-            <div>Cliente: ${escapeHtml(f.cliente_nombre)}</div>
-            <div>Fecha: ${f.fecha}</div>
-            <div>Tasa: Bs ${f.tasa_cambio}</div>
-            <div>Total: $${f.total_usd}</div>
-            <table border="1" style="width:100%; margin-top:10px;">
-                <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th></tr></thead>
-                <tbody>`;
-        data.productos.forEach(p => {
-            html += `<tr><td>${escapeHtml(p.nombre)}</td><td>${p.cantidad}</td><td>$${p.precio_unitario}</td><td>$${p.subtotal_con_iva}</td></tr>`;
-        });
-        html += `</tbody></table></div>`;
-        const win = window.open();
-        win.document.write(html);
-        win.print();
+        try {
+            const res = await fetch(`${API_URL}/facturas/${facturaId}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            const data = await res.json();
+            const f = data.factura;
+            let html = `<div style="padding:20px; font-family:monospace;">
+                <h2>Factura N° ${f.numero_factura_empresa || f.numero}</h2>
+                <div>Cliente: ${escapeHtml(f.cliente_nombre)}</div>
+                <div>Fecha: ${f.fecha}</div>
+                <div>Tasa: Bs ${f.tasa_cambio}</div>
+                <div>Total: $${f.total_usd}</div>`;
+            
+            if (f.extras) {
+                try {
+                    const extras = JSON.parse(f.extras);
+                    if (extras.hotel) {
+                        const h = extras.hotel;
+                        html += `
+                        <div style="background:#f0f7ff; padding:10px; border-radius:8px; margin:10px 0;">
+                            <h3>🏨 Datos de la Estadía</h3>
+                            <div>Entrada: ${escapeHtml(h.fecha_entrada)} ${escapeHtml(h.hora_entrada)}</div>
+                            <div>Salida: ${escapeHtml(h.fecha_salida)} ${escapeHtml(h.hora_salida)}</div>
+                            <div>Nota: ${escapeHtml(h.nota || '')}</div>
+                        </div>`;
+                    }
+                } catch(e) {}
+            }
+            
+            html += `
+                <table border="1" style="width:100%; margin-top:10px;">
+                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th></tr></thead>
+                    <tbody>`;
+            data.productos.forEach(p => {
+                html += `<tr><td>${escapeHtml(p.nombre)}</td><td>${p.cantidad}</td><td>$${p.precio_unitario}</td><td>$${p.subtotal_con_iva}</td></tr>`;
+            });
+            html += `</tbody></table></div>`;
+            const win = window.open();
+            win.document.write(html);
+            win.print();
+        } catch (e) {
+            mostrarError('❌ Error generando PDF: ' + e.message);
+        }
     }
 
-    // ===== MODAL DE PAGOS =====
+    // ============================================================
+    // MODAL DE PAGOS
+    // ============================================================
     function mostrarModalPagos() {
-        if (carritoActual.length === 0) return alert('Carrito vacío');
+        if (carritoActual.length === 0) {
+            mostrarError('❌ El carrito está vacío');
+            return;
+        }
         const totalConIVA = parseFloat(document.getElementById('total-con-iva').innerText.replace('$', '')) || 0;
         totalFacturaActual = totalConIVA + servicioMonto;
         const metodo = document.getElementById('metodo-pago').value;
@@ -1005,27 +1740,9 @@
     document.getElementById('procesarEImprimirBtn').onclick = () => procesarFactura(true);
     document.getElementById('procesarSinImprimirBtn').onclick = () => procesarFactura(false);
 
-    // ===== STRIPE =====
-    async function initStripe() {
-        try {
-            const StripeLib = await loadStripe();
-            if (StripeLib) {
-                stripe = StripeLib('pk_test_51...');
-                console.log('Stripe inicializado correctamente');
-            } else {
-                console.warn('Stripe no disponible');
-                stripe = null;
-            }
-        } catch (e) { console.warn('Error al inicializar Stripe:', e); stripe = null; }
-    }
-    document.getElementById('btnStripe').onclick = async () => {
-        const total = parseFloat(document.getElementById('total-con-iva').innerText.replace('$', '')) + servicioMonto;
-        if (total <= 0) return alert('Total inválido');
-        if (!stripe) { alert('Stripe no configurado. Usa otro método.'); return; }
-        alert('Para usar Stripe, configura tus claves.');
-    };
-
-    // ===== MODAL CLIENTE =====
+    // ============================================================
+    // MODAL CLIENTE
+    // ============================================================
     window.cerrarModalCliente = () => document.getElementById('modalClienteRapido').style.display = 'none';
     document.getElementById('btnNuevoCliente').onclick = () => document.getElementById('modalClienteRapido').style.display = 'flex';
     document.getElementById('formClienteRapido').addEventListener('submit', async (e) => {
@@ -1038,35 +1755,73 @@
             direccion: document.getElementById('direccion-rapido').value,
             email: document.getElementById('email-rapido').value
         };
-        const res = await fetch(`${API_URL}/clientes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) { alert('Cliente creado'); cerrarModalCliente(); cargarClientes(); }
-        else alert('Error al crear cliente');
+        try {
+            const res = await fetch(`${API_URL}/clientes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) { 
+                mostrarSuccess('✅ Cliente creado correctamente');
+                cerrarModalCliente(); 
+                cargarClientes(); 
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error al crear cliente: ' + err.error);
+            }
+        } catch (e) {
+            mostrarError('❌ Error de conexión: ' + e.message);
+        }
     });
 
-    // ===== INICIALIZACIÓN =====
+    // ============================================================
+    // INICIALIZACIÓN
+    // ============================================================
     verificarSesion().then(() => {
-        // Cargar todos los datos en paralelo
         Promise.all([
             cargarEmpresa(),
             cargarClientes(),
             cargarProductosRecetas(),
             cargarEstadoMiCaja()
-        ]);
-        initStripe();
-        try {
-            const saved = localStorage.getItem('facturas_transito');
-            if (saved) {
-                facturasGuardadas = JSON.parse(saved);
-                actualizarListaFacturas();
-            }
-        } catch(e) { localStorage.removeItem('facturas_transito'); facturasGuardadas = {}; actualizarListaFacturas(); }
-        nuevaFactura();
-    }).catch(err => console.error('Error en inicialización:', err));
+        ]).then(() => {
+            console.log('✅ Todos los datos cargados correctamente');
+            cargarBorradoresGuardados();
+            
+            facturaActualId = null;
+            carritoActual = [];
+            abonosAdmin = [];
+            actualizarListaAbonos();
+            document.getElementById('cliente-id').value = '';
+            document.getElementById('moneda-pago').value = 'Bs';
+            document.getElementById('metodo-pago').value = 'Efectivo';
+            document.getElementById('pago-referencia').value = '';
+            document.getElementById('servicio-porcentaje').value = 0;
+            document.getElementById('cashea-inicial').value = 0;
+            document.getElementById('cashea-cuotas').value = 1;
+            document.getElementById('hotel_fecha_entrada').value = '';
+            document.getElementById('hotel_fecha_salida').value = '';
+            document.getElementById('hotel_hora_entrada').value = '15:00';
+            document.getElementById('hotel_hora_salida').value = '12:00';
+            document.getElementById('hotel_nota').value = '';
+            document.getElementById('hotel-campos-factura').style.display = 'none';
+            document.getElementById('hotel-campos-factura').classList.remove('visible');
+            const msgDiv = document.getElementById('hotel_disponibilidad_msg');
+            msgDiv.style.display = 'none';
+            msgDiv.className = 'disponibilidad-msg';
+            controlarPago();
+            actualizarTabla();
+            pagosTemp = [];
+            
+            mostrarSuccess('📄 Nueva factura iniciada');
+        });
+    }).catch(err => {
+        console.error('❌ Error en inicialización:', err);
+        mostrarError('❌ Error al inicializar la página: ' + err.message);
+    });
 
+    // ============================================================
+    // EVENTOS GLOBALES
+    // ============================================================
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
     });
@@ -1076,6 +1831,16 @@
         localStorage.removeItem('facturas_transito');
         window.location.href = 'login.html';
     });
+
+    // Exponer funciones globales
+    window.actualizarTabla = actualizarTabla;
+    window.agregarProductoAlCarrito = agregarProductoAlCarrito;
+    window.agregarProductoDesdeFormulario = agregarProductoDesdeFormulario;
+    window.eliminarDelCarrito = eliminarDelCarrito;
+    window.actualizarCamposHotel = actualizarCamposHotel;
+    window.forzarMostrarHotel = forzarMostrarHotel;
+    window.procesarFactura = procesarFactura;
+    window.verificarDisponibilidadCarrito = verificarDisponibilidadCarrito;
 </script>
 </body>
 </html>
