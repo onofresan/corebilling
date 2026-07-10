@@ -128,6 +128,7 @@
     <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
+    <a href="hoteleria.html">🏨 Hotelería</a>
     <a href="clientes.html">👥 Clientes</a>
     <a href="reporte.html">📊 Reportes</a>
     <a href="lista_facturas.html">📜 Historial</a>
@@ -199,7 +200,7 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `${window.location.origin}/api`;
     let userRole = null;
     let socket = null;
     let empresaId = null;
@@ -219,6 +220,7 @@
             userRole = data.role;
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                // Verificar si la empresa permite reiniciar el historial
                 const resEmpresa = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
                 const empresa = await resEmpresa.json();
                 if (empresa.permite_reiniciar_historial) {
@@ -235,7 +237,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io();
+        socket = io(window.location.origin);
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -266,6 +268,7 @@
 
     async function cargarHistorial() {
         const token = localStorage.getItem('token');
+        // Obtener productos para stock actual
         const prodRes = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
         const productos = await prodRes.json();
         const stockMap = new Map();
@@ -274,6 +277,7 @@
         const movRes = await fetch(`${API_URL}/historial-inventario`, { headers: { 'Authorization': `Bearer ${token}` } });
         const movimientos = await movRes.json();
 
+        // Resumen por producto
         const resumenMap = new Map();
         movimientos.forEach(m => {
             const codigo = m.producto_codigo;
@@ -317,6 +321,7 @@
             }
         }
 
+        // Movimientos detallados
         const tbody = document.getElementById('tabla-historial');
         tbody.innerHTML = '';
         if (movimientos.length === 0) {
@@ -340,10 +345,12 @@
         });
     }
 
+    // ========== EXPORTAR CSV ==========
     function exportarCSV() {
         window.open(`${API_URL}/exportar/historial-inventario`, '_blank');
     }
 
+    // ========== EXPORTAR PDF ==========
     function exportarPDF() {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -419,6 +426,7 @@
         doc.save('historial_inventario.pdf');
     }
 
+    // ========== REINICIAR HISTORIAL ==========
     document.getElementById('btnReiniciarHistorial').addEventListener('click', async function() {
         if (!confirm('⚠️ ¿Estás seguro de que quieres ELIMINAR TODO el historial de inventario? Esta acción no se puede deshacer. Los productos y su stock actual NO se verán afectados.')) return;
         if (!confirm('Confirmación final: ¿Borrar todos los movimientos del historial?')) return;
@@ -441,6 +449,7 @@
         }
     });
 
+    // ========== EVENTOS ==========
     document.getElementById('btnPDFHistorial').addEventListener('click', exportarPDF);
 
     document.getElementById('menuToggle').addEventListener('click', () => {

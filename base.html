@@ -47,7 +47,7 @@
 
         function conectarWebSocket() {
             if (!empresaId) return;
-            socket = io(); // ✅ Ruta relativa
+            socket = io(window.location.origin);
             socket.emit('join', { empresa_id: empresaId });
             socket.on('nueva_alerta', (data) => {
                 mostrarNotificacion(data.mensaje);
@@ -56,11 +56,13 @@
         }
 
         function mostrarNotificacion(mensaje) {
+            // Toast en UI
             const toast = document.createElement('div');
             toast.className = 'alert-toast';
             toast.innerText = mensaje;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 5000);
+            // Notificación del sistema
             if (notificationPermission && Notification.permission === 'granted') {
                 new Notification('CoreBilling', { body: mensaje });
             }
@@ -94,7 +96,8 @@
                 cargarAlertas();
                 setInterval(cargarAlertas, 30000);
                 if (data.role === 'admin') {
-                    document.querySelectorAll('.admin-only').forEach(link => link.style.display = 'block');
+                    const adminLinks = document.querySelectorAll('.admin-only');
+                    adminLinks.forEach(link => link.style.display = 'block');
                 }
                 if (data.role === 'super_admin') {
                     window.location.href = 'super_admin.html';
@@ -137,6 +140,7 @@
         <a href="index.html">📊 Dashboard</a>
         <a href="facturar.html">🛒 Nueva Factura</a>
         <a href="inventario.html">📦 Inventario</a>
+        <a href="hoteleria.html">🏨 Hotelería</a>
         <a href="clientes.html">👥 Clientes</a>
         <a href="reporte.html">📊 Reportes</a>
         <a href="lista_facturas.html">📜 Historial</a>

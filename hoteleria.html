@@ -1,0 +1,2854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="estilos.css">
+    <title>CoreBilling - Gestión Hotelera</title>
+    <!-- FullCalendar para calendario de disponibilidad -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js"></script>
+    <style>
+        .hotel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .estado-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .estado-disponible { background: #d1fae5; color: #065f46; }
+        .estado-ocupada { background: #fee2e2; color: #991b1b; }
+        .estado-sucia { background: #fef3c7; color: #92400e; }
+        .estado-reservada { background: #dbeafe; color: #1e40af; }
+        .estado-mantenimiento { background: #f3e8ff; color: #6b21a8; }
+        .estado-danada { background: #fecaca; color: #991b1b; }
+        .estado-facturada { background: #d1fae5; color: #065f46; }
+        
+        .habitacion-card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            position: relative;
+        }
+        .habitacion-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        .habitacion-card .numero {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .habitacion-card .estado {
+            font-size: 0.75rem;
+            margin-top: 4px;
+        }
+        .habitacion-card .precio {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 8px;
+        }
+        .habitacion-card .tipo {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .habitacion-card .codigo-producto {
+            font-size: 0.6rem;
+            color: #94a3b8;
+            margin-top: 2px;
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        .habitacion-card .fechas-ocupada {
+            font-size: 0.6rem;
+            color: #64748b;
+            margin-top: 4px;
+            background: #fef2f2;
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+        .habitacion-card .acciones-hab {
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .habitacion-card .acciones-hab button {
+            padding: 2px 8px;
+            font-size: 0.6rem;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .habitacion-card .acciones-hab .btn-edit { background: #f59e0b; color: white; }
+        .habitacion-card .acciones-hab .btn-edit:hover { background: #d97706; }
+        .habitacion-card .acciones-hab .btn-delete { background: #ef4444; color: white; }
+        .habitacion-card .acciones-hab .btn-delete:hover { background: #dc2626; }
+        .habitacion-card .acciones-hab .btn-estado { background: #3b82f6; color: white; }
+        .habitacion-card .acciones-hab .btn-estado:hover { background: #2563eb; }
+        .habitacion-card .acciones-hab .btn-facturar { background: #10b981; color: white; }
+        .habitacion-card .acciones-hab .btn-facturar:hover { background: #059669; }
+        .habitacion-card .acciones-hab .btn-limpiar { background: #8b5cf6; color: white; }
+        .habitacion-card .acciones-hab .btn-limpiar:hover { background: #7c3aed; }
+        .habitacion-card .acciones-hab .btn-facturar:disabled { 
+            background: #94a3b8; 
+            cursor: not-allowed; 
+            transform: none !important;
+        }
+        .habitacion-card .acciones-hab .btn-calendario { background: #4f46e5; color: white; }
+        .habitacion-card .acciones-hab .btn-calendario:hover { background: #4338ca; }
+        
+        .habitacion-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .estadisticas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .estadistica-card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .estadistica-card .numero {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .estadistica-card .label {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+        .modal-content {
+            max-width: 800px;
+        }
+        .modal-content .input-group {
+            margin-bottom: 14px;
+        }
+        .modal-content .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .modal-content .input-group input,
+        .modal-content .input-group select,
+        .modal-content .input-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+            background: white;
+        }
+        .modal-content .input-group input:focus,
+        .modal-content .input-group select:focus,
+        .modal-content .input-group textarea:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        .flex-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .btn-accion {
+            padding: 4px 12px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.75rem;
+            margin: 2px;
+        }
+        .btn-accion.info { background: #3b82f6; color: white; }
+        .btn-accion.info:hover { background: #2563eb; transform: translateY(-2px); }
+        .btn-accion.success { background: #10b981; color: white; }
+        .btn-accion.success:hover { background: #059669; transform: translateY(-2px); }
+        .btn-accion.warning { background: #f59e0b; color: white; }
+        .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
+        .btn-accion.danger { background: #ef4444; color: white; }
+        .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
+        .btn-accion.primary { background: #4f46e5; color: white; }
+        .btn-accion.primary:hover { background: #4338ca; transform: translateY(-2px); }
+        .btn-facturar {
+            background: #8b5cf6 !important;
+            color: white !important;
+        }
+        .btn-facturar:hover {
+            background: #7c3aed !important;
+            transform: translateY(-2px);
+        }
+        .servicio-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 12px;
+        }
+        .servicio-row select {
+            flex: 2;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .servicio-row input {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .servicio-row .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .servicio-row .btn-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+        .total-reserva {
+            background: #eef2ff;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+            margin-top: 12px;
+            text-align: right;
+        }
+        .alert-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e293b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            z-index: 3000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            animation: fadein 0.3s;
+        }
+        @keyframes fadein {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-hab {
+            max-width: 520px;
+        }
+        .badge-facturada {
+            background: #a7f3d0 !important;
+            color: #065f46 !important;
+        }
+        .tasa-display {
+            background: #eef2ff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .pago-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 12px;
+        }
+        .pago-row select, .pago-row input {
+            padding: 6px 10px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        .pago-row .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .resumen-pagos {
+            background: #f1f5f9;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+        .resumen-pagos .total-abonado {
+            color: #10b981;
+            font-weight: 700;
+        }
+        .resumen-pagos .saldo-pendiente {
+            color: #ef4444;
+            font-weight: 700;
+        }
+        .error-msg { background: #fee2e2; color: #991b1b; padding: 12px 16px; border-radius: 12px; border-left: 4px solid #dc2626; margin-bottom: 12px; display: none; }
+        .success-msg { background: #d1fae5; color: #065f46; padding: 12px 16px; border-radius: 12px; border-left: 4px solid #10b981; margin-bottom: 12px; display: none; }
+        .pago-equivalente {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        #modalFacturacionDirecta .modal-content {
+            max-width: 650px;
+        }
+        #modalFacturacionDirecta .input-group label {
+            font-size: 0.85rem;
+        }
+        #modalFacturacionDirecta .btn-success {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #modalFacturacionDirecta .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+        #modalFacturacionDirecta .btn-danger {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #modalFacturacionDirecta .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .toolbar-hotel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .toolbar-hotel .btn {
+            padding: 8px 16px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toolbar-hotel .btn-warning { background: #f59e0b; color: white; }
+        .toolbar-hotel .btn-warning:hover { background: #d97706; transform: translateY(-2px); }
+        .toolbar-hotel .btn-info { background: #3b82f6; color: white; }
+        .toolbar-hotel .btn-info:hover { background: #2563eb; transform: translateY(-2px); }
+        .toolbar-hotel .btn-primary { background: #4f46e5; color: white; }
+        .toolbar-hotel .btn-primary:hover { background: #4338ca; transform: translateY(-2px); }
+        .fc-daygrid-day.fc-day-disabled {
+            background: #fee2e2 !important;
+        }
+        .fc-daygrid-day.fc-day-reservada {
+            background: #fef3c7 !important;
+        }
+        .fc-daygrid-day.fc-day-ocupada {
+            background: #fee2e2 !important;
+        }
+        @media (max-width: 640px) {
+            .habitacion-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+            .estadisticas-grid { grid-template-columns: 1fr 1fr; }
+            .modal-content { padding: 16px; }
+            .servicio-row { flex-direction: column; align-items: stretch; }
+            .servicio-row select, .servicio-row input { width: 100%; }
+            .habitacion-card .acciones-hab { flex-direction: column; }
+            .pago-row { flex-direction: column; align-items: stretch; }
+            .pago-row select, .pago-row input { width: 100%; }
+            .grid-2 { grid-template-columns: 1fr; }
+            #modalFacturacionDirecta .modal-content { max-width: 100%; }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="hoteleria.html" class="active">🏨 Hotelería</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
+
+    <div class="card">
+        <div class="hotel-header">
+            <h2 style="font-weight:700;">🏨 Gestión Hotelera</h2>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                <button class="btn-primary" onclick="abrirModalHabitacion()">➕ Nueva Habitación</button>
+                <button class="btn-primary" onclick="abrirModalReserva()">📅 Nueva Reserva</button>
+                <button class="btn-success" onclick="cargarDatos()">⟳ Actualizar</button>
+            </div>
+        </div>
+
+        <div class="toolbar-hotel">
+            <button class="btn btn-warning" onclick="verificarVencidas()">🔄 Verificar Vencidas</button>
+            <button class="btn btn-info" onclick="verTodasHabitaciones()">👁️ Ver Todas</button>
+            <button class="btn btn-primary" onclick="forzarActualizarStock()">📦 Actualizar Stock</button>
+        </div>
+
+        <div id="errorMsg" class="error-msg"></div>
+        <div id="successMsg" class="success-msg"></div>
+
+        <div class="estadisticas-grid" id="estadisticas">
+            <div class="estadistica-card">
+                <div class="numero" id="stat-disponible">0</div>
+                <div class="label">🟢 Disponibles</div>
+            </div>
+            <div class="estadistica-card">
+                <div class="numero" id="stat-ocupada">0</div>
+                <div class="label">🔴 Ocupadas</div>
+            </div>
+            <div class="estadistica-card">
+                <div class="numero" id="stat-reservada">0</div>
+                <div class="label">🟡 Reservadas</div>
+            </div>
+            <div class="estadistica-card">
+                <div class="numero" id="stat-sucia">0</div>
+                <div class="label">⚫ Sucias</div>
+            </div>
+            <div class="estadistica-card">
+                <div class="numero" id="stat-ocupacion">0%</div>
+                <div class="label">📊 Ocupación</div>
+            </div>
+            <div class="estadistica-card">
+                <div class="numero" id="stat-ingresos">$0</div>
+                <div class="label">💰 Ingresos hoy</div>
+            </div>
+        </div>
+
+        <h4 style="font-weight:600; margin-bottom:12px;">🗺️ Mapa de Habitaciones</h4>
+        <div class="habitacion-grid" id="habitacionesGrid">
+            <p style="color:#94a3b8; grid-column:1/-1; text-align:center; padding:20px;">Cargando habitaciones...</p>
+        </div>
+
+        <h4 style="font-weight:600; margin:20px 0 12px;">📋 Reservas</h4>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Habitación</th>
+                        <th>Cliente</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Total</th>
+                        <th>Abonado</th>
+                        <th>Saldo</th>
+                        <th>Descuento</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-reservas">
+                    <tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">Cargando reservas...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Nueva Habitación -->
+<div id="modalHabitacion" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content modal-hab" style="background:white; max-width:520px; width:95%; padding:24px; border-radius:28px;">
+        <span class="close-modal" onclick="cerrarModalHabitacion()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">🏨 Nueva Habitación</h3>
+        <form id="formHabitacion">
+            <div class="input-group">
+                <label>🔢 Número *</label>
+                <input type="text" id="hab_numero" placeholder="Ej: 101" required>
+            </div>
+            <div class="input-group">
+                <label>📝 Nombre</label>
+                <input type="text" id="hab_nombre" placeholder="Ej: Suite Presidencial">
+            </div>
+            <div class="input-group">
+                <label>🏷️ Código de producto *</label>
+                <input type="text" id="hab_codigo_producto" placeholder="Ej: HAB_101" required>
+                <small style="color:#64748b; font-size:0.75rem;">Este código se usará en facturación para buscar la habitación</small>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>🏷️ Tipo</label>
+                    <select id="hab_tipo">
+                        <option value="Estandar">Estandar</option>
+                        <option value="Suite">Suite</option>
+                        <option value="Doble">Doble</option>
+                        <option value="Individual">Individual</option>
+                        <option value="Familiar">Familiar</option>
+                        <option value="Presidencial">Presidencial</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>👥 Capacidad</label>
+                    <input type="number" id="hab_capacidad" value="2" min="1">
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>💰 Precio por Noche</label>
+                    <input type="number" step="0.01" id="hab_precio_noche" placeholder="0.00">
+                </div>
+                <div class="input-group">
+                    <label>💰 Precio por Día</label>
+                    <input type="number" step="0.01" id="hab_precio_dia" placeholder="0.00">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>📝 Descripción</label>
+                <textarea id="hab_descripcion" rows="2" placeholder="Descripción de la habitación..."></textarea>
+            </div>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">✅ Guardar Habitación</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalHabitacion()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal para Nueva Reserva CON DESCUENTO -->
+<div id="modalReserva" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:800px; width:95%; padding:24px; border-radius:28px; max-height:85vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModalReserva()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">📅 Nueva Reserva</h3>
+        
+        <div class="tasa-display" id="tasaDisplay">
+            💱 Tasa de cambio: <span id="tasaCambioActual">1.00</span> Bs/USD
+        </div>
+        
+        <form id="formReserva">
+            <div class="input-group">
+                <label>🏠 Habitación *</label>
+                <select id="reserva_habitacion" required></select>
+            </div>
+            <div class="input-group">
+                <label>👤 Cliente *</label>
+                <select id="reserva_cliente" required></select>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>📅 Fecha Entrada *</label>
+                    <input type="date" id="reserva_fecha_entrada" required>
+                </div>
+                <div class="input-group">
+                    <label>📅 Fecha Salida *</label>
+                    <input type="date" id="reserva_fecha_salida" required>
+                </div>
+            </div>
+            <div id="reserva_disponibilidad_msg" style="padding:8px 12px; border-radius:8px; margin-bottom:12px; display:none; font-weight:600;"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>⏰ Hora Entrada</label>
+                    <input type="time" id="reserva_hora_entrada" value="15:00">
+                </div>
+                <div class="input-group">
+                    <label>⏰ Hora Salida</label>
+                    <input type="time" id="reserva_hora_salida" value="12:00">
+                </div>
+            </div>
+            
+            <!-- CAMPO DE DESCUENTO -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>💰 Descuento (USD)</label>
+                    <input type="number" step="0.01" id="reserva_descuento" value="0" oninput="calcularTotalesReserva()">
+                </div>
+                <div class="input-group">
+                    <label>📝 Motivo descuento</label>
+                    <input type="text" id="reserva_motivo_descuento" placeholder="Ej: Promoción">
+                </div>
+            </div>
+            
+            <div class="total-reserva">
+                <span>Total estadía: </span>
+                <strong id="reserva_total">$0.00</strong>
+                <span style="margin-left:20px;">Saldo pendiente: </span>
+                <strong id="reserva_saldo">$0.00</strong>
+            </div>
+            
+            <h4 style="font-weight:600; margin:16px 0 8px;">💳 Pagos / Abonos</h4>
+            <div id="pagosContainer"></div>
+            <button type="button" class="btn-primary" onclick="agregarPagoReserva()" style="margin-top:8px;">+ Agregar Pago</button>
+            <div id="resumenPagos" class="resumen-pagos">
+                <span>Total abonado: <strong class="total-abonado" id="totalAbonadoReserva">$0.00</strong></span>
+                <span style="margin-left:20px;">Saldo pendiente: <strong class="saldo-pendiente" id="saldoPendienteReserva">$0.00</strong></span>
+            </div>
+            
+            <h4 style="font-weight:600; margin:16px 0 8px;">🍽️ Servicios Adicionales</h4>
+            <div id="serviciosContainer"></div>
+            <button type="button" class="btn-primary" onclick="agregarServicio()" style="margin-top:8px;">+ Agregar Servicio</button>
+            
+            <div class="input-group" style="margin-top:12px;">
+                <label>📝 Observaciones</label>
+                <textarea id="reserva_observaciones" rows="2" placeholder="Observaciones de la reserva..."></textarea>
+            </div>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">✅ Crear Reserva</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalReserva()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal para Cambiar Estado de Habitación -->
+<div id="modalEstadoHabitacion" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:460px; width:95%; padding:24px; border-radius:28px;">
+        <span class="close-modal" onclick="cerrarModalEstado()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">🔧 Cambiar Estado de Habitación</h3>
+        <p><strong>Habitación:</strong> <span id="estado_habitacion_numero"></span></p>
+        <p><strong>Estado actual:</strong> <span id="estado_habitacion_actual"></span></p>
+        <div class="input-group" style="margin-top:12px;">
+            <label>📊 Nuevo Estado</label>
+            <select id="estado_nuevo">
+                <option value="disponible">🟢 Disponible</option>
+                <option value="ocupada">🔴 Ocupada</option>
+                <option value="sucia">⚫ Sucia</option>
+                <option value="reservada">🟡 Reservada</option>
+                <option value="mantenimiento">🔧 Mantenimiento</option>
+                <option value="danada">❌ Dañada</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>📝 Motivo</label>
+            <textarea id="estado_motivo" rows="2" placeholder="Motivo del cambio de estado..."></textarea>
+        </div>
+        <div class="flex-btns">
+            <button class="btn-success" onclick="confirmarCambioEstado()">✅ Cambiar Estado</button>
+            <button class="btn-danger" onclick="cerrarModalEstado()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Limpiar Habitación (SUCIA -> DISPONIBLE) -->
+<div id="modalLimpiarHabitacion" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:460px; width:95%; padding:24px; border-radius:28px;">
+        <span class="close-modal" onclick="cerrarModalLimpiar()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">🧹 Limpiar Habitación</h3>
+        <p><strong>Habitación:</strong> <span id="limpiar_habitacion_numero"></span></p>
+        <p><strong>Estado actual:</strong> <span id="limpiar_habitacion_actual"></span></p>
+        <div class="input-group" style="margin-top:12px;">
+            <label>📝 Nota de limpieza</label>
+            <textarea id="limpiar_motivo" rows="2" placeholder="Detalles de la limpieza..."></textarea>
+        </div>
+        <div class="flex-btns">
+            <button class="btn-success" onclick="confirmarLimpiar()">✅ Marcar como Limpia</button>
+            <button class="btn-danger" onclick="cerrarModalLimpiar()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Registrar Abono en Reserva Existente -->
+<div id="modalAbonoReserva" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:520px; width:95%; padding:24px; border-radius:28px;">
+        <span class="close-modal" onclick="cerrarModalAbono()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">💰 Registrar Abono</h3>
+        <p><strong>Reserva #<span id="abono_reserva_id"></span></strong></p>
+        <p>Saldo pendiente: <strong id="abono_saldo_actual">$0.00</strong></p>
+        <div class="tasa-display">
+            💱 Tasa: <span id="abonoTasaActual">1.00</span> Bs/USD
+        </div>
+        <div class="input-group">
+            <label>💳 Método de Pago</label>
+            <select id="abono_metodo_pago">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Pago Movil">Pago Móvil</option>
+                <option value="Punto de Venta">Punto de Venta</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Divisa">Divisa</option>
+                <option value="Cashea">Cashea</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>💰 Monto en USD</label>
+            <input type="number" step="0.01" id="abono_monto_usd" placeholder="0.00" oninput="calcularEquivalenteAbono()">
+        </div>
+        <div class="input-group">
+            <label>💰 Monto en Bs (equivalente)</label>
+            <input type="number" step="0.01" id="abono_monto_bs" placeholder="0.00" readonly style="background:#f1f5f9;">
+        </div>
+        <div class="input-group">
+            <label>🔢 Referencia</label>
+            <input type="text" id="abono_referencia" placeholder="Nº referencia">
+        </div>
+        <div class="flex-btns">
+            <button class="btn-success" onclick="confirmarAbonoReserva()">✅ Registrar Abono</button>
+            <button class="btn-danger" onclick="cerrarModalAbono()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Facturación Directa de Habitación CON CALENDARIO -->
+<div id="modalFacturacionDirecta" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:650px; width:95%; padding:24px; border-radius:28px; max-height:90vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModalFacturacionDirecta()" style="float:right; font-size:28px; cursor:pointer; color:#94a3b8;">&times;</span>
+        <h3 style="margin-bottom:16px;">🧾 Facturar Habitación Directa</h3>
+        <div id="fd_habitacion_info" style="background:#f0f7ff; padding:12px 16px; border-radius:12px; margin-bottom:16px;">
+            <p><strong>🏠 Habitación:</strong> <span id="fd_habitacion_numero"></span> - <span id="fd_habitacion_tipo"></span></p>
+            <p><strong>💰 Precio por noche:</strong> $<span id="fd_habitacion_precio">0.00</span></p>
+            <p><strong>📊 Estado actual:</strong> <span id="fd_habitacion_estado"></span></p>
+        </div>
+
+        <!-- CALENDARIO DE DISPONIBILIDAD -->
+        <div style="margin: 16px 0;">
+            <h4 style="font-weight:600; margin-bottom:8px;">📅 Calendario de Disponibilidad</h4>
+            <div id="calendarioDisponibilidad" style="max-width:100%;"></div>
+            <p style="font-size:0.7rem; color:#64748b; margin-top:8px;">
+                <span style="color:#22c55e;">🟢</span> Disponible | 
+                <span style="color:#ef4444;">🔴</span> No disponible |
+                <span style="color:#f59e0b;">🟡</span> Reservada |
+                <span style="color:#dc2626;">🔴</span> Ocupada
+            </p>
+        </div>
+        
+        <form id="formFacturacionDirecta">
+            <input type="hidden" id="fd_habitacion_id">
+            
+            <div class="input-group">
+                <label>👤 Cliente *</label>
+                <select id="fd_cliente_id" required></select>
+                <button type="button" class="btn-primary" onclick="abrirNuevoClienteDesdeFacturacion()" style="margin-top:6px; width:100%; padding:6px; font-size:0.8rem;">➕ Nuevo Cliente</button>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>📅 Fecha Entrada *</label>
+                    <input type="date" id="fd_fecha_entrada" required onchange="verificarDisponibilidadDirecta()">
+                </div>
+                <div class="input-group">
+                    <label>📅 Fecha Salida *</label>
+                    <input type="date" id="fd_fecha_salida" required onchange="verificarDisponibilidadDirecta()">
+                </div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="input-group">
+                    <label>⏰ Hora Entrada</label>
+                    <input type="time" id="fd_hora_entrada" value="15:00">
+                </div>
+                <div class="input-group">
+                    <label>⏰ Hora Salida</label>
+                    <input type="time" id="fd_hora_salida" value="12:00">
+                </div>
+            </div>
+            
+            <div id="fd_disponibilidad_msg" style="padding:8px 12px; border-radius:8px; margin-bottom:12px; display:none; font-weight:600;">
+            </div>
+            
+            <div class="input-group">
+                <label>📝 Nota adicional</label>
+                <input type="text" id="fd_nota" placeholder="Observaciones de la estadía...">
+            </div>
+            
+            <div class="input-group">
+                <label>💳 Método de Pago</label>
+                <select id="fd_metodo_pago">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Pago Movil">Pago Móvil</option>
+                    <option value="Punto de Venta">Punto de Venta</option>
+                    <option value="Transferencia">Transferencia</option>
+                    <option value="Divisa">Divisa</option>
+                    <option value="Cashea">Cashea</option>
+                </select>
+            </div>
+            
+            <div style="background:#f8fafc; padding:12px 16px; border-radius:12px; margin:12px 0;">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap;">
+                    <span><strong>Noches:</strong> <span id="fd_noches">0</span></span>
+                    <span><strong>Total:</strong> $<span id="fd_total">0.00</span></span>
+                </div>
+            </div>
+            
+            <div class="flex-btns">
+                <button type="submit" class="btn-success" id="fd_btn_facturar">✅ Facturar</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalFacturacionDirecta()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Cliente Rápido -->
+<div id="modalClienteRapido" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:460px; width:95%; padding:24px; border-radius:28px;">
+        <span class="close-modal" onclick="cerrarModalClienteRapido()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">➕ Nuevo Cliente</h3>
+        <form id="formClienteRapido">
+            <div class="input-group">
+                <label>RIF / Cédula *</label>
+                <input type="text" id="cr_rif" required>
+            </div>
+            <div class="input-group">
+                <label>Nombre / Razón Social *</label>
+                <input type="text" id="cr_nombre" required>
+            </div>
+            <div class="input-group">
+                <label>Teléfono</label>
+                <input type="text" id="cr_telefono">
+            </div>
+            <div class="input-group">
+                <label>Dirección</label>
+                <input type="text" id="cr_direccion">
+            </div>
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" id="cr_email">
+            </div>
+            <div class="flex-btns">
+                <button type="submit" class="btn-success">✅ Guardar</button>
+                <button type="button" class="btn-danger" onclick="cerrarModalClienteRapido()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal para ver disponibilidad detallada -->
+<div id="modalDisponibilidad" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
+    <div class="modal-content" style="background:white; max-width:900px; width:95%; padding:24px; border-radius:28px; max-height:90vh; overflow-y:auto;">
+        <span class="close-modal" onclick="cerrarModalDisponibilidad()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
+        <h3 style="margin-bottom:16px;">📅 Disponibilidad de Habitación</h3>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; font-size:0.85rem;">
+            <span>🟢 Disponible</span>
+            <span>🟡 Reservada</span>
+            <span>🔴 Ocupada / Bloqueada</span>
+        </div>
+        <div id="calendarioVerDisponibilidad" style="max-width:100%; margin-bottom:16px;"></div>
+        <div id="disponibilidad_contenido">
+            <p style="text-align:center; color:#94a3b8; padding:20px;">Cargando...</p>
+        </div>
+        <div class="flex-btns">
+            <button class="btn-danger" onclick="cerrarModalDisponibilidad()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    // CONFIGURACIÓN
+    // ============================================================
+    const API_URL = `${window.location.origin}/api`;
+    let habitaciones = [];
+    let reservas = [];
+    let clientes = [];
+    let servicios = [];
+    let serviciosSeleccionados = [];
+    let pagosReserva = [];
+    let habitacionSeleccionadaId = null;
+    let reservaAbonoId = null;
+    let socket = null;
+    let empresaId = null;
+    let tasaCambio = 1.0;
+    let userRole = null;
+    let limpiarHabitacionId = null;
+    let calendar = null;
+    let calendarVerDisponibilidad = null;
+    let reservaFechasOk = false; // true solo si ya se verificó que el rango elegido está libre
+    let habitacionCalendarId = null;
+
+    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
+    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+
+    function mostrarError(mensaje) {
+        const el = document.getElementById('errorMsg');
+        el.innerText = mensaje;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
+
+    function mostrarSuccess(mensaje) {
+        const el = document.getElementById('successMsg');
+        el.innerText = mensaje;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+
+    // ============================================================
+    // AUTENTICACIÓN Y CARGA DE TASA
+    // ============================================================
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = 'login.html'; return null; }
+        try {
+            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!data.logged_in) throw new Error();
+            empresaId = data.empresa_id;
+            userRole = data.role;
+            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            conectarWebSocket();
+            await cargarTasaCambio();
+            return data;
+        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+    }
+
+    async function cargarTasaCambio() {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/tasa`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            if (data.tasa) {
+                tasaCambio = data.tasa;
+                document.getElementById('tasaCambioActual').innerText = tasaCambio.toFixed(2);
+                document.getElementById('abonoTasaActual').innerText = tasaCambio.toFixed(2);
+                document.getElementById('tasaDisplay').style.display = 'block';
+            }
+        } catch(e) {
+            console.warn('Error cargando tasa:', e);
+        }
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        try {
+            socket = io(window.location.origin);
+            socket.emit('join', { empresa_id: empresaId });
+            socket.on('nueva_alerta', (data) => { mostrarSuccess(data.mensaje); });
+        } catch(e) { console.warn('WebSocket no disponible'); }
+    }
+
+    // ============================================================
+    // VERIFICAR HABITACIONES VENCIDAS
+    // ============================================================
+    async function verificarVencidas() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            mostrarError('❌ No hay sesión activa');
+            return;
+        }
+        
+        try {
+            mostrarSuccess('⏳ Verificando habitaciones vencidas...');
+            
+            const res = await fetch(`${API_URL}/verificar-vencidas`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            const data = await res.json();
+            
+            if (res.ok) {
+                if (data.habitaciones && data.habitaciones.length > 0) {
+                    let msg = `✅ ${data.habitaciones.length} habitaciones pasaron a SUCIA automáticamente:\n`;
+                    data.habitaciones.forEach(h => {
+                        msg += `- Habitación ${h.numero} (estaba ocupada hasta ${h.fecha_salida})\n`;
+                    });
+                    alert(msg);
+                    mostrarSuccess(`✅ ${data.habitaciones.length} habitaciones pasaron a SUCIA`);
+                    cargarDatos();
+                } else {
+                    mostrarSuccess('✅ No hay habitaciones vencidas');
+                }
+            } else {
+                mostrarError('❌ Error: ' + data.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    }
+
+    // ============================================================
+    // VER TODAS LAS HABITACIONES
+    // ============================================================
+    function verTodasHabitaciones() {
+        if (!habitaciones || habitaciones.length === 0) {
+            mostrarError('❌ No hay habitaciones registradas');
+            return;
+        }
+        
+        let msg = '📋 LISTA DE HABITACIONES\n\n';
+        msg += 'Nº | Estado | Precio | Código | Stock\n';
+        msg += '---|--------|--------|--------|-------\n';
+        
+        const token = localStorage.getItem('token');
+        fetch(`${API_URL}/productos`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        }).then(res => res.json()).then(productos => {
+            habitaciones.forEach(h => {
+                const estadoEmoji = h.estado === 'disponible' ? '🟢' : 
+                                   h.estado === 'ocupada' ? '🔴' : 
+                                   h.estado === 'reservada' ? '🟡' : '⚫';
+                const prod = productos.find(p => p.codigo === h.codigo_producto);
+                const stock = prod ? prod.stock : 'N/A';
+                msg += `${h.numero} | ${estadoEmoji} ${h.estado} | $${h.precio_noche} | ${h.codigo_producto || 'N/A'} | ${stock}\n`;
+                if (h.estado === 'ocupada' && h.fecha_salida_ultima) {
+                    msg += `   📅 Hasta: ${h.fecha_salida_ultima} ${h.hora_salida_ultima || ''}\n`;
+                }
+            });
+            alert(msg);
+        }).catch(() => {
+            habitaciones.forEach(h => {
+                const estadoEmoji = h.estado === 'disponible' ? '🟢' : 
+                                   h.estado === 'ocupada' ? '🔴' : 
+                                   h.estado === 'reservada' ? '🟡' : '⚫';
+                msg += `${h.numero} | ${estadoEmoji} ${h.estado} | $${h.precio_noche} | ${h.codigo_producto || 'N/A'}\n`;
+                if (h.estado === 'ocupada' && h.fecha_salida_ultima) {
+                    msg += `   📅 Hasta: ${h.fecha_salida_ultima} ${h.hora_salida_ultima || ''}\n`;
+                }
+            });
+            alert(msg);
+        });
+    }
+
+    // ============================================================
+    // FORZAR ACTUALIZACIÓN DE STOCK
+    // ============================================================
+    async function forzarActualizarStock() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            mostrarError('❌ No hay sesión activa');
+            return;
+        }
+        
+        if (!confirm('¿Actualizar el stock de TODAS las habitaciones según su estado?\n\n- DISPONIBLE → stock=1\n- OTROS ESTADOS → stock=0')) return;
+        
+        try {
+            mostrarSuccess('⏳ Actualizando stock...');
+            let actualizadas = 0;
+            let errores = 0;
+            
+            for (const hab of habitaciones) {
+                if (!hab.codigo_producto) continue;
+                
+                const res = await fetch(`${API_URL}/habitaciones/${hab.id}/actualizar-stock`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (res.ok) {
+                    actualizadas++;
+                } else {
+                    errores++;
+                }
+            }
+            
+            mostrarSuccess(`✅ Stock actualizado para ${actualizadas} habitaciones${errores > 0 ? ` (${errores} errores)` : ''}`);
+            cargarDatos();
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    }
+
+    // ============================================================
+    // CARGA DE DATOS
+    // ============================================================
+    async function cargarDatos() {
+        const token = localStorage.getItem('token');
+        try {
+            const resHab = await fetch(`${API_URL}/habitaciones`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!resHab.ok) throw new Error('Error al cargar habitaciones');
+            habitaciones = await resHab.json();
+            if (!Array.isArray(habitaciones)) habitaciones = [];
+
+            const resCli = await fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!resCli.ok) throw new Error('Error al cargar clientes');
+            clientes = await resCli.json();
+            if (!Array.isArray(clientes)) clientes = [];
+
+            const resRes = await fetch(`${API_URL}/reservas`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!resRes.ok) throw new Error('Error al cargar reservas');
+            reservas = await resRes.json();
+            if (!Array.isArray(reservas)) reservas = [];
+
+            const resSer = await fetch(`${API_URL}/servicios`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!resSer.ok) throw new Error('Error al cargar servicios');
+            servicios = await resSer.json();
+            if (!Array.isArray(servicios)) servicios = [];
+
+            renderizarHabitaciones();
+            renderizarReservas();
+            renderizarEstadisticas();
+            actualizarSelects();
+            await cargarTasaCambio();
+            
+        } catch (error) {
+            console.error('Error cargando datos:', error);
+            mostrarError('Error al cargar datos: ' + error.message);
+        }
+    }
+
+    function renderizarHabitaciones() {
+        const grid = document.getElementById('habitacionesGrid');
+        if (!habitaciones || habitaciones.length === 0) {
+            grid.innerHTML = '<p style="color:#94a3b8; grid-column:1/-1; text-align:center; padding:20px;">No hay habitaciones registradas</p>';
+            return;
+        }
+        grid.innerHTML = '';
+        
+        const estadosFacturables = ['disponible', 'reservada'];
+        
+        habitaciones.forEach(h => {
+            const card = document.createElement('div');
+            card.className = 'habitacion-card';
+            const codigoProducto = h.codigo_producto || h.numero;
+            const puedeFacturar = estadosFacturables.includes(h.estado);
+            const puedeLimpiar = h.estado === 'sucia';
+            
+            let infoExtra = '';
+            if (h.estado === 'ocupada' && h.fecha_salida_ultima) {
+                infoExtra = `<div class="fechas-ocupada">📅 Hasta: ${escapeHtml(h.fecha_salida_ultima)} ${escapeHtml(h.hora_salida_ultima || '')}</div>`;
+            }
+            
+            card.innerHTML = `
+                <div class="numero">${escapeHtml(h.numero)}</div>
+                <div class="tipo">${escapeHtml(h.tipo || 'Estandar')}</div>
+                <div class="codigo-producto">🔖 ${escapeHtml(codigoProducto)}</div>
+                <div class="estado"><span class="estado-badge ${getEstadoClase(h.estado)}">${getEstadoEmoji(h.estado)} ${escapeHtml(h.estado)}</span></div>
+                ${infoExtra}
+                <div class="precio">$${toNum(h.precio_noche).toFixed(2)} / noche</div>
+                <div class="acciones-hab">
+                    <button class="btn-edit" onclick="event.stopPropagation(); editarHabitacion(${h.id})">✏️</button>
+                    <button class="btn-delete" onclick="event.stopPropagation(); eliminarHabitacion(${h.id})">🗑️</button>
+                    <button class="btn-estado" onclick="event.stopPropagation(); abrirModalEstado(${h})">🔧</button>
+                    <button class="btn-calendario" onclick="event.stopPropagation(); verDisponibilidad(${h.id})">📅</button>
+                    ${puedeLimpiar ? `<button class="btn-limpiar" onclick="event.stopPropagation(); abrirModalLimpiar(${h.id})">🧹 Limpiar</button>` : ''}
+                    <button class="btn-facturar" onclick="event.stopPropagation(); facturarHabitacionDirecta(${h.id})" ${!puedeFacturar ? 'disabled title="No se puede facturar porque la habitación está ' + h.estado + '"' : ''}>
+                        ${puedeFacturar ? '🧾 Facturar' : '🚫 ' + h.estado}
+                    </button>
+                </div>
+            `;
+            card.onclick = () => abrirModalEstado(h);
+            grid.appendChild(card);
+        });
+    }
+
+    function renderizarReservas() {
+        const tbody = document.getElementById('tabla-reservas');
+        if (!reservas || reservas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">No hay reservas</td></tr>';
+            return;
+        }
+        tbody.innerHTML = '';
+        reservas.forEach(r => {
+            const estadoClase = getEstadoClase(r.estado);
+            const estadoLabels = {
+                'pendiente': '⏳ Pendiente',
+                'confirmada': '✅ Confirmada',
+                'abonada': '💰 Abonada',
+                'check_in': '📥 Check-in',
+                'check_out': '📤 Check-out',
+                'cancelada': '❌ Cancelada',
+                'no_show': '🚫 No Show',
+                'facturada': '🧾 Facturada',
+                'reservada': '🟡 Reservada'
+            };
+            const estadoLabel = estadoLabels[r.estado] || r.estado;
+            
+            const btnFacturar = (r.estado === 'check_out' && r.estado !== 'facturada') ? 
+                `<button class="btn-accion btn-facturar" onclick="facturarReserva(${r.id})">🧾 Facturar</button>` : '';
+            
+            const btnAbono = (parseFloat(r.saldo_pendiente || 0) > 0 && r.estado !== 'cancelada' && r.estado !== 'facturada') ?
+                `<button class="btn-accion info" onclick="abrirModalAbono(${r.id})">💰 Abono</button>` : '';
+            
+            let acciones = `
+                ${r.estado === 'pendiente' || r.estado === 'confirmada' || r.estado === 'abonada' ? 
+                    `<button class="btn-accion success" onclick="checkIn(${r.id})">📥 Check-in</button>` : ''}
+                ${r.estado === 'check_in' ? 
+                    `<button class="btn-accion warning" onclick="checkOut(${r.id})">📤 Check-out</button>` : ''}
+                ${btnAbono}
+                ${btnFacturar}
+                ${r.estado !== 'facturada' && r.estado !== 'cancelada' ? 
+                    `<button class="btn-accion danger" onclick="cancelarReserva(${r.id})">🗑️</button>` : ''}
+            `;
+            
+            tbody.innerHTML += `
+                <tr>
+                    <td>#${r.id}</td>
+                    <td>${escapeHtml(r.habitacion_numero || '')}</td>
+                    <td>${escapeHtml(r.cliente_nombre || '')}</td>
+                    <td>${escapeHtml(r.fecha_entrada)}</td>
+                    <td>${escapeHtml(r.fecha_salida)}</td>
+                    <td>$${toNum(r.total_usd).toFixed(2)}</td>
+                    <td>$${toNum(r.abono_usd).toFixed(2)}</td>
+                    <td>$${toNum(r.saldo_pendiente).toFixed(2)}</td>
+                    <td>$${toNum(r.descuento || 0).toFixed(2)}</td>
+                    <td><span class="estado-badge ${estadoClase}">${estadoLabel}</span></td>
+                    <td>${acciones}</td>
+                </tr>
+            `;
+        });
+    }
+
+    function renderizarEstadisticas() {
+        if (!habitaciones || habitaciones.length === 0) return;
+        const disponibles = habitaciones.filter(h => h.estado === 'disponible').length;
+        const ocupadas = habitaciones.filter(h => h.estado === 'ocupada').length;
+        const reservadas = habitaciones.filter(h => h.estado === 'reservada').length;
+        const sucias = habitaciones.filter(h => h.estado === 'sucia').length;
+        const total = habitaciones.length;
+        const porcentaje = total > 0 ? Math.round((ocupadas / total) * 100) : 0;
+        const ingresos = (reservas || [])
+            .filter(r => r.estado === 'check_in' || r.estado === 'check_out' || r.estado === 'facturada')
+            .reduce((sum, r) => sum + toNum(r.total_usd), 0);
+
+        document.getElementById('stat-disponible').innerText = disponibles;
+        document.getElementById('stat-ocupada').innerText = ocupadas;
+        document.getElementById('stat-reservada').innerText = reservadas;
+        document.getElementById('stat-sucia').innerText = sucias;
+        document.getElementById('stat-ocupacion').innerText = porcentaje + '%';
+        document.getElementById('stat-ingresos').innerText = '$' + ingresos.toFixed(2);
+    }
+
+    function actualizarSelects() {
+        const selectHab = document.getElementById('reserva_habitacion');
+        selectHab.innerHTML = '<option value="">-- Seleccionar --</option>';
+        // ⚠️ IMPORTANTE: NO filtramos por estado 'ocupada' aquí. El estado
+        // general de la habitación refleja SOLO el día de hoy; una habitación
+        // ocupada hoy puede estar perfectamente libre para una fecha futura.
+        // La disponibilidad real por fechas se valida más adelante contra
+        // /api/disponibilidad/<id>/verificar, no con el estado global.
+        (habitaciones || []).filter(h => h.estado !== 'mantenimiento' && h.estado !== 'danada').forEach(h => {
+            const codigo = h.codigo_producto || h.numero;
+            const estadoTag = h.estado !== 'disponible' ? ` [hoy: ${escapeHtml(h.estado)}]` : '';
+            selectHab.innerHTML += `<option value="${h.id}">${escapeHtml(h.numero)} - ${escapeHtml(h.tipo)} ($${toNum(h.precio_noche)}/noche) 🔖${escapeHtml(codigo)}${estadoTag}</option>`;
+        });
+
+        const selectCli = document.getElementById('reserva_cliente');
+        selectCli.innerHTML = '<option value="">-- Seleccionar --</option>';
+        (clientes || []).forEach(c => {
+            selectCli.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)} (${escapeHtml(c.rif)})</option>`;
+        });
+    }
+
+    function getEstadoClase(estado) {
+        const map = {
+            'disponible': 'estado-disponible',
+            'ocupada': 'estado-ocupada',
+            'sucia': 'estado-sucia',
+            'reservada': 'estado-reservada',
+            'mantenimiento': 'estado-mantenimiento',
+            'danada': 'estado-danada',
+            'facturada': 'estado-facturada'
+        };
+        return map[estado] || 'estado-disponible';
+    }
+
+    function getEstadoEmoji(estado) {
+        const map = {
+            'disponible': '🟢',
+            'ocupada': '🔴',
+            'sucia': '⚫',
+            'reservada': '🟡',
+            'mantenimiento': '🔧',
+            'danada': '❌',
+            'facturada': '✅'
+        };
+        return map[estado] || '🟢';
+    }
+
+    // ============================================================
+    // FUNCIONES DE DISPONIBILIDAD
+    // ============================================================
+    
+    function initCalendarioDisponibilidad(habitacionId) {
+        if (calendar) {
+            calendar.destroy();
+            calendar = null;
+        }
+        
+        habitacionCalendarId = habitacionId;
+        const calendarEl = document.getElementById('calendarioDisponibilidad');
+        if (!calendarEl) return;
+        
+        // Limpiar el contenedor
+        calendarEl.innerHTML = '';
+        
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            locale: 'es',
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,dayGridWeek'
+            },
+            height: 'auto',
+            events: function(info, successCallback, failureCallback) {
+                // Cargar disponibilidad de la habitación
+                fetch(`${API_URL}/disponibilidad/${habitacionId}?fecha_inicio=${info.startStr}&fecha_fin=${info.endStr}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    const events = [];
+                    
+                    // Agregar fechas bloqueadas
+                    if (data.bloqueos && data.bloqueos.length > 0) {
+                        data.bloqueos.forEach(b => {
+                            events.push({
+                                title: '❌ No disponible',
+                                start: b.fecha,
+                                allDay: true,
+                                color: '#ef4444',
+                                textColor: 'white'
+                            });
+                        });
+                    }
+                    
+                    // Agregar reservas
+                    if (data.reservas && data.reservas.length > 0) {
+                        data.reservas.forEach(r => {
+                            // Marcar todo el rango de la reserva
+                            let fecha = new Date(r.fecha_inicio);
+                            const fin = new Date(r.fecha_fin);
+                            while (fecha <= fin) {
+                                events.push({
+                                    title: '🟡 Reservada',
+                                    start: fecha.toISOString().split('T')[0],
+                                    allDay: true,
+                                    color: '#f59e0b',
+                                    textColor: 'white'
+                                });
+                                fecha.setDate(fecha.getDate() + 1);
+                            }
+                        });
+                    }
+                    
+                    successCallback(events);
+                })
+                .catch(err => {
+                    console.error('Error cargando disponibilidad:', err);
+                    failureCallback(err);
+                });
+            },
+            dateClick: function(info) {
+                // Cuando se hace clic en una fecha
+                const fecha = info.dateStr;
+                const habitacion = habitaciones.find(h => h.id === habitacionId);
+                if (!habitacion) return;
+                
+                // Verificar disponibilidad
+                verificarFechaDisponible(habitacionId, fecha);
+            },
+            dayCellDidMount: function(info) {
+                // Estilizar celdas según disponibilidad
+                const fecha = info.date.toISOString().split('T')[0];
+                // Esto se maneja en el evento de renderizado
+            }
+        });
+        
+        calendar.render();
+    }
+
+    function initCalendarioVerDisponibilidad(habitacionId) {
+        if (calendarVerDisponibilidad) {
+            calendarVerDisponibilidad.destroy();
+            calendarVerDisponibilidad = null;
+        }
+
+        const calendarEl = document.getElementById('calendarioVerDisponibilidad');
+        if (!calendarEl) return;
+
+        calendarEl.innerHTML = '';
+
+        calendarVerDisponibilidad = new FullCalendar.Calendar(calendarEl, {
+            locale: 'es',
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,dayGridWeek'
+            },
+            height: 'auto',
+            events: function(info, successCallback, failureCallback) {
+                // Los días SIN eventos se consideran disponibles (🟢) automáticamente.
+                // Solo se pintan los días bloqueados (🔴) o reservados (🟡).
+                fetch(`${API_URL}/disponibilidad/${habitacionId}?fecha_inicio=${info.startStr}&fecha_fin=${info.endStr}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    const events = [];
+
+                    if (data.bloqueos && data.bloqueos.length > 0) {
+                        data.bloqueos.forEach(b => {
+                            events.push({
+                                title: '🔴 ' + (b.motivo || 'Ocupada'),
+                                start: b.fecha,
+                                allDay: true,
+                                color: '#ef4444',
+                                textColor: 'white'
+                            });
+                        });
+                    }
+
+                    if (data.reservas && data.reservas.length > 0) {
+                        data.reservas.forEach(r => {
+                            let fecha = new Date(r.fecha_inicio + 'T00:00:00');
+                            const fin = new Date(r.fecha_fin + 'T00:00:00');
+                            while (fecha < fin) {
+                                events.push({
+                                    title: '🟡 Reservada',
+                                    start: fecha.toISOString().split('T')[0],
+                                    allDay: true,
+                                    color: '#f59e0b',
+                                    textColor: 'white'
+                                });
+                                fecha.setDate(fecha.getDate() + 1);
+                            }
+                        });
+                    }
+
+                    successCallback(events);
+                })
+                .catch(err => {
+                    console.error('Error cargando disponibilidad:', err);
+                    failureCallback(err);
+                });
+            },
+            dateClick: function(info) {
+                // Permite hacer clic en un día del calendario para bloquearlo
+                // o liberarlo manualmente (útil para corregir un bloqueo viejo/incorrecto).
+                verificarFechaDisponible(habitacionId, info.dateStr);
+            }
+        });
+
+        calendarVerDisponibilidad.render();
+    }
+
+    async function verificarFechaDisponible(habitacionId, fecha) {
+        const habitacion = habitaciones.find(h => h.id === habitacionId);
+        if (!habitacion) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/disponibilidad/${habitacionId}/verificar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    fecha_entrada: fecha,
+                    fecha_salida: fecha
+                })
+            });
+            const data = await res.json();
+            
+            if (data.disponible) {
+                if (confirm(`📅 Habitación ${habitacion.numero} está DISPONIBLE para el ${fecha}\n\n¿Deseas bloquear esta fecha?`)) {
+                    bloquearFecha(habitacionId, fecha);
+                }
+            } else {
+                let mensaje = `❌ Habitación ${habitacion.numero} NO está disponible para el ${fecha}\n\n`;
+                if (data.bloqueadas > 0) mensaje += `- ${data.bloqueadas} bloqueo(s) manual(es)\n`;
+                if (data.reservas > 0) mensaje += `- ${data.reservas} reserva(s) activa(s)\n`;
+                mensaje += `\n¿Deseas liberar esta fecha?`;
+                
+                if (confirm(mensaje)) {
+                    liberarFecha(habitacionId, fecha);
+                }
+            }
+        } catch (err) {
+            mostrarError('Error verificando disponibilidad: ' + err.message);
+        }
+    }
+
+    async function bloquearFecha(habitacionId, fecha) {
+        const motivo = prompt('Motivo del bloqueo:');
+        if (motivo === null) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/disponibilidad/${habitacionId}/bloquear`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ fecha, motivo: motivo || 'Bloqueo manual' })
+            });
+            const data = await res.json();
+            if (data.status === 'OK') {
+                mostrarSuccess('✅ Fecha bloqueada correctamente');
+                if (calendar) calendar.refetchEvents();
+                if (calendarVerDisponibilidad) calendarVerDisponibilidad.refetchEvents();
+                cargarDatos();
+            } else {
+                mostrarError('❌ Error: ' + data.error);
+            }
+        } catch (err) {
+            mostrarError('Error: ' + err.message);
+        }
+    }
+
+    async function liberarFecha(habitacionId, fecha) {
+        if (!confirm(`¿Liberar la fecha ${fecha}?`)) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/disponibilidad/${habitacionId}/liberar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ fecha })
+            });
+            const data = await res.json();
+            if (data.status === 'OK') {
+                mostrarSuccess('✅ Fecha liberada correctamente');
+                if (calendar) calendar.refetchEvents();
+                if (calendarVerDisponibilidad) calendarVerDisponibilidad.refetchEvents();
+                cargarDatos();
+            } else {
+                mostrarError('❌ Error: ' + data.error);
+            }
+        } catch (err) {
+            mostrarError('Error: ' + err.message);
+        }
+    }
+
+    async function verificarDisponibilidadDirecta() {
+        const habitacionId = parseInt(document.getElementById('fd_habitacion_id').value);
+        const fechaEntrada = document.getElementById('fd_fecha_entrada').value;
+        const fechaSalida = document.getElementById('fd_fecha_salida').value;
+        const msgDiv = document.getElementById('fd_disponibilidad_msg');
+        const btnFacturar = document.getElementById('fd_btn_facturar');
+        
+        if (!habitacionId || !fechaEntrada || !fechaSalida) {
+            msgDiv.style.display = 'none';
+            btnFacturar.disabled = false;
+            return;
+        }
+        
+        try {
+            const res = await fetch(`${API_URL}/disponibilidad/${habitacionId}/verificar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ fecha_entrada: fechaEntrada, fecha_salida: fechaSalida })
+            });
+            const data = await res.json();
+            
+            if (data.disponible) {
+                msgDiv.style.display = 'block';
+                msgDiv.style.background = '#d1fae5';
+                msgDiv.style.color = '#065f46';
+                msgDiv.innerHTML = '✅ La habitación está DISPONIBLE para las fechas seleccionadas';
+                btnFacturar.disabled = false;
+            } else {
+                msgDiv.style.display = 'block';
+                msgDiv.style.background = '#fee2e2';
+                msgDiv.style.color = '#991b1b';
+                let msg = '❌ La habitación NO está disponible para las fechas seleccionadas.';
+                if (data.bloqueadas > 0) msg += ` (${data.bloqueadas} bloqueo(s) manual(es))`;
+                if (data.reservas > 0) msg += ` (${data.reservas} reserva(s) activa(s))`;
+                msgDiv.innerHTML = msg;
+                btnFacturar.disabled = true;
+            }
+        } catch (err) {
+            console.error('Error verificando disponibilidad:', err);
+            msgDiv.style.display = 'none';
+            btnFacturar.disabled = false;
+        }
+    }
+
+    async function verDisponibilidad(habitacionId) {
+        const modal = document.getElementById('modalDisponibilidad');
+        const contenido = document.getElementById('disponibilidad_contenido');
+        modal.style.display = 'flex';
+        contenido.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:20px;">⏳ Cargando disponibilidad...</p>';
+
+        // Dibujar el calendario visual (verde=disponible, amarillo=reservada, rojo=ocupada/bloqueada)
+        setTimeout(() => initCalendarioVerDisponibilidad(habitacionId), 50);
+        
+        try {
+            const habitacion = habitaciones.find(h => h.id === habitacionId);
+            if (!habitacion) {
+                contenido.innerHTML = '<p style="text-align:center; color:#ef4444;">Habitación no encontrada</p>';
+                return;
+            }
+            
+            const res = await fetch(`${API_URL}/disponibilidad/${habitacionId}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const data = await res.json();
+            
+            let html = `
+                <p><strong>🏠 Habitación:</strong> ${habitacion.numero} - ${habitacion.tipo}</p>
+                <p><strong>💰 Precio:</strong> $${habitacion.precio_noche}/noche</p>
+                <p><strong>📊 Estado actual:</strong> ${getEstadoEmoji(habitacion.estado)} ${habitacion.estado}</p>
+                <hr>
+                <h4 style="font-weight:600; margin:12px 0 8px;">📅 Fechas no disponibles</h4>
+            `;
+            
+            if ((!data.bloqueos || data.bloqueos.length === 0) && (!data.reservas || data.reservas.length === 0)) {
+                html += '<p style="color:#10b981;">✅ No hay fechas bloqueadas para esta habitación</p>';
+            } else {
+                html += '<div style="max-height:200px; overflow-y:auto;">';
+                if (data.bloqueos && data.bloqueos.length > 0) {
+                    html += '<p style="font-weight:600; color:#ef4444;">🔴 Bloqueos manuales:</p><ul style="list-style:none; padding:0;">';
+                    data.bloqueos.forEach(b => {
+                        html += `<li style="padding:4px 8px; background:#fee2e2; margin:2px 0; border-radius:4px;">📅 ${b.fecha} - ${escapeHtml(b.motivo || 'Sin motivo')}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                if (data.reservas && data.reservas.length > 0) {
+                    html += '<p style="font-weight:600; color:#f59e0b;">🟡 Reservas activas:</p><ul style="list-style:none; padding:0;">';
+                    data.reservas.forEach(r => {
+                        html += `<li style="padding:4px 8px; background:#fef3c7; margin:2px 0; border-radius:4px;">📅 ${r.fecha_inicio} → ${r.fecha_fin} (${r.estado})</li>`;
+                    });
+                    html += '</ul>';
+                }
+                html += '</div>';
+            }
+            
+            contenido.innerHTML = html;
+            
+        } catch (err) {
+            contenido.innerHTML = `<p style="text-align:center; color:#ef4444;">❌ Error: ${err.message}</p>`;
+        }
+    }
+
+    function cerrarModalDisponibilidad() {
+        document.getElementById('modalDisponibilidad').style.display = 'none';
+        if (calendarVerDisponibilidad) {
+            calendarVerDisponibilidad.destroy();
+            calendarVerDisponibilidad = null;
+        }
+    }
+
+    // ============================================================
+    // ABRIR MODAL LIMPIAR
+    // ============================================================
+    function abrirModalLimpiar(id) {
+        const habitacion = habitaciones.find(h => h.id === id);
+        if (!habitacion) {
+            mostrarError('❌ Habitación no encontrada');
+            return;
+        }
+        limpiarHabitacionId = id;
+        document.getElementById('limpiar_habitacion_numero').innerText = habitacion.numero;
+        document.getElementById('limpiar_habitacion_actual').innerHTML = 
+            `<span class="estado-badge ${getEstadoClase(habitacion.estado)}">${getEstadoEmoji(habitacion.estado)} ${escapeHtml(habitacion.estado)}</span>`;
+        document.getElementById('limpiar_motivo').value = '';
+        document.getElementById('modalLimpiarHabitacion').style.display = 'flex';
+    }
+
+    function cerrarModalLimpiar() {
+        document.getElementById('modalLimpiarHabitacion').style.display = 'none';
+        limpiarHabitacionId = null;
+    }
+
+    async function confirmarLimpiar() {
+        if (!limpiarHabitacionId) return;
+        const motivo = document.getElementById('limpiar_motivo').value.trim() || 'Limpieza completada';
+        
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/habitaciones/${limpiarHabitacionId}/limpiar`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ motivo })
+            });
+            
+            if (res.ok) {
+                mostrarSuccess('✅ Habitación limpiada y disponible');
+                cerrarModalLimpiar();
+                cargarDatos();
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    }
+
+    // ============================================================
+    // FACTURACIÓN DIRECTA DE HABITACIÓN (CON CALENDARIO)
+    // ============================================================
+    window.facturarHabitacionDirecta = function(habitacionId) {
+        const habitacion = habitaciones.find(h => h.id === habitacionId);
+        if (!habitacion) {
+            mostrarError('❌ Habitación no encontrada');
+            return;
+        }
+        
+        const estadosPermitidos = ['disponible', 'reservada'];
+        if (!estadosPermitidos.includes(habitacion.estado)) {
+            mostrarError(`❌ La habitación está "${habitacion.estado}". No se puede facturar.`);
+            return;
+        }
+        
+        abrirModalFacturacionDirecta(habitacion);
+    };
+
+    function abrirModalFacturacionDirecta(habitacion) {
+        const modal = document.getElementById('modalFacturacionDirecta');
+        
+        document.getElementById('fd_habitacion_id').value = habitacion.id;
+        document.getElementById('fd_habitacion_numero').innerText = habitacion.numero;
+        document.getElementById('fd_habitacion_tipo').innerText = habitacion.tipo || 'Estandar';
+        document.getElementById('fd_habitacion_precio').innerText = toNum(habitacion.precio_noche).toFixed(2);
+        document.getElementById('fd_habitacion_estado').innerHTML = `<span class="estado-badge ${getEstadoClase(habitacion.estado)}">${getEstadoEmoji(habitacion.estado)} ${escapeHtml(habitacion.estado)}</span>`;
+        
+        const selectCli = document.getElementById('fd_cliente_id');
+        selectCli.innerHTML = '';
+        const clienteGeneral = clientes.find(c => c.nombre === 'Cliente General') || clientes[0];
+        clientes.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.text = `${c.nombre} (${c.rif})`;
+            if (c.id === clienteGeneral?.id) opt.selected = true;
+            selectCli.appendChild(opt);
+        });
+        
+        const hoy = new Date();
+        const manana = new Date(hoy);
+        manana.setDate(hoy.getDate() + 1);
+        const hoyStr = hoy.toISOString().split('T')[0];
+        const mananaStr = manana.toISOString().split('T')[0];
+        
+        document.getElementById('fd_fecha_entrada').value = hoyStr;
+        document.getElementById('fd_fecha_salida').value = mananaStr;
+        document.getElementById('fd_hora_entrada').value = '15:00';
+        document.getElementById('fd_hora_salida').value = '12:00';
+        document.getElementById('fd_nota').value = '';
+        document.getElementById('fd_metodo_pago').value = 'Efectivo';
+        document.getElementById('fd_disponibilidad_msg').style.display = 'none';
+        document.getElementById('fd_btn_facturar').disabled = false;
+        
+        calcularTotalDirecto(habitacion);
+        
+        // Inicializar calendario después de que el modal se muestre
+        modal.style.display = 'flex';
+        
+        // Esperar a que el modal se renderice y luego inicializar el calendario
+        setTimeout(() => {
+            initCalendarioDisponibilidad(habitacion.id);
+            // Verificar disponibilidad inicial
+            verificarDisponibilidadDirecta();
+        }, 500);
+    }
+
+    function calcularTotalDirecto(habitacion) {
+        const entrada = document.getElementById('fd_fecha_entrada').value;
+        const salida = document.getElementById('fd_fecha_salida').value;
+        const precioNoche = habitacion ? toNum(habitacion.precio_noche) : 0;
+        
+        if (entrada && salida) {
+            const fechaEntrada = new Date(entrada);
+            const fechaSalida = new Date(salida);
+            const noches = Math.max(0, (fechaSalida - fechaEntrada) / (1000 * 60 * 60 * 24));
+            document.getElementById('fd_noches').innerText = noches;
+            document.getElementById('fd_total').innerText = (noches * precioNoche).toFixed(2);
+        }
+    }
+
+    window.cerrarModalFacturacionDirecta = function() {
+        document.getElementById('modalFacturacionDirecta').style.display = 'none';
+        if (calendar) {
+            calendar.destroy();
+            calendar = null;
+        }
+    };
+
+    window.cerrarModalClienteRapido = function() {
+        document.getElementById('modalClienteRapido').style.display = 'none';
+    };
+
+    window.abrirNuevoClienteDesdeFacturacion = function() {
+        document.getElementById('modalClienteRapido').style.display = 'flex';
+        document.getElementById('formClienteRapido').reset();
+        window.clienteDesdeFacturacion = true;
+    };
+
+    document.getElementById('formClienteRapido').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const token = localStorage.getItem('token');
+        const payload = {
+            rif: document.getElementById('cr_rif').value,
+            nombre: document.getElementById('cr_nombre').value,
+            telefono: document.getElementById('cr_telefono').value,
+            direccion: document.getElementById('cr_direccion').value,
+            email: document.getElementById('cr_email').value
+        };
+        try {
+            const res = await fetch(`${API_URL}/clientes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                mostrarSuccess('✅ Cliente creado correctamente');
+                cerrarModalClienteRapido();
+                await cargarDatos();
+                if (window.clienteDesdeFacturacion) {
+                    const selectCli = document.getElementById('fd_cliente_id');
+                    const newClient = clientes.find(c => c.rif === payload.rif);
+                    if (newClient) {
+                        selectCli.value = newClient.id;
+                    }
+                    window.clienteDesdeFacturacion = false;
+                }
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error al crear cliente: ' + err.error);
+            }
+        } catch (e) {
+            mostrarError('❌ Error de conexión: ' + e.message);
+        }
+    });
+
+    document.getElementById('fd_fecha_entrada').addEventListener('change', function() {
+        const habId = parseInt(document.getElementById('fd_habitacion_id').value);
+        const habitacion = habitaciones.find(h => h.id === habId);
+        if (habitacion) calcularTotalDirecto(habitacion);
+        verificarDisponibilidadDirecta();
+    });
+    document.getElementById('fd_fecha_salida').addEventListener('change', function() {
+        const habId = parseInt(document.getElementById('fd_habitacion_id').value);
+        const habitacion = habitaciones.find(h => h.id === habId);
+        if (habitacion) calcularTotalDirecto(habitacion);
+        verificarDisponibilidadDirecta();
+    });
+
+    // ============================================================
+    // FACTURACIÓN DIRECTA - SUBMIT
+    // ============================================================
+    document.getElementById('formFacturacionDirecta').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const habitacionId = parseInt(document.getElementById('fd_habitacion_id').value);
+        const clienteId = document.getElementById('fd_cliente_id').value;
+        const fechaEntrada = document.getElementById('fd_fecha_entrada').value;
+        const fechaSalida = document.getElementById('fd_fecha_salida').value;
+        const horaEntrada = document.getElementById('fd_hora_entrada').value;
+        const horaSalida = document.getElementById('fd_hora_salida').value;
+        const nota = document.getElementById('fd_nota').value;
+        const metodoPago = document.getElementById('fd_metodo_pago').value;
+        
+        if (!clienteId) {
+            mostrarError('❌ Seleccione un cliente');
+            return;
+        }
+        
+        if (!fechaEntrada || !fechaSalida) {
+            mostrarError('❌ Ingrese las fechas de entrada y salida');
+            return;
+        }
+        
+        const entrada = new Date(fechaEntrada);
+        const salida = new Date(fechaSalida);
+        if (salida <= entrada) {
+            mostrarError('❌ La fecha de salida debe ser posterior a la fecha de entrada');
+            return;
+        }
+        
+        const habitacion = habitaciones.find(h => h.id === habitacionId);
+        if (!habitacion) {
+            mostrarError('❌ Habitación no encontrada');
+            return;
+        }
+        
+        if (!['disponible', 'reservada'].includes(habitacion.estado)) {
+            mostrarError(`❌ La habitación está "${habitacion.estado}". No se puede facturar.`);
+            return;
+        }
+        
+        const token = localStorage.getItem('token');
+        
+        try {
+            const resTasa = await fetch(`${API_URL}/tasa`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const tasaData = await resTasa.json();
+            const tasa = tasaData.tasa || 544.58;
+            
+            const noches = (salida - entrada) / (1000 * 60 * 60 * 24);
+            const precioNoche = parseFloat(habitacion.precio_noche || 0);
+            const totalUsd = noches * precioNoche;
+            
+            if (totalUsd <= 0) {
+                mostrarError('❌ El total debe ser mayor a 0');
+                return;
+            }
+            
+            const codigoProducto = habitacion.codigo_producto || `HAB_${habitacion.numero}`;
+            
+            const payload = {
+                cliente_id: parseInt(clienteId),
+                metodo_pago: metodoPago,
+                moneda: 'USD',
+                tasa_cambio: tasa,
+                porcentaje_servicio: 0,
+                articulos: [{
+                    producto_id: codigoProducto,
+                    cantidad: 1,
+                    descuento: 0,
+                    nota_descuento: `Hospedaje - Habitación ${habitacion.numero}`
+                }],
+                pagos: [{
+                    metodo_pago: metodoPago,
+                    moneda: 'USD',
+                    monto: totalUsd,
+                    referencia: '',
+                    nota: `Habitación ${habitacion.numero} - ${noches} noches`
+                }],
+                hotel: {
+                    fecha_entrada: fechaEntrada,
+                    fecha_salida: fechaSalida,
+                    hora_entrada: horaEntrada || '15:00',
+                    hora_salida: horaSalida || '12:00',
+                    nota: nota || `Habitación ${habitacion.numero} - Facturación directa`
+                },
+                habitaciones_en_carrito: [{
+                    codigo: codigoProducto,
+                    habitacion_id: habitacion.id,
+                    numero: habitacion.numero
+                }]
+            };
+
+            console.log('📤 Enviando payload:', JSON.stringify(payload, null, 2));
+            
+            const res = await fetch(`${API_URL}/facturas`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            const data = await res.json();
+            console.log('📥 Respuesta:', data);
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al procesar la factura');
+            }
+            
+            mostrarSuccess(`✅ Factura #${data.factura_id} creada - Habitación OCUPADA`);
+            cerrarModalFacturacionDirecta();
+            cargarDatos();
+            window.open(`detalle_factura.html?id=${data.factura_id}`, '_blank');
+            
+        } catch (err) {
+            console.error('❌ Error:', err);
+            mostrarError('❌ Error: ' + err.message);
+        }
+    });
+
+    // ============================================================
+    // FACTURAR RESERVA
+    // ============================================================
+    window.facturarReserva = async function(id) {
+        const reserva = (reservas || []).find(r => r.id === id);
+        if (!reserva) {
+            mostrarError('❌ Reserva no encontrada');
+            return;
+        }
+
+        const saldoPendiente = parseFloat(reserva.saldo_pendiente || 0);
+        if (saldoPendiente > 0.01) {
+            mostrarError(`❌ La reserva tiene un saldo pendiente de $${saldoPendiente.toFixed(2)}. Debe estar completamente pagada para facturar.`);
+            return;
+        }
+
+        if (!confirm(`🧾 ¿Facturar esta reserva?\n\nSe generará una factura con:\n- Hospedaje: $${toNum(reserva.total_usd).toFixed(2)}\n- Abonos registrados: $${toNum(reserva.abono_usd).toFixed(2)}\n- Descuento: $${toNum(reserva.descuento || 0).toFixed(2)}\n- Total a pagar: $0.00 (pagado)`)) return;
+        
+        const token = localStorage.getItem('token');
+        try {
+            const resReserva = await fetch(`${API_URL}/reservas/${id}/facturar`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const reservaData = await resReserva.json();
+            
+            if (!resReserva.ok) {
+                mostrarError('❌ Error: ' + reservaData.error);
+                return;
+            }
+            
+            const habitacion = habitaciones.find(h => h.id === reservaData.habitacion_id);
+            const codigoProducto = habitacion?.codigo_producto || `HAB_${habitacion?.numero || '000'}`;
+            const precioNoche = parseFloat(habitacion?.precio_noche || 0);
+            
+            const entrada = new Date(reservaData.fecha_entrada);
+            const salida = new Date(reservaData.fecha_salida);
+            const noches = Math.max(0, (salida - entrada) / (1000 * 60 * 60 * 24));
+            const totalEstadia = noches * precioNoche;
+            const descuento = parseFloat(reservaData.descuento || 0);
+            
+            const payload = {
+                reserva_id: id,
+                cliente_id: reservaData.cliente_id,
+                metodo_pago: 'Efectivo',
+                moneda: 'USD',
+                tasa_cambio: tasaCambio,
+                porcentaje_servicio: 0,
+                articulos: [{
+                    producto_id: codigoProducto,
+                    cantidad: 1,
+                    descuento: (reservaData.abono_usd || 0) + descuento,
+                    nota_descuento: `Hospedaje - Habitación ${habitacion?.numero || ''} - Reserva #${id} ${descuento > 0 ? '- Descuento: $'+descuento : ''}`
+                }],
+                pagos: (reservaData.pagos || []).map(p => ({
+                    metodo_pago: p.metodo_pago,
+                    moneda: 'USD',
+                    monto: p.monto_usd,
+                    referencia: p.referencia || '',
+                    nota: `Abono de reserva #${id}`
+                })),
+                hotel: {
+                    fecha_entrada: reservaData.fecha_entrada,
+                    fecha_salida: reservaData.fecha_salida,
+                    hora_entrada: reservaData.hora_entrada || '15:00',
+                    hora_salida: reservaData.hora_salida || '12:00',
+                    nota: reservaData.observaciones || `Reserva #${id}`
+                },
+                habitaciones_en_carrito: [{
+                    codigo: codigoProducto,
+                    habitacion_id: reservaData.habitacion_id,
+                    numero: habitacion?.numero || 'N/A'
+                }]
+            };
+            
+            const resFactura = await fetch(`${API_URL}/facturas`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (resFactura.ok) {
+                const data = await resFactura.json();
+                
+                await fetch(`${API_URL}/reservas/${id}/estado`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        estado: 'facturada',
+                        motivo: 'Facturación completada'
+                    })
+                });
+                
+                // ✅ Actualizar estado de habitación a SUCIA (check-out automático)
+                if (habitacion) {
+                    await fetch(`${API_URL}/habitaciones/${habitacion.id}/estado`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            estado: 'sucia',
+                            motivo: `Check-out automático - Reserva #${id} facturada - Habitación sucia (stock=0)`
+                        })
+                    });
+                }
+                
+                mostrarSuccess(`✅ Factura creada correctamente! N° ${data.factura_id}`);
+                cargarDatos();
+                window.open(`detalle_factura.html?id=${data.factura_id}`, '_blank');
+            } else {
+                const err = await resFactura.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    };
+
+    // ============================================================
+    // CHECK-IN / CHECK-OUT
+    // ============================================================
+    window.checkIn = async function(id) {
+        if (!confirm('¿Confirmar check-in para esta reserva?')) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/reservas/${id}/check-in`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({})
+            });
+            if (res.ok) {
+                mostrarSuccess('✅ Check-in realizado');
+                cargarDatos();
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    };
+
+    window.checkOut = async function(id) {
+        if (!confirm('¿Confirmar check-out para esta reserva?\n\nLa habitación pasará automáticamente a estado "Sucia".')) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/reservas/${id}/check-out`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({})
+            });
+            if (res.ok) {
+                mostrarSuccess('✅ Check-out realizado');
+                cargarDatos();
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    };
+
+    // ============================================================
+    // CANCELAR RESERVA
+    // ============================================================
+    window.cancelarReserva = async function(id) {
+        if (!confirm('¿Cancelar esta reserva?')) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/reservas/${id}/estado`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ estado: 'cancelada', motivo: 'Cancelación manual' })
+            });
+            if (res.ok) {
+                mostrarSuccess('✅ Reserva cancelada');
+                cargarDatos();
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    };
+
+    // ============================================================
+    // HABITACIONES CRUD
+    // ============================================================
+    function abrirModalHabitacion() {
+        document.getElementById('formHabitacion').reset();
+        document.getElementById('hab_numero').value = '';
+        document.getElementById('hab_nombre').value = '';
+        document.getElementById('hab_codigo_producto').value = '';
+        document.getElementById('hab_tipo').value = 'Estandar';
+        document.getElementById('hab_capacidad').value = '2';
+        document.getElementById('hab_precio_noche').value = '';
+        document.getElementById('hab_precio_dia').value = '';
+        document.getElementById('hab_descripcion').value = '';
+        document.getElementById('modalHabitacion').style.display = 'flex';
+        
+        document.getElementById('hab_numero').addEventListener('input', function() {
+            const num = this.value.trim();
+            if (num && !document.getElementById('hab_codigo_producto').value) {
+                document.getElementById('hab_codigo_producto').value = 'HAB_' + num;
+            }
+        });
+    }
+
+    function cerrarModalHabitacion() {
+        document.getElementById('modalHabitacion').style.display = 'none';
+    }
+
+    document.getElementById('formHabitacion').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const codigoProducto = document.getElementById('hab_codigo_producto').value.trim();
+        if (!codigoProducto) {
+            mostrarError('❌ El código de producto es obligatorio');
+            return;
+        }
+
+        const payload = {
+            numero: document.getElementById('hab_numero').value.trim(),
+            nombre: document.getElementById('hab_nombre').value.trim(),
+            tipo: document.getElementById('hab_tipo').value,
+            capacidad: parseInt(document.getElementById('hab_capacidad').value) || 2,
+            precio_noche: parseFloat(document.getElementById('hab_precio_noche').value) || 0,
+            precio_dia: parseFloat(document.getElementById('hab_precio_dia').value) || 0,
+            descripcion: document.getElementById('hab_descripcion').value,
+            observaciones: '',
+            piso: 1,
+            codigo_producto: codigoProducto
+        };
+        
+        if (!payload.numero) {
+            mostrarError('❌ El número de habitación es obligatorio');
+            return;
+        }
+        
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/habitaciones`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Error al crear habitación');
+            }
+            
+            mostrarSuccess('✅ Habitación creada correctamente');
+            cerrarModalHabitacion();
+            cargarDatos();
+        } catch (err) {
+            mostrarError('❌ Error: ' + err.message);
+        }
+    });
+
+    window.editarHabitacion = async function(id) {
+        const hab = habitaciones.find(h => h.id === id);
+        if (!hab) {
+            mostrarError('Habitación no encontrada');
+            return;
+        }
+        document.getElementById('hab_numero').value = hab.numero;
+        document.getElementById('hab_nombre').value = hab.nombre || '';
+        document.getElementById('hab_codigo_producto').value = hab.codigo_producto || 'HAB_' + hab.numero;
+        document.getElementById('hab_tipo').value = hab.tipo || 'Estandar';
+        document.getElementById('hab_capacidad').value = hab.capacidad || 2;
+        document.getElementById('hab_precio_noche').value = hab.precio_noche || 0;
+        document.getElementById('hab_precio_dia').value = hab.precio_dia || 0;
+        document.getElementById('hab_descripcion').value = hab.descripcion || '';
+        document.getElementById('modalHabitacion').style.display = 'flex';
+    };
+
+    window.eliminarHabitacion = async function(id) {
+        if (!confirm('⚠️ ¿Eliminar esta habitación? Esta acción no se puede deshacer.')) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/habitaciones/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                mostrarSuccess('✅ Habitación eliminada');
+                cargarDatos();
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    };
+
+    // ============================================================
+    // CAMBIAR ESTADO DE HABITACIÓN
+    // ============================================================
+    function abrirModalEstado(habitacion) {
+        habitacionSeleccionadaId = habitacion.id;
+        document.getElementById('estado_habitacion_numero').innerText = habitacion.numero;
+        document.getElementById('estado_habitacion_actual').innerHTML = 
+            `<span class="estado-badge ${getEstadoClase(habitacion.estado)}">${getEstadoEmoji(habitacion.estado)} ${escapeHtml(habitacion.estado)}</span>`;
+        document.getElementById('estado_nuevo').value = habitacion.estado;
+        document.getElementById('estado_motivo').value = '';
+        document.getElementById('modalEstadoHabitacion').style.display = 'flex';
+    }
+
+    function cerrarModalEstado() {
+        document.getElementById('modalEstadoHabitacion').style.display = 'none';
+        habitacionSeleccionadaId = null;
+    }
+
+    window.confirmarCambioEstado = async function() {
+        if (!habitacionSeleccionadaId) return;
+        const nuevoEstado = document.getElementById('estado_nuevo').value;
+        const motivo = document.getElementById('estado_motivo').value.trim() || 'Cambio manual';
+        
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/habitaciones/${habitacionSeleccionadaId}/estado`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ estado: nuevoEstado, motivo })
+            });
+            if (res.ok) {
+                mostrarSuccess('✅ Estado actualizado');
+                cerrarModalEstado();
+                cargarDatos();
+            } else {
+                const err = await res.json();
+                mostrarError('❌ Error: ' + err.error);
+            }
+        } catch (err) {
+            mostrarError('❌ Error de conexión: ' + err.message);
+        }
+    };
+
+    // ============================================================
+    // RESERVAS CON DESCUENTO
+    // ============================================================
+    function abrirModalReserva() {
+        document.getElementById('formReserva').reset();
+        document.getElementById('reserva_total').innerText = '$0.00';
+        document.getElementById('reserva_saldo').innerText = '$0.00';
+        document.getElementById('reserva_descuento').value = '0';
+        document.getElementById('reserva_motivo_descuento').value = '';
+        reservaFechasOk = false;
+        const msgDiv = document.getElementById('reserva_disponibilidad_msg');
+        if (msgDiv) msgDiv.style.display = 'none';
+        serviciosSeleccionados = [];
+        pagosReserva = [];
+        document.getElementById('serviciosContainer').innerHTML = '';
+        document.getElementById('pagosContainer').innerHTML = '';
+        actualizarResumenPagos();
+        actualizarSelects();
+        document.getElementById('modalReserva').style.display = 'flex';
+        // ✅ Fechas por defecto: hoy y mañana
+        const hoy = new Date();
+        const manana = new Date(hoy);
+        manana.setDate(hoy.getDate() + 1);
+        const hoyStr = hoy.toISOString().split('T')[0];
+        const mananaStr = manana.toISOString().split('T')[0];
+        document.getElementById('reserva_fecha_entrada').value = hoyStr;
+        document.getElementById('reserva_fecha_salida').value = mananaStr;
+        calcularTotalesReserva();
+        agregarPagoReserva();
+    }
+
+    function cerrarModalReserva() {
+        document.getElementById('modalReserva').style.display = 'none';
+    }
+
+    function calcularTotalesReserva() {
+        const habId = document.getElementById('reserva_habitacion').value;
+        const fechaEntrada = document.getElementById('reserva_fecha_entrada').value;
+        const fechaSalida = document.getElementById('reserva_fecha_salida').value;
+        const descuento = parseFloat(document.getElementById('reserva_descuento').value) || 0;
+
+        if (!habId || !fechaEntrada || !fechaSalida) {
+            document.getElementById('reserva_total').innerText = '$0.00';
+            document.getElementById('reserva_saldo').innerText = '$0.00';
+            return;
+        }
+
+        const habitacion = (habitaciones || []).find(h => h.id == habId);
+        if (!habitacion) return;
+
+        const entrada = new Date(fechaEntrada);
+        const salida = new Date(fechaSalida);
+        const noches = Math.max(0, (salida - entrada) / (1000 * 60 * 60 * 24));
+        const precioNoche = toNum(habitacion.precio_noche);
+        let total = noches * precioNoche;
+        
+        total = Math.max(0, total - descuento);
+        
+        let totalAbonado = 0;
+        pagosReserva.forEach(p => {
+            const monto = toNum(p.monto);
+            if (p.moneda === 'USD') {
+                totalAbonado += monto;
+            } else {
+                totalAbonado += monto / tasaCambio;
+            }
+        });
+        const saldo = Math.max(0, total - totalAbonado);
+
+        document.getElementById('reserva_total').innerText = '$' + total.toFixed(2);
+        document.getElementById('reserva_saldo').innerText = '$' + saldo.toFixed(2);
+        actualizarResumenPagos();
+    }
+
+    async function verificarDisponibilidadFormReserva() {
+        const msgDiv = document.getElementById('reserva_disponibilidad_msg');
+        const habId = document.getElementById('reserva_habitacion').value;
+        const fechaEntrada = document.getElementById('reserva_fecha_entrada').value;
+        const fechaSalida = document.getElementById('reserva_fecha_salida').value;
+
+        reservaFechasOk = false;
+
+        if (!habId || !fechaEntrada || !fechaSalida) {
+            msgDiv.style.display = 'none';
+            return;
+        }
+
+        if (fechaSalida <= fechaEntrada) {
+            msgDiv.style.display = 'block';
+            msgDiv.style.background = '#fee2e2';
+            msgDiv.style.color = '#991b1b';
+            msgDiv.innerText = '❌ La fecha de salida debe ser posterior a la de entrada.';
+            return;
+        }
+
+        msgDiv.style.display = 'block';
+        msgDiv.style.background = '#f1f5f9';
+        msgDiv.style.color = '#475569';
+        msgDiv.innerText = '⏳ Verificando disponibilidad para esas fechas...';
+
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/disponibilidad/${habId}/verificar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ fecha_entrada: fechaEntrada, fecha_salida: fechaSalida })
+            });
+            const data = await res.json();
+
+            if (data.disponible) {
+                reservaFechasOk = true;
+                msgDiv.style.background = '#d1fae5';
+                msgDiv.style.color = '#065f46';
+                msgDiv.innerText = `✅ Habitación disponible del ${fechaEntrada} al ${fechaSalida}`;
+            } else {
+                reservaFechasOk = false;
+                let detalle = '';
+                if (data.bloqueadas > 0) detalle += ` (${data.bloqueadas} bloqueo(s))`;
+                if (data.reservas > 0) detalle += ` (${data.reservas} reserva(s) existente(s))`;
+                msgDiv.style.background = '#fee2e2';
+                msgDiv.style.color = '#991b1b';
+                msgDiv.innerText = `❌ La habitación NO está disponible en ese rango de fechas.${detalle}`;
+            }
+        } catch (err) {
+            console.error('Error verificando disponibilidad:', err);
+            reservaFechasOk = false;
+            msgDiv.style.background = '#fee2e2';
+            msgDiv.style.color = '#991b1b';
+            msgDiv.innerText = '❌ No se pudo verificar la disponibilidad. Intenta de nuevo.';
+        }
+    }
+
+    function actualizarResumenPagos() {
+        let totalAbonado = 0;
+        pagosReserva.forEach(p => {
+            const monto = toNum(p.monto);
+            if (p.moneda === 'USD') {
+                totalAbonado += monto;
+            } else {
+                totalAbonado += monto / tasaCambio;
+            }
+        });
+        const totalReserva = parseFloat(document.getElementById('reserva_total').innerText.replace('$', '')) || 0;
+        const saldo = Math.max(0, totalReserva - totalAbonado);
+        document.getElementById('totalAbonadoReserva').innerText = '$' + totalAbonado.toFixed(2);
+        document.getElementById('saldoPendienteReserva').innerText = '$' + saldo.toFixed(2);
+    }
+
+    // ============================================================
+    // PAGOS EN RESERVA
+    // ============================================================
+    function agregarPagoReserva() {
+        const container = document.getElementById('pagosContainer');
+        const idx = pagosReserva.length;
+        const div = document.createElement('div');
+        div.className = 'pago-row';
+        div.innerHTML = `
+            <select class="pago-metodo" data-idx="${idx}">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Pago Movil">Pago Móvil</option>
+                <option value="Punto de Venta">Punto de Venta</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Divisa">Divisa</option>
+                <option value="Cashea">Cashea</option>
+            </select>
+            <select class="pago-moneda" data-idx="${idx}" onchange="actualizarEquivalentePago(${idx})">
+                <option value="USD">USD</option>
+                <option value="Bs">Bolívares</option>
+            </select>
+            <input type="number" step="0.01" class="pago-monto" data-idx="${idx}" placeholder="Monto" value="0" oninput="actualizarEquivalentePago(${idx})">
+            <input type="text" class="pago-referencia" data-idx="${idx}" placeholder="Referencia">
+            <span class="pago-equivalente" id="equivalente_${idx}">= $0.00</span>
+            <button type="button" class="btn-remove" onclick="eliminarPagoReserva(this, ${idx})">✖</button>
+        `;
+        container.appendChild(div);
+        pagosReserva.push({ metodo_pago: 'Efectivo', moneda: 'USD', monto: 0, referencia: '' });
+
+        const select = div.querySelector('.pago-metodo');
+        const moneda = div.querySelector('.pago-moneda');
+        const monto = div.querySelector('.pago-monto');
+        const ref = div.querySelector('.pago-referencia');
+
+        select.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            pagosReserva[i].metodo_pago = e.target.value;
+        });
+        moneda.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            pagosReserva[i].moneda = e.target.value;
+            actualizarEquivalentePago(i);
+        });
+        monto.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            pagosReserva[i].monto = parseFloat(e.target.value) || 0;
+            actualizarEquivalentePago(i);
+            calcularTotalesReserva();
+        });
+        ref.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            pagosReserva[i].referencia = e.target.value;
+        });
+    }
+
+    function actualizarEquivalentePago(idx) {
+        const pago = pagosReserva[idx];
+        if (!pago) return;
+        const monto = toNum(pago.monto);
+        const moneda = pago.moneda || 'USD';
+        const span = document.getElementById(`equivalente_${idx}`);
+        if (!span) return;
+        
+        if (moneda === 'USD') {
+            span.innerText = `= Bs ${(monto * tasaCambio).toFixed(2)}`;
+        } else {
+            span.innerText = `= $${(monto / tasaCambio).toFixed(2)}`;
+        }
+    }
+
+    function calcularEquivalenteAbono() {
+        const montoUsd = parseFloat(document.getElementById('abono_monto_usd').value) || 0;
+        document.getElementById('abono_monto_bs').value = (montoUsd * tasaCambio).toFixed(2);
+    }
+
+    window.eliminarPagoReserva = function(btn, idx) {
+        pagosReserva.splice(idx, 1);
+        btn.closest('.pago-row').remove();
+        document.querySelectorAll('.pago-row').forEach((row, newIdx) => {
+            row.querySelector('.pago-metodo').dataset.idx = newIdx;
+            row.querySelector('.pago-moneda').dataset.idx = newIdx;
+            row.querySelector('.pago-monto').dataset.idx = newIdx;
+            row.querySelector('.pago-referencia').dataset.idx = newIdx;
+        });
+        calcularTotalesReserva();
+    };
+
+    // ============================================================
+    // SERVICIOS
+    // ============================================================
+    function agregarServicio() {
+        const container = document.getElementById('serviciosContainer');
+        const idx = serviciosSeleccionados.length;
+        const div = document.createElement('div');
+        div.className = 'servicio-row';
+        div.innerHTML = `
+            <select class="servicio-select" data-idx="${idx}">
+                <option value="">-- Seleccionar --</option>
+                ${(servicios || []).map(s => `<option value="${s.id}" data-precio="${s.precio_usd}">${escapeHtml(s.nombre)} - $${s.precio_usd}</option>`).join('')}
+            </select>
+            <input type="number" class="servicio-cantidad" data-idx="${idx}" placeholder="Cantidad" value="1" min="1">
+            <input type="number" step="0.01" class="servicio-precio" data-idx="${idx}" placeholder="Precio" value="0">
+            <button type="button" class="btn-remove" onclick="eliminarServicio(this, ${idx})">✖</button>
+        `;
+        container.appendChild(div);
+        serviciosSeleccionados.push({ servicio_id: '', cantidad: 1, precio: 0, div: div });
+
+        const select = div.querySelector('.servicio-select');
+        const cantidad = div.querySelector('.servicio-cantidad');
+        const precio = div.querySelector('.servicio-precio');
+
+        select.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            const opt = e.target.options[e.target.selectedIndex];
+            const precioServ = parseFloat(opt.getAttribute('data-precio') || 0);
+            serviciosSeleccionados[i].servicio_id = e.target.value;
+            if (precioServ > 0) {
+                precio.value = precioServ;
+                serviciosSeleccionados[i].precio = precioServ;
+            }
+        });
+        cantidad.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            serviciosSeleccionados[i].cantidad = parseInt(e.target.value) || 1;
+        });
+        precio.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            serviciosSeleccionados[i].precio = parseFloat(e.target.value) || 0;
+        });
+    }
+
+    window.eliminarServicio = function(btn, idx) {
+        serviciosSeleccionados[idx].div.remove();
+        serviciosSeleccionados.splice(idx, 1);
+    };
+
+    // ============================================================
+    // GUARDAR RESERVA
+    // ============================================================
+    document.getElementById('formReserva').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const habitacion_id = document.getElementById('reserva_habitacion').value;
+        const cliente_id = document.getElementById('reserva_cliente').value;
+        const fecha_entrada = document.getElementById('reserva_fecha_entrada').value;
+        const fecha_salida = document.getElementById('reserva_fecha_salida').value;
+        const descuento = parseFloat(document.getElementById('reserva_descuento').value) || 0;
+        const motivo_descuento = document.getElementById('reserva_motivo_descuento').value || '';
+
+        if (!habitacion_id || !cliente_id || !fecha_entrada || !fecha_salida) {
+            mostrarError('❌ Completa todos los campos obligatorios');
+            return;
+        }
+
+        if (!reservaFechasOk) {
+            mostrarError('❌ Verifica primero la disponibilidad de la habitación para esas fechas (revisa el mensaje arriba de las fechas).');
+            await verificarDisponibilidadFormReserva();
+            return;
+        }
+
+        const servicios = serviciosSeleccionados
+            .filter(s => s.servicio_id && s.cantidad > 0 && s.precio > 0)
+            .map(s => ({
+                servicio_id: parseInt(s.servicio_id),
+                cantidad: s.cantidad,
+                precio_unitario: s.precio
+            }));
+
+        let totalAbonado = 0;
+        pagosReserva.forEach(p => {
+            const monto = toNum(p.monto);
+            if (p.moneda === 'USD') {
+                totalAbonado += monto;
+            } else {
+                totalAbonado += monto / tasaCambio;
+            }
+        });
+        
+        const totalReserva = parseFloat(document.getElementById('reserva_total').innerText.replace('$', '')) || 0;
+        
+        let estado = 'pendiente';
+        if (totalAbonado >= totalReserva && totalReserva > 0) {
+            estado = 'confirmada';
+        } else if (totalAbonado > 0) {
+            estado = 'abonada';
+        } else {
+            estado = 'pendiente';
+        }
+
+        const payload = {
+            habitacion_id: parseInt(habitacion_id),
+            cliente_id: parseInt(cliente_id),
+            fecha_entrada,
+            fecha_salida,
+            hora_entrada: document.getElementById('reserva_hora_entrada').value,
+            hora_salida: document.getElementById('reserva_hora_salida').value,
+            abono_usd: totalAbonado,
+            tipo: document.getElementById('reserva_tipo')?.value || 'reserva',
+            observaciones: document.getElementById('reserva_observaciones').value,
+            servicios,
+            pagos: pagosReserva.map(p => ({
+                metodo_pago: p.metodo_pago,
+                moneda: p.moneda,
+                monto: p.monto,
+                referencia: p.referencia || ''
+            })),
+            estado: estado,
+            descuento: descuento,
+            motivo_descuento: motivo_descuento
+        };
+
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/reservas`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al crear reserva');
+            
+            mostrarSuccess('✅ Reserva creada correctamente');
+            cerrarModalReserva();
+            cargarDatos();
+        } catch (err) {
+            mostrarError('❌ Error: ' + err.message);
+        }
+    });
+
+    // ============================================================
+    // ABONO EN RESERVA EXISTENTE
+    // ============================================================
+    window.abrirModalAbono = function(id) {
+        const reserva = (reservas || []).find(r => r.id === id);
+        if (!reserva) {
+            mostrarError('Reserva no encontrada');
+            return;
+        }
+        reservaAbonoId = id;
+        document.getElementById('abono_reserva_id').innerText = id;
+        document.getElementById('abono_saldo_actual').innerText = '$' + toNum(reserva.saldo_pendiente).toFixed(2);
+        document.getElementById('abono_monto_usd').value = '';
+        document.getElementById('abono_monto_bs').value = '';
+        document.getElementById('abono_referencia').value = '';
+        document.getElementById('abonoTasaActual').innerText = tasaCambio.toFixed(2);
+        document.getElementById('modalAbonoReserva').style.display = 'flex';
+    };
+
+    function cerrarModalAbono() {
+        document.getElementById('modalAbonoReserva').style.display = 'none';
+        reservaAbonoId = null;
+    }
+
+    window.confirmarAbonoReserva = async function() {
+        const id = reservaAbonoId;
+        if (!id) return;
+        
+        const montoUsd = parseFloat(document.getElementById('abono_monto_usd').value);
+        const metodo_pago = document.getElementById('abono_metodo_pago').value;
+        const referencia = document.getElementById('abono_referencia').value || '';
+        
+        if (!montoUsd || montoUsd <= 0) {
+            mostrarError('❌ Ingrese un monto válido');
+            return;
+        }
+        
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/reservas/${id}/abono`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ 
+                    monto: montoUsd,
+                    metodo_pago: metodo_pago,
+                    referencia: referencia,
+                    moneda: 'USD'
+                })
+            });
+            
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al registrar abono');
+            
+            mostrarSuccess(`✅ Abono de $${montoUsd.toFixed(2)} registrado`);
+            cerrarModalAbono();
+            cargarDatos();
+        } catch (err) {
+            mostrarError('❌ Error: ' + err.message);
+        }
+    };
+
+    // ============================================================
+    // EVENTOS
+    // ============================================================
+    document.getElementById('reserva_habitacion').addEventListener('change', () => { calcularTotalesReserva(); verificarDisponibilidadFormReserva(); });
+    document.getElementById('reserva_fecha_entrada').addEventListener('change', () => { calcularTotalesReserva(); verificarDisponibilidadFormReserva(); });
+    document.getElementById('reserva_fecha_salida').addEventListener('change', () => { calcularTotalesReserva(); verificarDisponibilidadFormReserva(); });
+    document.getElementById('reserva_descuento').addEventListener('input', calcularTotalesReserva);
+
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+    });
+
+    // ============================================================
+    // INICIALIZACIÓN
+    // ============================================================
+    verificarSesion().then(() => {
+        cargarDatos();
+        setInterval(cargarDatos, 30000);
+    });
+
+    // Exponer funciones globales
+    window.cerrarModalHabitacion = cerrarModalHabitacion;
+    window.cerrarModalReserva = cerrarModalReserva;
+    window.cerrarModalEstado = cerrarModalEstado;
+    window.cerrarModalAbono = cerrarModalAbono;
+    window.cerrarModalFacturacionDirecta = cerrarModalFacturacionDirecta;
+    window.cerrarModalClienteRapido = cerrarModalClienteRapido;
+    window.cerrarModalLimpiar = cerrarModalLimpiar;
+    window.cerrarModalDisponibilidad = cerrarModalDisponibilidad;
+    window.abrirModalLimpiar = abrirModalLimpiar;
+    window.confirmarLimpiar = confirmarLimpiar;
+    window.agregarPagoReserva = agregarPagoReserva;
+    window.agregarServicio = agregarServicio;
+    window.cargarDatos = cargarDatos;
+    window.verificarVencidas = verificarVencidas;
+    window.verTodasHabitaciones = verTodasHabitaciones;
+    window.forzarActualizarStock = forzarActualizarStock;
+    window.facturarHabitacionDirecta = facturarHabitacionDirecta;
+    window.facturarReserva = facturarReserva;
+    window.checkIn = checkIn;
+    window.checkOut = checkOut;
+    window.cancelarReserva = cancelarReserva;
+    window.confirmarCambioEstado = confirmarCambioEstado;
+    window.confirmarAbonoReserva = confirmarAbonoReserva;
+    window.abrirModalAbono = abrirModalAbono;
+    window.verDisponibilidad = verDisponibilidad;
+    window.initCalendarioDisponibilidad = initCalendarioDisponibilidad;
+    window.bloquearFecha = bloquearFecha;
+    window.liberarFecha = liberarFecha;
+    window.verificarDisponibilidadDirecta = verificarDisponibilidadDirecta;
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Detalle de Factura</title>
     <style>
+        /* ... estilos iguales a los anteriores ... */
         body { background: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         .container { max-width: 900px; width: 100%; background: white; border-radius: 28px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
@@ -19,6 +20,26 @@
         .info-grid .item .value { font-weight: 500; color: #0f172a; margin-top: 2px; }
         .extras-box { background: #fef3c7; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 0.85rem; }
         .extras-box.casa { background: #e0f2fe; }
+        .hotel-box {
+            background: #f0f7ff;
+            padding: 16px 20px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            border-left: 4px solid #4f46e5;
+        }
+        .hotel-box h4 {
+            margin: 0 0 8px;
+            color: #1e40af;
+        }
+        .hotel-box .hotel-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+        .hotel-box .hotel-grid .full {
+            grid-column: 1 / -1;
+        }
         h3 { font-weight: 600; margin: 20px 0 12px; color: #0f172a; }
         .table-wrapper { overflow-x: auto; border-radius: 16px; border: 1px solid #e2e8f0; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -39,6 +60,9 @@
         .btn-imprimir { background: #f59e0b; color: white; }
         .btn-imprimir:hover { background: #d97706; transform: translateY(-2px); }
         @media print { body { background: white; padding: 0; } .container { box-shadow: none; padding: 16px; } .action-buttons { display: none; } }
+        @media (max-width: 640px) {
+            .hotel-box .hotel-grid { grid-template-columns: 1fr; }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -61,7 +85,7 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `${window.location.origin}/api`;
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -93,6 +117,7 @@
             const f = data.factura;
             if (!f) throw new Error('Factura no encontrada');
 
+            // Estado
             const badge = document.getElementById('estadoBadge');
             if (f.estado === 'activa') {
                 badge.innerText = '✅ Activa';
@@ -102,6 +127,7 @@
                 badge.className = 'badge-estado badge-anulada';
             }
 
+            // Extras Cashea
             let extrasHtml = '';
             if (f.metodo_pago === 'Cashea' && f.extras) {
                 try {
@@ -126,6 +152,28 @@
                 } catch(e) {}
             }
 
+            // Datos de Hotel
+            let hotelHtml = '';
+            if (f.extras) {
+                try {
+                    const extras = JSON.parse(f.extras);
+                    if (extras.hotel) {
+                        const h = extras.hotel;
+                        hotelHtml = `
+                            <div class="hotel-box">
+                                <h4>🏨 Datos de la Estadía</h4>
+                                <div class="hotel-grid">
+                                    <div><strong>📅 Entrada:</strong> ${escapeHtml(h.fecha_entrada || '')} ${escapeHtml(h.hora_entrada || '')}</div>
+                                    <div><strong>📅 Salida:</strong> ${escapeHtml(h.fecha_salida || '')} ${escapeHtml(h.hora_salida || '')}</div>
+                                    <div class="full"><strong>📝 Nota:</strong> ${escapeHtml(h.nota || '')}</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } catch(e) {}
+            }
+
+            // Productos
             let productosHtml = `
                 <div class="table-wrapper">
                     <table>
@@ -163,6 +211,7 @@
             });
             productosHtml += `</tbody></table></div>`;
 
+            // Resumen IVA
             const resumenHtml = `
                 <div class="resumen-iva">
                     <span>Subtotal sin IVA: $${toNum(f.subtotal_usd, 0).toFixed(2)}</span>
@@ -172,6 +221,7 @@
                 </div>
             `;
 
+            // Pagos
             let pagosHtml = '';
             if (data.pagos && data.pagos.length) {
                 pagosHtml = `
@@ -197,6 +247,7 @@
                 pagosHtml += `</tbody></table></div>`;
             }
 
+            // Totales
             const totalHtml = `
                 <div class="total-box">
                     <div class="total-usd">$${toNum(f.total_usd, 0).toFixed(2)} USD</div>
@@ -205,6 +256,7 @@
                 </div>
             `;
 
+            // Info principal
             const infoHtml = `
                 <div class="info-grid">
                     <div class="item"><span class="label">N° Factura</span><span class="value">${escapeHtml(f.numero)}</span></div>
@@ -219,6 +271,7 @@
             `;
 
             const fullHtml = `
+                ${hotelHtml}
                 ${infoHtml}
                 ${extrasHtml}
                 <h3>📦 Productos</h3>
@@ -231,6 +284,7 @@
             document.getElementById('detalle').innerHTML = fullHtml;
             document.getElementById('actionButtons').style.display = 'flex';
 
+            // PDF con jsPDF (mejorado)
             document.getElementById('btnPDF').onclick = () => generarPDF(f, data);
             document.getElementById('btnImprimir').onclick = () => window.print();
 
@@ -239,16 +293,48 @@
         }
     }
 
+    // ===== GENERAR PDF MODERNO =====
     function generarPDF(f, data) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('p', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
 
+        // Encabezado
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(18);
         doc.setTextColor(40, 40, 80);
         doc.text('DETALLE DE FACTURA', pageWidth/2, 20, { align: 'center' });
 
+        // Datos de hotel
+        let yPos = 32;
+        if (f.extras) {
+            try {
+                const extras = JSON.parse(f.extras);
+                if (extras.hotel) {
+                    const h = extras.hotel;
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.setTextColor(30, 64, 175);
+                    doc.text('🏨 DATOS DE LA ESTADÍA', 14, yPos);
+                    yPos += 6;
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(60);
+                    doc.text(`Entrada: ${h.fecha_entrada || ''} ${h.hora_entrada || ''}`, 14, yPos);
+                    yPos += 5;
+                    doc.text(`Salida: ${h.fecha_salida || ''} ${h.hora_salida || ''}`, 14, yPos);
+                    yPos += 5;
+                    if (h.nota) {
+                        doc.text(`Nota: ${h.nota}`, 14, yPos);
+                        yPos += 5;
+                    }
+                    yPos += 4;
+                }
+            } catch(e) {}
+        }
+
+        // Información de la factura
+        doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         doc.setTextColor(60);
         const lines = [
@@ -261,13 +347,14 @@
             `Referencia: ${f.referencia || 'N/A'}`,
             `Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}`
         ];
-        let y = 32;
+        if (yPos < 32) yPos = 32;
         lines.forEach(line => {
-            doc.text(line, 14, y);
-            y += 6;
+            doc.text(line, 14, yPos);
+            yPos += 6;
         });
-        y += 4;
+        yPos += 4;
 
+        // Tabla de productos
         const tableData = data.productos.map(p => [
             p.nombre,
             p.cantidad,
@@ -275,7 +362,7 @@
             `$${toNum(p.subtotal_con_iva).toFixed(2)}`
         ]);
         doc.autoTable({
-            startY: y,
+            startY: yPos,
             head: [['Producto', 'Cant', 'Precio Unit.', 'Subtotal']],
             body: tableData,
             theme: 'striped',
@@ -288,8 +375,9 @@
                 doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
             }
         });
-        y = doc.lastAutoTable.finalY + 6;
+        yPos = doc.lastAutoTable.finalY + 6;
 
+        // Resumen IVA y totales
         const subtotal = toNum(f.subtotal_usd);
         const iva = toNum(f.iva_usd);
         const servicio = toNum(f.monto_servicio_usd);
@@ -297,27 +385,28 @@
         const totalBs = total * toNum(f.tasa_cambio);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(`Subtotal sin IVA: $${subtotal.toFixed(2)}`, 14, y);
-        y += 6;
-        doc.text(`IVA Total: $${iva.toFixed(2)}`, 14, y);
-        y += 6;
-        doc.text(`Servicio (${f.porcentaje_servicio || 0}%): $${servicio.toFixed(2)}`, 14, y);
-        y += 8;
+        doc.text(`Subtotal sin IVA: $${subtotal.toFixed(2)}`, 14, yPos);
+        yPos += 6;
+        doc.text(`IVA Total: $${iva.toFixed(2)}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Servicio (${f.porcentaje_servicio || 0}%): $${servicio.toFixed(2)}`, 14, yPos);
+        yPos += 8;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(14);
         doc.setTextColor(0, 128, 0);
-        doc.text(`Total con IVA + Servicio: $${total.toFixed(2)}`, 14, y);
-        y += 6;
+        doc.text(`Total con IVA + Servicio: $${total.toFixed(2)}`, 14, yPos);
+        yPos += 6;
         doc.setFontSize(12);
         doc.setTextColor(0);
-        doc.text(`Total en Bs: Bs ${totalBs.toFixed(2)}`, 14, y);
+        doc.text(`Total en Bs: Bs ${totalBs.toFixed(2)}`, 14, yPos);
 
+        // Pagos (si existen)
         if (data.pagos && data.pagos.length > 0) {
-            y += 10;
+            yPos += 10;
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(12);
-            doc.text('Detalle de Pagos', 14, y);
-            y += 6;
+            doc.text('Detalle de Pagos', 14, yPos);
+            yPos += 6;
             const pagosData = data.pagos.map(p => [
                 p.metodo_pago,
                 `$${toNum(p.monto_usd).toFixed(2)}`,
@@ -326,7 +415,7 @@
                 p.nota || ''
             ]);
             doc.autoTable({
-                startY: y,
+                startY: yPos,
                 head: [['Método', 'Monto USD', 'Monto Bs', 'Referencia', 'Nota']],
                 body: pagosData,
                 theme: 'striped',
@@ -340,9 +429,10 @@
                     doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
                 }
             });
-            y = doc.lastAutoTable.finalY + 6;
+            yPos = doc.lastAutoTable.finalY + 6;
         }
 
+        // Pie de página fijo
         doc.setFontSize(8);
         doc.setTextColor(150);
         doc.text('Documento generado por CoreBilling', pageWidth/2, 285, { align: 'center' });

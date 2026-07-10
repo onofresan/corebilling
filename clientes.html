@@ -118,6 +118,7 @@
     <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
+    <a href="hoteleria.html">🏨 Hotelería</a>
     <a href="clientes.html" class="active">👥 Clientes</a>
     <a href="reporte.html">📊 Reportes</a>
     <a href="lista_facturas.html">📜 Historial</a>
@@ -217,7 +218,7 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `${window.location.origin}/api`;
     let clientes = [];
     let userRole = null;
     let pendingDeleteId = null;
@@ -262,7 +263,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io();
+        socket = io(window.location.origin);
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -284,6 +285,7 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) {
+                // Si la respuesta no es 2xx, mostrar error y salir
                 const err = await res.json();
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#ef4444;">❌ Error al cargar: ${escapeHtml(err.error || 'Error desconocido')}</td></tr>`;
                 clientes = [];

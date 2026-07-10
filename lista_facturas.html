@@ -153,30 +153,6 @@
             justify-content: flex-end;
             margin-top: 16px;
         }
-        .paginacion {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-        .paginacion button {
-            padding: 6px 14px;
-            border-radius: 40px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: #e2e8f0;
-        }
-        .paginacion button:hover {
-            background: #cbd5e1;
-            transform: translateY(-2px);
-        }
-        .paginacion button.active {
-            background: #4f46e5;
-            color: white;
-        }
         @media (max-width: 640px) {
             .filtros .input-group { min-width: 100%; }
             th, td { font-size: 0.75rem; padding: 6px 4px; }
@@ -184,6 +160,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
@@ -191,6 +168,7 @@
     <a href="index.html">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
+    <a href="hoteleria.html">🏨 Hotelería</a>
     <a href="clientes.html">👥 Clientes</a>
     <a href="reporte.html">📊 Reportes</a>
     <a href="lista_facturas.html" class="active">📜 Historial</a>
@@ -257,12 +235,6 @@
                 </tbody>
             </table>
         </div>
-
-        <div class="paginacion" id="paginacion">
-            <button onclick="cambiarPagina('prev')">◀ Anterior</button>
-            <span id="pagina-info">Página 1</span>
-            <button onclick="cambiarPagina('next')">Siguiente ▶</button>
-        </div>
     </div>
 </div>
 
@@ -283,31 +255,11 @@
 </div>
 
 <script>
-    const API_URL = '/api';
-
-    // ===== CACHÉ =====
-    const CACHE_DURATION = 60 * 1000; // 1 minuto para facturas
-
-    function getCache(key) {
-        const data = localStorage.getItem(key);
-        const time = localStorage.getItem(key + '_time');
-        if (data && time && (Date.now() - parseInt(time)) < CACHE_DURATION) {
-            return JSON.parse(data);
-        }
-        return null;
-    }
-
-    function setCache(key, data) {
-        localStorage.setItem(key, JSON.stringify(data));
-        localStorage.setItem(key + '_time', String(Date.now()));
-    }
-
+    const API_URL = `${window.location.origin}/api`;
     let userRole = null;
     let pendingAction = null;
     let socket = null;
     let empresaId = null;
-    let paginaActual = 0;
-    const LIMITE = 50;
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -331,7 +283,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io();
+        socket = io(window.location.origin);
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => { mostrarToast(data.mensaje); });
     }
@@ -349,101 +301,59 @@
         const search = document.getElementById('searchInput').value;
         const fechaDesde = document.getElementById('fechaDesde').value;
         const fechaHasta = document.getElementById('fechaHasta').value;
-        
-        let url = `${API_URL}/facturas?limit=${LIMITE}&offset=${paginaActual * LIMITE}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
-        if (fechaDesde) url += `&fecha_desde=${fechaDesde}`;
-        if (fechaHasta) url += `&fecha_hasta=${fechaHasta}`;
-
+        let url = `${API_URL}/facturas?`;
+        if (search) url += `search=${encodeURIComponent(search)}&`;
+        if (fechaDesde) url += `fecha_desde=${fechaDesde}&`;
+        if (fechaHasta) url += `fecha_hasta=${fechaHasta}&`;
         const tbody = document.getElementById('tabla-facturas');
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
-
-        // Intentar desde caché
-        let cacheKey = 'facturas_' + paginaActual;
-        let cached = getCache(cacheKey);
-        if (cached) {
-            renderizarFacturas(cached);
-            return;
-        }
-
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
             const facturas = await res.json();
-            setCache(cacheKey, facturas);
-            renderizarFacturas(facturas);
+            if (facturas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">No hay facturas registradas</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            facturas.forEach(f => {
+                const estadoHtml = f.estado === 'activa'
+                    ? '<span class="estado-activa">Activa</span>'
+                    : '<span class="estado-anulada">Anulada</span>';
+                let acciones = `
+                    <button class="btn-accion info" onclick="verDetalle(${f.id})">Ver</button>
+                    <button class="btn-accion success" onclick="imprimirFactura(${f.id})">🖨️</button>
+                `;
+                if (userRole === 'admin') {
+                    acciones += `<button class="btn-accion warning" onclick="editarFactura(${f.id})">Editar</button>`;
+                    if (f.estado === 'activa') {
+                        acciones += `<button class="btn-accion warning" onclick="abrirModalAnular(${f.id})">Anular</button>`;
+                    }
+                    acciones += `<button class="btn-accion danger" onclick="abrirModalEliminar(${f.id})">Eliminar</button>`;
+                }
+                tbody.innerHTML += `
+                    <tr>
+                        <td>#${f.numero_factura || f.id}</td>
+                        <td>${f.fecha}</td>
+                        <td>${escapeHtml(f.cliente_nombre)}</td>
+                        <td>${escapeHtml(f.cajero || 'N/A')}</td>
+                        <td>${toNum(f.tasa_cambio).toFixed(2)}</td>
+                        <td>Bs ${toNum(f.monto_bs).toFixed(2)}</td>
+                        <td>$${toNum(f.total_usd).toFixed(2)}</td>
+                        <td>${estadoHtml}</td>
+                        <td>${acciones}</td>
+                    </tr>
+                `;
+            });
         } catch(e) {
             tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;">Error: ${e.message}</td></tr>`;
         }
     }
 
-    function renderizarFacturas(facturas) {
-        const tbody = document.getElementById('tabla-facturas');
-        if (!facturas || facturas.length === 0) {
-            if (paginaActual === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">No hay facturas registradas</td></tr>';
-            } else {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">No hay más facturas</td></tr>';
-            }
-            document.getElementById('pagina-info').innerText = `Página ${paginaActual + 1}`;
-            return;
-        }
-        tbody.innerHTML = '';
-        facturas.forEach(f => {
-            const estadoHtml = f.estado === 'activa'
-                ? '<span class="estado-activa">Activa</span>'
-                : '<span class="estado-anulada">Anulada</span>';
-            let acciones = `
-                <button class="btn-accion info" onclick="verDetalle(${f.id})">Ver</button>
-                <button class="btn-accion success" onclick="imprimirFactura(${f.id})">🖨️</button>
-            `;
-            if (userRole === 'admin') {
-                acciones += `<button class="btn-accion warning" onclick="editarFactura(${f.id})">Editar</button>`;
-                if (f.estado === 'activa') {
-                    acciones += `<button class="btn-accion warning" onclick="abrirModalAnular(${f.id})">Anular</button>`;
-                }
-                acciones += `<button class="btn-accion danger" onclick="abrirModalEliminar(${f.id})">Eliminar</button>`;
-            }
-            tbody.innerHTML += `
-                <tr>
-                    <td>#${f.id}</td>
-                    <td>${f.fecha}</td>
-                    <td>${escapeHtml(f.cliente_nombre)}</td>
-                    <td>${escapeHtml(f.cajero || 'N/A')}</td>
-                    <td>${toNum(f.tasa_cambio).toFixed(2)}</td>
-                    <td>Bs ${toNum(f.monto_bs).toFixed(2)}</td>
-                    <td>$${toNum(f.total_usd).toFixed(2)}</td>
-                    <td>${estadoHtml}</td>
-                    <td>${acciones}</td>
-                </tr>
-            `;
-        });
-        document.getElementById('pagina-info').innerText = `Página ${paginaActual + 1}`;
-    }
-
-    function aplicarFiltros() {
-        paginaActual = 0;
-        // Limpiar caché para recargar con filtros
-        localStorage.removeItem('facturas_0');
-        cargarFacturas();
-    }
-
+    function aplicarFiltros() { cargarFacturas(); }
     function limpiarFiltros() {
         document.getElementById('searchInput').value = '';
         document.getElementById('fechaDesde').value = '';
         document.getElementById('fechaHasta').value = '';
-        paginaActual = 0;
-        localStorage.removeItem('facturas_0');
-        cargarFacturas();
-    }
-
-    function cambiarPagina(direccion) {
-        if (direccion === 'prev' && paginaActual > 0) {
-            paginaActual--;
-        } else if (direccion === 'next') {
-            paginaActual++;
-        }
-        // Limpiar caché para la nueva página
-        localStorage.removeItem('facturas_' + paginaActual);
         cargarFacturas();
     }
 
@@ -456,7 +366,7 @@
         const data = await res.json();
         const f = data.factura;
         let html = `<div style="padding:20px; font-family:monospace;">
-            <h2>Factura N° ${f.numero}</h2>
+            <h2>Factura N° ${f.numero_factura_empresa}</h2>
             <div>Cliente: ${escapeHtml(f.cliente_nombre)}</div>
             <div>Fecha: ${f.fecha}</div>
             <div>Tasa: Bs ${f.tasa_cambio}</div>
@@ -511,8 +421,6 @@
         if (res.ok) {
             alert(`Factura ${pendingAction.type === 'anular' ? 'anulada' : 'eliminada'}`);
             cerrarModalMotivo();
-            // Limpiar caché
-            localStorage.removeItem('facturas_' + paginaActual);
             cargarFacturas();
         } else {
             const err = await res.json();
@@ -538,7 +446,6 @@
     window.cargarFacturas = cargarFacturas;
     window.aplicarFiltros = aplicarFiltros;
     window.limpiarFiltros = limpiarFiltros;
-    window.cambiarPagina = cambiarPagina;
     window.imprimirFactura = imprimirFactura;
     window.abrirModalAnular = abrirModalAnular;
     window.abrirModalEliminar = abrirModalEliminar;

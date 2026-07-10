@@ -82,6 +82,7 @@
     <a href="index.html" class="active">📊 Dashboard</a>
     <a href="facturar.html">🛒 Nueva Factura</a>
     <a href="inventario.html">📦 Inventario</a>
+    <a href="hoteleria.html">🏨 Hotelería</a>
     <a href="clientes.html">👥 Clientes</a>
     <a href="reporte.html">📊 Reportes</a>
     <a href="lista_facturas.html">📜 Historial</a>
@@ -104,6 +105,7 @@
         <span id="fechaActual" style="color:#64748b;"></span>
     </div>
 
+    <!-- Tarjetas de métricas -->
     <div class="dashboard-grid" id="metricas">
         <div class="metric-card">
             <div class="icon">💰</div>
@@ -127,11 +129,13 @@
         </div>
     </div>
 
+    <!-- Gráfico de ventas diarias -->
     <div class="chart-container">
         <h3>📊 Ventas Últimos 7 Días (Bs)</h3>
         <canvas id="ventasChart" style="max-height:250px;"></canvas>
     </div>
 
+    <!-- Acciones rápidas -->
     <div class="quick-actions">
         <a href="facturar.html">➕ Nueva Factura</a>
         <a href="inventario.html">📦 Gestionar Inventario</a>
@@ -141,10 +145,11 @@
 </div>
 
 <script>
-    const API_URL = '/api';
+    const API_URL = `${window.location.origin}/api`;
     let socket = null, empresaId = null;
     let ventasChart = null;
 
+    // ===================== AUTENTICACIÓN =====================
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -178,7 +183,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io();
+        socket = io(window.location.origin);
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => {
             mostrarToast(data.mensaje);
@@ -193,44 +198,53 @@
         setTimeout(() => toast.remove(), 5000);
     }
 
+    // ===================== CARGA DE DATOS =====================
     async function cargarDashboard() {
         const token = localStorage.getItem('token');
         if (!token) return;
 
         try {
+            // Obtener estadísticas de ventas
             const resStats = await fetch(`${API_URL}/sales-stats`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const stats = await resStats.json();
 
+            // Obtener productos
             const resProd = await fetch(`${API_URL}/productos`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const productos = await resProd.json();
 
+            // Obtener clientes
             const resCli = await fetch(`${API_URL}/clientes`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const clientes = await resCli.json();
 
+            // Calcular total ventas hoy
             const hoy = new Date().toISOString().slice(0,10);
             const ventasHoy = stats.diarias
                 .filter(d => d.dia === hoy)
                 .reduce((sum, d) => sum + (d.total_bs || 0), 0);
 
+            // Ganancia potencial (suma de (venta - costo) * stock)
             let gananciaPotencial = 0;
             productos.forEach(p => {
                 const ganancia = (p.venta || 0) - (p.costo || 0);
                 gananciaPotencial += ganancia * (p.stock || 0);
             });
 
+            // Actualizar tarjetas
             document.getElementById('totalVentas').innerText = `Bs ${ventasHoy.toFixed(2)}`;
             document.getElementById('totalProductos').innerText = productos.length;
             document.getElementById('totalClientes').innerText = clientes.length;
             document.getElementById('gananciaPotencial').innerText = `$${gananciaPotencial.toFixed(2)}`;
 
+            // Fecha actual
             document.getElementById('fechaActual').innerText = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+            // Gráfico de ventas (últimos 7 días)
             if (ventasChart) ventasChart.destroy();
             const labels = stats.diarias.map(d => d.dia);
             const valores = stats.diarias.map(d => d.total_bs || 0);
@@ -265,6 +279,7 @@
         }
     }
 
+    // ===================== EVENTOS =====================
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
     });
@@ -275,8 +290,10 @@
         window.location.href = 'login.html';
     });
 
+    // ===================== INICIALIZACIÓN =====================
     verificarSesion().then(() => {
         cargarDashboard();
+        // Actualizar cada 30 segundos
         setInterval(cargarDashboard, 30000);
     });
 </script>
