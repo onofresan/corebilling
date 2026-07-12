@@ -3,7 +3,22 @@ import mysql.connector
 from mysql.connector import pooling
 from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
+
+# ⚠️ IMPORTANTE: Render, Clever Cloud y la mayoría de servidores en la nube
+# corren en UTC, no en la hora de Venezuela (UTC-4). Si se usa datetime.now()
+# o NOW() de MySQL directamente, las fechas/horas guardadas (facturas,
+# alertas, historial, etc.) quedan adelantadas ~4-5 horas respecto a la hora
+# real de Venezuela. Venezuela no tiene horario de verano, así que su offset
+# UTC-4 es fijo todo el año — no hace falta ninguna librería de zonas
+# horarias, basta con este offset fijo.
+VENEZUELA_TZ = timezone(timedelta(hours=-4))
+
+def ahora_venezuela():
+    """Reemplazo directo de datetime.now(): devuelve un datetime 'naive'
+    (sin tzinfo) pero con la hora de reloj correcta de Venezuela, sin
+    importar en qué zona horaria esté físicamente el servidor."""
+    return datetime.now(timezone.utc).astimezone(VENEZUELA_TZ).replace(tzinfo=None)
 import json
 import bcrypt
 from functools import wraps
@@ -18,6 +33,7 @@ from flask_socketio import SocketIO, emit
 import stripe
 import threading
 import time
+import requests
 
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
@@ -468,8 +484,8 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
         
         cursor.execute("""
             INSERT INTO alertas (empresa_id, tipo, mensaje, usuario_id, fecha, leida)
-            VALUES (%s, %s, %s, %s, NOW(), 0)
-        """, (empresa_id, tipo, mensaje, usuario_id))
+            VALUES (%s, %s, %s, %s, %s, 0)
+        """, (empresa_id, tipo, mensaje, usuario_id, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S')))
         conn.commit()
         
         try:
@@ -482,6 +498,68 @@ def crear_alerta(empresa_id, tipo, mensaje, usuario_id=None):
     except Exception as e:
         print(f"❌ Error creando alerta: {e}")
 
+# ========== TASA BCV (Banco Central de Venezuela) ==========
+def obtener_tasa_bcv():
+    """
+    Consulta la tasa oficial del dólar publicada por el BCV usando una API
+    pública gratuita (dolarapi.com), que a su vez toma el dato directo del
+    sitio del Banco Central de Venezuela. Devuelve (tasa, fecha_publicacion)
+    o (None, None) si falla la consulta.
+    """
+    try:
+        resp = requests.get('https://ve.dolarapi.com/v1/dolares/oficial', timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        tasa = float(data.get('promedio') or data.get('venta') or data.get('compra'))
+        fecha_pub = data.get('fechaActualizacion')
+        if tasa and tasa > 0:
+            return tasa, fecha_pub
+        return None, None
+    except Exception as e:
+        print(f"❌ Error consultando tasa BCV: {e}")
+        return None, None
+
+def actualizar_tasas_automaticas():
+    """
+    Hilo en segundo plano: cada cierto tiempo consulta la tasa oficial BCV
+    y la aplica a todas las empresas que tengan activada la actualización
+    automática (columna empresas.tasa_auto = 1). Las empresas que prefieran
+    ingresarla manualmente (tasa_auto = 0) no se tocan aquí.
+    """
+    ultima_fecha_aplicada = None
+    while True:
+        try:
+            tasa, fecha_pub = obtener_tasa_bcv()
+            if tasa and fecha_pub != ultima_fecha_aplicada:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+
+                if not columna_existe(conn, 'empresas', 'tasa_auto'):
+                    cursor.execute("ALTER TABLE empresas ADD COLUMN tasa_auto TINYINT(1) NOT NULL DEFAULT 1")
+                    print("✅ Columna tasa_auto agregada a empresas")
+
+                cursor.execute("SELECT id FROM empresas WHERE tasa_auto = 1")
+                empresas = cursor.fetchall()
+
+                for emp in empresas:
+                    cursor.execute("UPDATE empresas SET tasa_cambio = %s WHERE id = %s", (tasa, emp['id']))
+                    crear_alerta(emp['id'], 'tasa_actualizada', f"💱 Tasa BCV actualizada automáticamente: {tasa} Bs/$")
+                    try:
+                        socketio.emit('tasa_actualizada', {'tasa': tasa}, room=f"empresa_{emp['id']}")
+                    except Exception:
+                        pass
+
+                conn.commit()
+                safe_close_conn(conn, cursor)
+                ultima_fecha_aplicada = fecha_pub
+                print(f"✅ Tasa BCV actualizada automáticamente: {tasa} Bs/$ (publicada: {fecha_pub}) en {len(empresas)} empresa(s)")
+
+        except Exception as e:
+            print(f"❌ Error en actualización automática de tasa: {e}")
+
+        # Revisa cada hora si el BCV publicó una tasa nueva
+        time.sleep(3600)
+
 # ========== VERIFICADOR DE HABITACIONES VENCIDAS ==========
 def verificar_habitaciones_vencidas():
     """Función que se ejecuta en segundo plano para verificar habitaciones vencidas"""
@@ -490,7 +568,7 @@ def verificar_habitaciones_vencidas():
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
-            hoy = datetime.now().strftime('%Y-%m-%d')
+            hoy = ahora_venezuela().strftime('%Y-%m-%d')
             
             # Buscar habitaciones ocupadas cuya fecha de salida ya pasó
             cursor.execute("""
@@ -510,7 +588,7 @@ def verificar_habitaciones_vencidas():
                     SET estado = 'sucia',
                         observaciones = CONCAT(COALESCE(observaciones, ''), '\n', %s, ' - Check-out automático por vencimiento de estadía')
                     WHERE id = %s
-                """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), hab['id']))
+                """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), hab['id']))
                 
                 # Stock a 0 (sucia = no disponible)
                 if hab.get('codigo_producto'):
@@ -678,11 +756,14 @@ def obtener_empresa():
     cursor = conn.cursor(dictionary=True)
     try:
         tiene_columna = columna_existe(conn, 'empresas', 'permite_reiniciar_historial')
+        tiene_tasa_auto = columna_existe(conn, 'empresas', 'tasa_auto')
         
+        campos = "nombre, rif, correo, telefono, direccion, tasa_cambio, logo_url"
         if tiene_columna:
-            cursor.execute("SELECT nombre, rif, correo, telefono, direccion, tasa_cambio, logo_url, permite_reiniciar_historial FROM empresas WHERE id = %s", (empresa_id,))
-        else:
-            cursor.execute("SELECT nombre, rif, correo, telefono, direccion, tasa_cambio, logo_url FROM empresas WHERE id = %s", (empresa_id,))
+            campos += ", permite_reiniciar_historial"
+        if tiene_tasa_auto:
+            campos += ", tasa_auto"
+        cursor.execute(f"SELECT {campos} FROM empresas WHERE id = %s", (empresa_id,))
         
         empresa = cursor.fetchone()
         if not empresa:
@@ -690,6 +771,10 @@ def obtener_empresa():
             
         if not tiene_columna:
             empresa['permite_reiniciar_historial'] = False
+        if not tiene_tasa_auto:
+            empresa['tasa_auto'] = True
+        else:
+            empresa['tasa_auto'] = bool(empresa['tasa_auto'])
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -708,25 +793,52 @@ def actualizar_empresa():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("""
-            UPDATE empresas 
-            SET nombre=%s, rif=%s, correo=%s, telefono=%s, direccion=%s, tasa_cambio=%s
-            WHERE id=%s
-        """, (
+        if not columna_existe(conn, 'empresas', 'tasa_auto'):
+            cursor.execute("ALTER TABLE empresas ADD COLUMN tasa_auto TINYINT(1) NOT NULL DEFAULT 1")
+
+        campos_sql = "nombre=%s, rif=%s, correo=%s, telefono=%s, direccion=%s, tasa_cambio=%s"
+        valores = [
             data.get('nombre', ''), 
             data.get('rif', ''), 
             data.get('correo', ''), 
             data.get('telefono', ''), 
             data.get('direccion', ''), 
             data.get('tasa_cambio', 544.58), 
-            empresa_id
-        ))
+        ]
+        if 'tasa_auto' in data:
+            campos_sql += ", tasa_auto=%s"
+            valores.append(1 if data.get('tasa_auto') else 0)
+        valores.append(empresa_id)
+
+        cursor.execute(f"UPDATE empresas SET {campos_sql} WHERE id=%s", tuple(valores))
         conn.commit()
         
         if cursor.rowcount == 0:
             return jsonify({'error': 'Empresa no encontrada'}), 404
             
         return jsonify({'status': 'OK', 'mensaje': 'Datos actualizados correctamente'}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        safe_close_conn(conn, cursor)
+
+@app.route('/api/tasa/actualizar-ahora', methods=['POST'])
+@requiere_rol('admin')
+def actualizar_tasa_ahora():
+    """Consulta la tasa BCV en el momento y la aplica a la empresa actual,
+    sin importar si tiene activada la actualización automática o no."""
+    empresa_id = request.empresa_id
+    tasa, fecha_pub = obtener_tasa_bcv()
+    if not tasa:
+        return jsonify({'error': 'No se pudo consultar la tasa BCV en este momento. Intenta de nuevo en unos minutos.'}), 502
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE empresas SET tasa_cambio = %s WHERE id = %s", (tasa, empresa_id))
+        conn.commit()
+        return jsonify({'status': 'OK', 'tasa': tasa, 'fecha_publicacion': fecha_pub}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -1579,7 +1691,7 @@ def abrir_mi_caja():
     if cursor.fetchone():
         safe_close_conn(conn, cursor)
         return jsonify({'error': 'Ya tienes una caja abierta'}), 400
-    now = datetime.now()
+    now = ahora_venezuela()
     cursor.execute("""
         INSERT INTO caja_sesion (empresa_id, usuario_id, fecha_apertura, estado)
         VALUES (%s, %s, %s, 'abierta')
@@ -1696,7 +1808,7 @@ def cerrar_mi_caja():
 
     cursor.execute("SELECT nombre, rif, direccion FROM empresas WHERE id = %s", (empresa_id,))
     empresa = cursor.fetchone()
-    ahora = datetime.now()
+    ahora = ahora_venezuela()
 
     datos_json = json.dumps({
         'fecha_hora': ahora.strftime('%Y-%m-%d %H:%M:%S'),
@@ -1770,7 +1882,7 @@ def cierre_general():
     if not cajas:
         safe_close_conn(conn, cursor)
         return jsonify({'error': 'No hay cajas abiertas'}), 400
-    ahora = datetime.now()
+    ahora = ahora_venezuela()
     for c in cajas:
         caja_id = c['id']
         usuario_id = c['usuario_id']
@@ -1872,9 +1984,9 @@ def guardar_factura():
             cursor.execute("""
                 UPDATE reservas 
                 SET estado = 'facturada', 
-                    notas_internas = CONCAT(COALESCE(notas_internas, ''), '\n', NOW(), ' - Facturada')
+                    notas_internas = CONCAT(COALESCE(notas_internas, ''), '\n', %s, ' - Facturada')
                 WHERE id = %s AND empresa_id = %s
-            """, (reserva_id, empresa_id))
+            """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), reserva_id, empresa_id))
             conn.commit()
             safe_close_conn(conn, cursor)
         except Exception as e:
@@ -2073,8 +2185,8 @@ def guardar_factura():
             (fecha, cliente_id, usuario_id, caja_sesion_id, subtotal_usd, iva_usd, total_usd, tasa_cambio,
              metodo_pago, referencia, extras, moneda, monto_bs, estado, empresa_id,
              porcentaje_servicio, monto_servicio_usd, tipo_credito, numero_factura_empresa)
-            VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'activa', %s, %s, %s, %s, %s)
-        """, (cliente_id, usuario_id, caja_sesion_id, float(subtotal_usd - iva_total_usd), float(iva_total_usd),
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'activa', %s, %s, %s, %s, %s)
+        """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), cliente_id, usuario_id, caja_sesion_id, float(subtotal_usd - iva_total_usd), float(iva_total_usd),
               float(total_usd), tasa, metodo, referencia, extras, moneda, float(total_bs), empresa_id,
               float(porcentaje_servicio), float(monto_servicio), 1 if es_credito else 0, numero_factura_empresa))
         factura_id = cursor.lastrowid
@@ -2165,7 +2277,7 @@ def guardar_factura():
                         """, (
                             fecha_entrada, fecha_salida, 
                             hora_entrada, hora_salida,
-                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'),
                             fecha_entrada or 'N/A', 
                             fecha_salida or 'N/A',
                             habitacion['id'], empresa_id
@@ -2240,7 +2352,7 @@ def guardar_factura():
                         """, (
                             fecha_entrada, fecha_salida, 
                             hora_entrada, hora_salida,
-                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'),
                             fecha_entrada, fecha_salida,
                             habitacion['id'], empresa_id
                         ))
@@ -2590,7 +2702,7 @@ def reporte_detallado():
     total_servicio = sum(d['monto_servicio_usd'] for d in detalles) if detalles else 0
     safe_close_conn(conn, cursor)
     return jsonify({
-        'fecha_hora': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'fecha_hora': ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'),
         'empresa': empresa,
         'tasa_cambio': tasa,
         'detalles': detalles,
@@ -2608,17 +2720,17 @@ def top_productos():
     orden = request.args.get('orden', 'cantidad')
     limite = 5
     if periodo == 'hoy':
-        fecha_inicio = datetime.now().strftime('%Y-%m-%d')
+        fecha_inicio = ahora_venezuela().strftime('%Y-%m-%d')
         fecha_fin = fecha_inicio
     elif periodo == 'semana':
-        fecha_inicio = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        fecha_fin = datetime.now().strftime('%Y-%m-%d')
+        fecha_inicio = (ahora_venezuela() - timedelta(days=7)).strftime('%Y-%m-%d')
+        fecha_fin = ahora_venezuela().strftime('%Y-%m-%d')
     elif periodo == 'mes':
-        fecha_inicio = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-        fecha_fin = datetime.now().strftime('%Y-%m-%d')
+        fecha_inicio = (ahora_venezuela() - timedelta(days=30)).strftime('%Y-%m-%d')
+        fecha_fin = ahora_venezuela().strftime('%Y-%m-%d')
     else:
-        fecha_inicio = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        fecha_fin = datetime.now().strftime('%Y-%m-%d')
+        fecha_inicio = (ahora_venezuela() - timedelta(days=7)).strftime('%Y-%m-%d')
+        fecha_fin = ahora_venezuela().strftime('%Y-%m-%d')
     if orden == 'cantidad':
         order_field = 'SUM(fd.cantidad) DESC'
         select_extra = 'SUM(fd.cantidad) as total_cantidad, SUM(fd.subtotal_con_iva) as total_usd'
@@ -3056,8 +3168,8 @@ def crear_orden_compra():
     try:
         cursor.execute("""
             INSERT INTO ordenes_compra (proveedor_id, fecha, estado, total_usd, empresa_id, fecha_entrega_estimada, notas)
-            VALUES (%s, NOW(), 'pendiente', %s, %s, %s, %s)
-        """, (proveedor_id, total_usd, empresa_id, fecha_entrega, notas))
+            VALUES (%s, %s, 'pendiente', %s, %s, %s, %s)
+        """, (proveedor_id, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), total_usd, empresa_id, fecha_entrega, notas))
         orden_id = cursor.lastrowid
 
         for item in detalle:
@@ -3173,9 +3285,9 @@ def recibir_orden_compra(id):
         
         cursor.execute("""
             UPDATE ordenes_compra 
-            SET estado = 'recibida', fecha_recepcion = NOW()
+            SET estado = 'recibida', fecha_recepcion = %s
             WHERE id = %s
-        """, (id,))
+        """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), id))
         
         conn.commit()
         crear_alerta(empresa_id, 'recepcion', f"Orden #{id} recibida correctamente")
@@ -3319,7 +3431,7 @@ def cambiar_estado_orden(id):
             SET estado = %s, 
                 notas = CONCAT(COALESCE(notas, ''), '\n', %s, ' - Estado cambiado de "', %s, '" a "', %s, '" por ', %s)
             WHERE id = %s AND empresa_id = %s
-        """, (nuevo_estado, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), estado_actual, nuevo_estado, request.username, id, empresa_id))
+        """, (nuevo_estado, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), estado_actual, nuevo_estado, request.username, id, empresa_id))
         
         conn.commit()
         
@@ -3392,9 +3504,9 @@ def obtener_disponibilidad_habitacion(habitacion_id):
     fecha_fin = request.args.get('fecha_fin')
     
     if not fecha_inicio:
-        fecha_inicio = datetime.now().strftime('%Y-%m-%d')
+        fecha_inicio = ahora_venezuela().strftime('%Y-%m-%d')
     if not fecha_fin:
-        fecha_fin = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
+        fecha_fin = (ahora_venezuela() + timedelta(days=90)).strftime('%Y-%m-%d')
     
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -3842,7 +3954,7 @@ def cambiar_estado_habitacion(id):
             SET estado = %s, 
                 observaciones = CONCAT(COALESCE(observaciones, ''), '\n', %s, ' - Estado cambiado de ', %s, ' a ', %s, ' por ', %s)
             WHERE id = %s AND empresa_id = %s
-        """, (nuevo_estado, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), estado_anterior, nuevo_estado, request.username, id, empresa_id))
+        """, (nuevo_estado, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), estado_anterior, nuevo_estado, request.username, id, empresa_id))
         
         cursor.execute("""
             INSERT INTO historial_habitaciones (habitacion_id, estado_anterior, estado_nuevo, usuario_id, motivo, empresa_id)
@@ -3884,7 +3996,7 @@ def limpiar_habitacion(id):
             SET estado = 'disponible',
                 observaciones = CONCAT(COALESCE(observaciones, ''), '\n', %s, ' - Limpieza completada - Habitación disponible')
             WHERE id = %s AND empresa_id = %s
-        """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
+        """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
         
         # Restaurar stock a 1
         if habitacion.get('codigo_producto'):
@@ -4242,7 +4354,7 @@ def crear_reserva_con_pagos():
         conn.commit()
         crear_alerta(empresa_id, 'nueva_reserva', f"Nueva reserva #{reserva_id} creada por {request.username}")
         safe_close_conn(conn, cursor)
-        return jsonify({'status': 'OK', 'id': reserva_id}), 201
+        return jsonify({'status': 'OK', 'id': reserva_id, 'saldo_pendiente': saldo_pendiente}), 201
     except Exception as e:
         conn.rollback()
         traceback.print_exc()
@@ -4300,7 +4412,7 @@ def registrar_abono_reserva(id):
             SET abono_usd = %s, saldo_pendiente = %s, estado = %s,
                 notas_internas = CONCAT(COALESCE(notas_internas, ''), '\n', %s, ' - Abono de $', %s, ' (', %s, ') registrado')
             WHERE id = %s AND empresa_id = %s
-        """, (nuevo_abono, nuevo_saldo, nuevo_estado, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), monto_usd, metodo_pago, id, empresa_id))
+        """, (nuevo_abono, nuevo_saldo, nuevo_estado, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), monto_usd, metodo_pago, id, empresa_id))
         
         cursor.execute("""
             INSERT INTO reservas_pagos (reserva_id, metodo_pago, monto_usd, monto_bs, moneda, referencia, usuario_id, empresa_id)
@@ -4400,7 +4512,7 @@ def check_in_reserva(id):
             SET estado = 'check_in', hora_entrada = %s,
                 notas_internas = CONCAT(COALESCE(notas_internas, ''), '\n', %s, ' - Check-in realizado')
             WHERE id = %s AND empresa_id = %s
-        """, (data.get('hora_entrada', datetime.now().strftime('%H:%M:%S')), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
+        """, (data.get('hora_entrada', ahora_venezuela().strftime('%H:%M:%S')), ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
         
         cursor.execute("""
             UPDATE habitaciones 
@@ -4463,14 +4575,14 @@ def check_out_reserva(id):
             SET estado = 'check_out', hora_salida = %s,
                 notas_internas = CONCAT(COALESCE(notas_internas, ''), '\n', %s, ' - Check-out realizado')
             WHERE id = %s AND empresa_id = %s
-        """, (data.get('hora_salida', datetime.now().strftime('%H:%M:%S')), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
+        """, (data.get('hora_salida', ahora_venezuela().strftime('%H:%M:%S')), ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
         
         cursor.execute("""
             UPDATE habitaciones 
             SET estado = 'sucia',
                 observaciones = CONCAT(COALESCE(observaciones, ''), '\n', %s, ' - Check-out automático')
             WHERE id = %s AND empresa_id = %s
-        """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), reserva['habitacion_id'], empresa_id))
+        """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), reserva['habitacion_id'], empresa_id))
         
         cursor.execute("""
             INSERT INTO historial_habitaciones (habitacion_id, estado_anterior, estado_nuevo, usuario_id, motivo, empresa_id)
@@ -4532,7 +4644,7 @@ def cambiar_estado_reserva(id):
             SET estado = %s,
                 notas_internas = CONCAT(COALESCE(notas_internas, ''), '\n', %s, ' - Estado cambiado a ', %s, ' - Motivo: ', %s)
             WHERE id = %s AND empresa_id = %s
-        """, (nuevo_estado, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), nuevo_estado, motivo, id, empresa_id))
+        """, (nuevo_estado, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), nuevo_estado, motivo, id, empresa_id))
         
         conn.commit()
         crear_alerta(empresa_id, 'reserva_estado', f"Reserva #{id} cambió a '{nuevo_estado}'")
@@ -4629,7 +4741,7 @@ def eliminar_servicio(id):
 @requiere_rol('cajero')
 def reporte_ocupacion():
     empresa_id = request.empresa_id
-    fecha = request.args.get('fecha', datetime.now().strftime('%Y-%m-%d'))
+    fecha = request.args.get('fecha', ahora_venezuela().strftime('%Y-%m-%d'))
     
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -4707,7 +4819,7 @@ def verificar_habitaciones_vencidas_manual():
     cursor = conn.cursor(dictionary=True)
     
     try:
-        hoy = datetime.now().strftime('%Y-%m-%d')
+        hoy = ahora_venezuela().strftime('%Y-%m-%d')
         
         cursor.execute("""
             SELECT id, numero, codigo_producto, fecha_salida_ultima
@@ -4727,7 +4839,7 @@ def verificar_habitaciones_vencidas_manual():
                 SET estado = 'sucia',
                     observaciones = CONCAT(COALESCE(observaciones, ''), '\n', %s, ' - Check-out automático por vencimiento de estadía')
                 WHERE id = %s AND empresa_id = %s
-            """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), hab['id'], empresa_id))
+            """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), hab['id'], empresa_id))
             
             if hab.get('codigo_producto'):
                 cursor.execute("""
@@ -4997,12 +5109,24 @@ def internal_error(error):
         return jsonify({'error': 'Error interno del servidor'}), 500
     return "Error interno del servidor", 500
 
-# ========== INICIO CON VERIFICADOR DE HABITACIONES ==========
+# ========== INICIO DE HILOS EN SEGUNDO PLANO ==========
+# ⚠️ IMPORTANTE: esto va a NIVEL DE MÓDULO (no dentro de if __name__=='__main__')
+# porque en producción la app se arranca con gunicorn ('gunicorn app:app'), que
+# IMPORTA este archivo en vez de ejecutarlo directamente. Si este código
+# estuviera solo dentro de if __name__=='__main__', gunicorn nunca lo
+# ejecutaría y estos verificadores automáticos jamás correrían en Render.
+def iniciar_verificador():
+    thread = threading.Thread(target=verificar_habitaciones_vencidas, daemon=True)
+    thread.start()
+    print("✅ Verificador de habitaciones vencidas iniciado (cada 5 minutos)")
+
+def iniciar_actualizador_tasa():
+    thread = threading.Thread(target=actualizar_tasas_automaticas, daemon=True)
+    thread.start()
+    print("✅ Actualizador automático de tasa BCV iniciado (cada hora)")
+
+iniciar_verificador()
+iniciar_actualizador_tasa()
+
 if __name__ == '__main__':
-    def iniciar_verificador():
-        thread = threading.Thread(target=verificar_habitaciones_vencidas, daemon=True)
-        thread.start()
-        print("✅ Verificador de habitaciones vencidas iniciado (cada 5 minutos)")
-    
-    iniciar_verificador()
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

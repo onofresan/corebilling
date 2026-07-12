@@ -210,6 +210,14 @@
             <div class="form-group">
                 <label>💱 Tasa de cambio (Bs/$)</label>
                 <input type="number" step="0.01" id="tasa_cambio" required>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                    <label style="display:flex; align-items:center; gap:6px; font-weight:500; margin:0;">
+                        <input type="checkbox" id="tasa_auto" style="width:auto;">
+                        Actualizar automáticamente con la tasa oficial del BCV (cada hora)
+                    </label>
+                    <button type="button" id="btnActualizarTasaAhora" class="btn-file" style="background:#0ea5e9; border:none; color:white; padding:6px 14px; border-radius:40px; cursor:pointer; font-size:0.85rem;">🔄 Actualizar ahora desde BCV</button>
+                </div>
+                <div id="tasaMsg" style="font-size:0.85rem; margin-top:6px;"></div>
             </div>
             <button type="submit" class="btn-save">💾 Guardar Cambios</button>
         </form>
@@ -270,6 +278,7 @@
         document.getElementById('telefono').value = emp.telefono || '';
         document.getElementById('direccion').value = emp.direccion || '';
         document.getElementById('tasa_cambio').value = emp.tasa_cambio || 544.58;
+        document.getElementById('tasa_auto').checked = emp.tasa_auto !== false;
 
         const img = document.getElementById('logoPreview');
         const noLogo = document.getElementById('noLogoText');
@@ -335,7 +344,8 @@
             correo: document.getElementById('correo').value,
             telefono: document.getElementById('telefono').value,
             direccion: document.getElementById('direccion').value,
-            tasa_cambio: parseFloat(document.getElementById('tasa_cambio').value)
+            tasa_cambio: parseFloat(document.getElementById('tasa_cambio').value),
+            tasa_auto: document.getElementById('tasa_auto').checked
         };
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/empresa`, {

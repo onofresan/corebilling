@@ -3,54 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
-    <title>Prueba Cashea - CoreBilling</title>
+    <title>CoreBilling - Prueba Cashea</title>
     <style>
-        body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            margin: 0;
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#f1f5f9; font-family:'Inter', 'Segoe UI', sans-serif; margin:0; padding:0; display:flex; flex-direction:column; min-height:100vh; }
+        
+        .sidebar { position:fixed; top:0; left:-260px; width:260px; height:100%; background:#0f172a; transition:0.3s; z-index:1000; overflow-y:auto; box-shadow:2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar.open { left:0; }
+        .sidebar h4 { color:#6366f1; text-align:center; padding:24px 0; font-size:1.5rem; border-bottom:1px solid #1e293b; margin-bottom:20px; }
+        .sidebar a { display:block; color:#94a3b8; padding:12px 20px; text-decoration:none; transition:0.2s; border-radius:12px; margin:4px 10px; }
+        .sidebar a:hover, .sidebar a.active { background:#1e293b; color:white; }
+        .sidebar .salir { color:#f87171 !important; margin-top:20px; border-top:1px solid #1e293b; padding-top:20px; }
+        
+        .main-content { flex:1; padding:16px; transition:0.3s; margin-left:0; }
+        .menu-toggle { background:#4f46e5; color:white; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; margin-bottom:15px; display:inline-block; font-size:1rem; }
+        
+        @media (min-width:768px) {
+            .sidebar { left:0; }
+            .main-content { margin-left:260px; }
+            .menu-toggle { display:none; }
         }
-        .cashea-container {
-            width: 100%;
-            max-width: 440px;
+        
+        .card { background:white; border-radius:20px; padding:24px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05); border:1px solid #e2e8f0; }
+        
+        .login-warning {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px 24px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 20px 0;
+            border: 1px solid #fca5a5;
         }
-        .cashea-card {
-            background: white;
-            border-radius: 32px;
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-            overflow: hidden;
+        .login-warning h2 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
         }
+        .login-warning p {
+            margin: 6px 0;
+        }
+        .login-warning a {
+            color: #4f46e5;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .login-warning a:hover {
+            text-decoration: underline;
+        }
+        
         .cashea-header {
             background: linear-gradient(120deg, #4f46e5, #7c3aed);
-            padding: 28px 24px;
+            padding: 20px 24px;
+            border-radius: 16px 16px 0 0;
             text-align: center;
+            margin: -20px -24px 20px;
         }
         .cashea-header h2 {
             color: white;
-            font-size: 1.6rem;
+            font-size: 1.4rem;
             font-weight: 700;
-            letter-spacing: -0.5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .cashea-header p {
             color: rgba(255,255,255,0.85);
-            margin-top: 6px;
             font-size: 0.9rem;
+            margin-top: 4px;
         }
-        .cashea-body {
-            padding: 28px;
-        }
-        .btn-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
+        
         .btn-pct {
             background: #e2e8f0;
             border: none;
@@ -67,6 +87,14 @@
             background: #cbd5e1;
             transform: translateY(-2px);
         }
+        
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
         .input-group {
             margin-bottom: 16px;
         }
@@ -92,6 +120,7 @@
             box-shadow: 0 0 0 3px rgba(79,70,229,0.2);
             background: white;
         }
+        
         .btn-calcular {
             width: 100%;
             padding: 14px;
@@ -110,6 +139,7 @@
             background: linear-gradient(90deg, #4338ca, #6d28d9);
             box-shadow: 0 8px 20px rgba(79,70,229,0.4);
         }
+        
         .resultado {
             background: #f8fafc;
             padding: 16px 20px;
@@ -121,94 +151,348 @@
             border-left: 4px solid #4f46e5;
             line-height: 1.8;
         }
-        .resultado strong {
-            color: #0f172a;
-        }
-        .resultado .valor-inicial { color: #4f46e5; }
-        .resultado .valor-financiado { color: #f59e0b; }
-        .resultado .valor-total { color: #10b981; }
+        .resultado .valor-inicial { color: #4f46e5; font-weight: 600; }
+        .resultado .valor-financiado { color: #f59e0b; font-weight: 600; }
+        .resultado .valor-total { color: #10b981; font-weight: 700; font-size: 1.1rem; }
+        
         .footer-note {
             text-align: center;
             font-size: 0.75rem;
             color: #94a3b8;
             margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
         }
+        .footer-note .lock {
+            color: #4f46e5;
+        }
+        
+        .contenedor-calculadora {
+            max-width: 440px;
+            margin: 0 auto;
+        }
+        
+        .alert-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e293b;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            z-index: 9999;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
         @media (max-width: 480px) {
-            .cashea-body { padding: 20px; }
+            .cashea-header { padding: 16px; margin: -16px -16px 16px; }
             .btn-pct { padding: 6px 12px; font-size: 0.8rem; }
+            .card { padding: 16px; }
         }
     </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 </head>
 <body>
-<div class="cashea-container">
-    <div class="cashea-card">
-        <div class="cashea-header">
-            <h2>🧪 Financiamiento Cashea</h2>
-            <p>Simulador de pago inicial y saldo financiado</p>
-        </div>
-        <div class="cashea-body">
-            <div class="btn-group">
-                <button class="btn-pct" data-pct="25">25%</button>
-                <button class="btn-pct" data-pct="30">30%</button>
-                <button class="btn-pct" data-pct="35">35%</button>
-                <button class="btn-pct" data-pct="40">40%</button>
-                <button class="btn-pct" data-pct="45">45%</button>
-                <button class="btn-pct" data-pct="50">50%</button>
-                <button class="btn-pct" data-pct="60">60%</button>
-                <button class="btn-pct" data-pct="75">75%</button>
-            </div>
+<div class="sidebar" id="sidebar">
+    <h4>CoreBilling</h4>
+    <a href="index.html">📊 Dashboard</a>
+    <a href="facturar.html">🛒 Nueva Factura</a>
+    <a href="inventario.html">📦 Inventario</a>
+    <a href="hoteleria.html">🏨 Hotelería</a>
+    <a href="clientes.html">👥 Clientes</a>
+    <a href="reporte.html">📊 Reportes</a>
+    <a href="lista_facturas.html">📜 Historial</a>
+    <a href="historial_cierres.html">📋 Cierres Z</a>
+    <a href="historial_inventario.html">📦 Historial Inventario</a>
+    <a href="gestion_recetas.html">🍽️ Recetas</a>
+    <a href="gestion_kits.html">🔪 Despiece</a>
+    <a href="compras.html" class="admin-only" style="display:none;">📦 Compras</a>
+    <a href="proveedores.html" class="admin-only" style="display:none;">🏭 Proveedores</a>
+    <a href="admin_usuarios.html" class="admin-only" style="display:none;">👥 Usuarios</a>
+    <a href="configuracion.html" class="admin-only" style="display:none;">⚙️ Configuración</a>
+    <a href="estadisticas.html">📈 Estadísticas</a>
+    <a href="#" id="logoutBtn" class="salir">🚪 Cerrar Sesión</a>
+</div>
+<div class="main-content">
+    <button class="menu-toggle" id="menuToggle">☰ Menú</button>
 
-            <div class="input-group">
-                <label>💰 Total de la factura (USD)</label>
-                <input type="number" id="total" value="100" step="0.01">
-            </div>
-            <div class="input-group">
-                <label>💵 Monto Inicial (USD)</label>
-                <input type="number" id="inicial" value="0" step="0.01">
-            </div>
-
-            <button class="btn-calcular" id="calcularBtn">Calcular financiamiento</button>
-
-            <div class="resultado" id="resultado">
-                <div><span class="valor-inicial">💰 Inicial: $0.00</span></div>
-                <div><span class="valor-financiado">📆 Financiado: $0.00</span></div>
-                <div><span class="valor-total">🧾 Total: $0.00</span></div>
-            </div>
-
-            <p class="footer-note">Calcula el saldo financiado para el método de pago Cashea.</p>
+    <!-- ===== CONTENIDO PRINCIPAL ===== -->
+    <div id="contenidoPrincipal">
+        <div style="text-align:center; padding:60px 20px; color:#94a3b8;">
+            <div class="spinner"></div>
+            <p style="margin-top:16px;">Verificando sesión...</p>
         </div>
     </div>
 </div>
 
 <script>
-    function calcular() {
-        let total = parseFloat(document.getElementById('total').value) || 0;
-        let inicial = parseFloat(document.getElementById('inicial').value) || 0;
-        let financiado = total - inicial;
-        if (financiado < 0) financiado = 0;
+    // ============================================================
+    // CONFIGURACIÓN
+    // ============================================================
+    const API_URL = `${window.location.origin}/api`;
+    let usuarioAutenticado = false;
+    let socket = null;
+    let empresaId = null;
 
-        document.getElementById('resultado').innerHTML = `
-            <div><span class="valor-inicial">💰 Inicial: $${inicial.toFixed(2)}</span></div>
-            <div><span class="valor-financiado">📆 Financiado: $${financiado.toFixed(2)}</span></div>
-            <div><span class="valor-total">🧾 Total: $${total.toFixed(2)}</span></div>
+    // ============================================================
+    // FUNCIONES AUXILIARES
+    // ============================================================
+    function escapeHtml(str) { 
+        if (!str) return ''; 
+        return String(str).replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function mostrarToast(mensaje, tipo) {
+        tipo = tipo || 'info';
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        const colores = {
+            'info': '#1e293b',
+            'success': '#059669',
+            'error': '#dc2626',
+            'warning': '#d97706'
+        };
+        toast.style.background = colores[tipo] || colores.info;
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(function() { 
+            if (toast.parentNode) toast.parentNode.removeChild(toast); 
+        }, 5000);
+    }
+
+    function conectarWebSocket() {
+        if (!empresaId) return;
+        try {
+            socket = io(window.location.origin);
+            socket.emit('join', { empresa_id: empresaId });
+            socket.on('nueva_alerta', function(data) { 
+                mostrarToast(data.mensaje, 'info'); 
+            });
+        } catch (error) {
+            console.warn('WebSocket no disponible:', error);
+        }
+    }
+
+    // ============================================================
+    // VERIFICAR SESIÓN
+    // ============================================================
+    async function verificarSesion() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            mostrarMensajeLogin('No hay sesión activa. Por favor, inicia sesión.');
+            return false;
+        }
+        
+        try {
+            console.log('🔍 Verificando sesión en:', API_URL + '/check-session');
+            
+            const res = await fetch(API_URL + '/check-session', {
+                headers: { 
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!res.ok) {
+                console.warn('Sesión inválida, status:', res.status);
+                localStorage.removeItem('token');
+                mostrarMensajeLogin('Sesión expirada. Por favor, inicia sesión nuevamente.');
+                return false;
+            }
+            
+            const data = await res.json();
+            console.log('✅ Sesión verificada:', data);
+            
+            if (!data.logged_in) {
+                console.warn('No logged_in');
+                localStorage.removeItem('token');
+                mostrarMensajeLogin('Sesión no válida. Por favor, inicia sesión.');
+                return false;
+            }
+            
+            empresaId = data.empresa_id;
+            usuarioAutenticado = true;
+            
+            // Solo Admin y Super Admin pueden acceder
+            if (data.role === 'super_admin' || data.role === 'admin') {
+                conectarWebSocket();
+                cargarCalculadora();
+                return true;
+            } else {
+                mostrarMensajeLogin('🔒 Acceso denegado. Esta herramienta es solo para administradores.');
+                return false;
+            }
+            
+        } catch(e) {
+            console.error('❌ Error en verificación de sesión:', e);
+            localStorage.removeItem('token');
+            mostrarMensajeLogin('Error de conexión. Verifica que el servidor esté corriendo.');
+            return false;
+        }
+    }
+
+    // ============================================================
+    // MOSTRAR MENSAJE DE LOGIN
+    // ============================================================
+    function mostrarMensajeLogin(mensaje) {
+        var contenido = document.getElementById('contenidoPrincipal');
+        contenido.innerHTML = `
+            <div class="card" style="max-width:500px; margin:40px auto;">
+                <div class="login-warning">
+                    <h2>🔒 Acceso restringido</h2>
+                    <p>${escapeHtml(mensaje || 'Esta herramienta es solo para personal autorizado.')}</p>
+                    <p style="margin-top:12px;">
+                        <a href="login.html">👉 Iniciar sesión</a>
+                    </p>
+                </div>
+                <div style="text-align:center; padding:20px; color:#94a3b8; font-size:0.8rem;">
+                    ⚠️ Si tienes credenciales de administrador, inicia sesión primero.
+                </div>
+            </div>
         `;
     }
 
-    document.querySelectorAll('.btn-pct').forEach(btn => {
-        btn.addEventListener('click', () => {
-            let pct = parseFloat(btn.getAttribute('data-pct'));
-            let total = parseFloat(document.getElementById('total').value) || 0;
-            let inicial = total * (pct / 100);
-            document.getElementById('inicial').value = inicial.toFixed(2);
-            calcular();
-        });
+    // ============================================================
+    // CARGAR CALCULADORA
+    // ============================================================
+    function cargarCalculadora() {
+        var contenido = document.getElementById('contenidoPrincipal');
+        contenido.innerHTML = `
+            <div class="contenedor-calculadora">
+                <div class="card">
+                    <div class="cashea-header">
+                        <h2>🧪 Financiamiento Cashea</h2>
+                        <p>Simulador de pago inicial y saldo financiado</p>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn-pct" data-pct="25">25%</button>
+                        <button class="btn-pct" data-pct="30">30%</button>
+                        <button class="btn-pct" data-pct="35">35%</button>
+                        <button class="btn-pct" data-pct="40">40%</button>
+                        <button class="btn-pct" data-pct="45">45%</button>
+                        <button class="btn-pct" data-pct="50">50%</button>
+                        <button class="btn-pct" data-pct="60">60%</button>
+                        <button class="btn-pct" data-pct="75">75%</button>
+                    </div>
+
+                    <div class="input-group">
+                        <label>💰 Total de la factura (USD)</label>
+                        <input type="number" id="total" value="100" step="0.01">
+                    </div>
+                    <div class="input-group">
+                        <label>💵 Monto Inicial (USD)</label>
+                        <input type="number" id="inicial" value="0" step="0.01">
+                    </div>
+
+                    <button class="btn-calcular" id="calcularBtn">Calcular financiamiento</button>
+
+                    <div class="resultado" id="resultado">
+                        <div><span class="valor-inicial">💰 Inicial: $0.00</span></div>
+                        <div><span class="valor-financiado">📆 Financiado: $0.00</span></div>
+                        <div><span class="valor-total">🧾 Total: $0.00</span></div>
+                    </div>
+
+                    <div class="footer-note">
+                        <span class="lock">🔒</span> Herramienta interna - Solo personal autorizado
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // ===== INICIALIZAR EVENTOS =====
+        function calcular() {
+            var totalInput = document.getElementById('total');
+            var inicialInput = document.getElementById('inicial');
+            var resultadoDiv = document.getElementById('resultado');
+            
+            if (!totalInput || !inicialInput || !resultadoDiv) return;
+            
+            var total = parseFloat(totalInput.value) || 0;
+            var inicial = parseFloat(inicialInput.value) || 0;
+            var financiado = total - inicial;
+            if (financiado < 0) financiado = 0;
+
+            resultadoDiv.innerHTML = `
+                <div><span class="valor-inicial">💰 Inicial: $${inicial.toFixed(2)}</span></div>
+                <div><span class="valor-financiado">📆 Financiado: $${financiado.toFixed(2)}</span></div>
+                <div><span class="valor-total">🧾 Total: $${total.toFixed(2)}</span></div>
+            `;
+        }
+
+        // Botones de porcentaje
+        var botones = document.querySelectorAll('.btn-pct');
+        for (var i = 0; i < botones.length; i++) {
+            botones[i].addEventListener('click', function() {
+                var pct = parseFloat(this.getAttribute('data-pct'));
+                var total = parseFloat(document.getElementById('total').value) || 0;
+                var inicial = total * (pct / 100);
+                document.getElementById('inicial').value = inicial.toFixed(2);
+                calcular();
+            });
+        }
+
+        // Eventos de input
+        document.getElementById('total').addEventListener('input', calcular);
+        document.getElementById('inicial').addEventListener('input', calcular);
+        document.getElementById('calcularBtn').addEventListener('click', calcular);
+
+        // Calcular inicial
+        calcular();
+    }
+
+    // ============================================================
+    // EVENTOS MENÚ
+    // ============================================================
+    document.getElementById('menuToggle').addEventListener('click', function() {
+        document.getElementById('sidebar').classList.toggle('open');
     });
 
-    document.getElementById('total').addEventListener('input', calcular);
-    document.getElementById('inicial').addEventListener('input', calcular);
-    document.getElementById('calcularBtn').addEventListener('click', calcular);
+    document.getElementById('logoutBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (confirm('¿Seguro que deseas cerrar sesión?')) {
+            localStorage.removeItem('token');
+            if (socket) socket.disconnect();
+            window.location.href = 'login.html';
+        }
+    });
 
-    calcular();
+    // ============================================================
+    // INICIALIZAR
+    // ============================================================
+    async function init() {
+        console.log('🚀 Iniciando test_cashea.html');
+        await verificarSesion();
+    }
+
+    init().catch(function(err) {
+        console.error('❌ Error en inicialización:', err);
+        mostrarMensajeLogin('Error al inicializar la página. Verifica el servidor.');
+    });
 </script>
 </body>
 </html>

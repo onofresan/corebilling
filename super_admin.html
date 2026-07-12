@@ -7,6 +7,38 @@
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Panel Super Administrador</title>
     <style>
+        /* ===== ESTILOS PROPIOS ===== */
+        * { box-sizing: border-box; }
+        body { background: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        
+        .sidebar { position: fixed; top: 0; left: -260px; width: 260px; height: 100%; background: #0f172a; transition: 0.3s; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar.open { left: 0; }
+        .sidebar h4 { color: #6366f1; text-align: center; padding: 24px 0; font-size: 1.5rem; border-bottom: 1px solid #1e293b; margin-bottom: 20px; }
+        .sidebar a { display: block; color: #94a3b8; padding: 12px 20px; text-decoration: none; transition: 0.2s; border-radius: 12px; margin: 4px 10px; }
+        .sidebar a:hover, .sidebar a.active { background: #1e293b; color: white; }
+        .sidebar .salir { 
+            color: #f87171 !important; 
+            margin-top: 20px; 
+            border-top: 1px solid #1e293b; 
+            padding-top: 20px; 
+            cursor: pointer;
+        }
+        .sidebar .salir:hover {
+            background: #1e293b !important;
+            color: #fca5a5 !important;
+        }
+        
+        .main-content { flex: 1; padding: 16px; transition: 0.3s; margin-left: 0; }
+        .menu-toggle { background: #4f46e5; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; margin-bottom: 15px; display: inline-block; font-size: 1rem; }
+        
+        @media (min-width: 768px) {
+            .sidebar { left: 0; }
+            .main-content { margin-left: 260px; }
+            .menu-toggle { display: none; }
+        }
+        
+        .card { background: white; border-radius: 20px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        
         .header-box {
             display: flex;
             justify-content: space-between;
@@ -15,18 +47,21 @@
             gap: 12px;
             margin-bottom: 20px;
         }
+        
         .table-container {
             border-radius: 16px;
             border: 1px solid #e2e8f0;
-            overflow: hidden;
+            overflow: auto;
             background: white;
-            margin-top: 12px;
+            max-height: 70vh;
         }
-        table {
+        
+        .table-container table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9rem;
         }
+        
         th {
             background: #f8fafc;
             color: #475569;
@@ -34,15 +69,21 @@
             padding: 12px 10px;
             border-bottom: 2px solid #e2e8f0;
             text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
+        
         td {
             padding: 10px 8px;
             border-bottom: 1px solid #f1f5f9;
             vertical-align: middle;
         }
+        
         tr:hover td {
             background: #f8fafc;
         }
+        
         .badge-estado {
             display: inline-block;
             padding: 2px 12px;
@@ -50,22 +91,11 @@
             font-size: 0.7rem;
             font-weight: 600;
         }
-        .badge-activa {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        .badge-inactiva {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        .badge-permitido {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-        .badge-denegado {
-            background: #fef3c7;
-            color: #92400e;
-        }
+        .badge-activa { background: #d1fae5; color: #065f46; }
+        .badge-inactiva { background: #fee2e2; color: #991b1b; }
+        .badge-permitido { background: #dbeafe; color: #1e40af; }
+        .badge-denegado { background: #fef3c7; color: #92400e; }
+        
         .btn-accion {
             padding: 4px 10px;
             border-radius: 40px;
@@ -73,8 +103,9 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            margin: 0 2px;
+            margin: 2px;
             font-size: 0.7rem;
+            white-space: nowrap;
         }
         .btn-accion.warning { background: #f59e0b; color: white; }
         .btn-accion.warning:hover { background: #d97706; transform: translateY(-2px); }
@@ -86,46 +117,7 @@
         .btn-accion.danger:hover { background: #dc2626; transform: translateY(-2px); }
         .btn-accion.info { background: #3b82f6; color: white; }
         .btn-accion.info:hover { background: #2563eb; transform: translateY(-2px); }
-        .modal-content {
-            max-width: 720px;
-        }
-        .modal-content .input-group {
-            margin-bottom: 14px;
-        }
-        .modal-content .input-group label {
-            display: block;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: #334155;
-            margin-bottom: 4px;
-        }
-        .modal-content .input-group input,
-        .modal-content .input-group select,
-        .modal-content .input-group textarea {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
-            transition: all 0.2s;
-        }
-        .modal-content .input-group input:focus,
-        .modal-content .input-group select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
-            outline: none;
-        }
-        .flex-btns {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-        hr {
-            border: none;
-            border-top: 2px dashed #e2e8f0;
-            margin: 16px 0;
-        }
+        
         .toggle-switch {
             position: relative;
             display: inline-block;
@@ -166,23 +158,190 @@
         .toggle-switch input:checked + .toggle-slider:before {
             transform: translateX(20px);
         }
-        .modal-content .table-wrapper {
+        
+        /* ===== MODAL CON SCROLL ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-scroll {
+            background: white;
+            max-width: 720px;
+            width: 100%;
+            max-height: 90vh;
+            border-radius: 28px;
+            box-shadow: 0 24px 48px -12px rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            animation: modalIn 0.25s ease;
+        }
+        
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        
+        .modal-scroll .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            flex-shrink: 0;
+        }
+        .modal-scroll .modal-header h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+        .modal-scroll .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            line-height: 1;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: color 0.2s;
+            padding: 0 4px;
+        }
+        .modal-scroll .modal-close:hover {
+            color: #ef4444;
+        }
+        
+        .modal-scroll .modal-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .modal-scroll .modal-footer {
+            padding: 16px 24px 20px;
+            border-top: 1px solid #e2e8f0;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .modal-scroll .input-group {
+            margin-bottom: 14px;
+        }
+        .modal-scroll .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .modal-scroll .input-group input,
+        .modal-scroll .input-group select,
+        .modal-scroll .input-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-scroll .input-group input:focus,
+        .modal-scroll .input-group select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+            outline: none;
+        }
+        
+        .modal-scroll hr {
+            border: none;
+            border-top: 2px dashed #e2e8f0;
+            margin: 16px 0;
+        }
+        
+        .modal-scroll .flex-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        
+        .modal-scroll .btn-success {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .modal-scroll .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+        .modal-scroll .btn-danger {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .modal-scroll .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+        
+        .table-wrapper {
             max-height: 300px;
             overflow-y: auto;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
         }
-        .modal-content .table-wrapper table {
+        .table-wrapper table {
             font-size: 0.8rem;
         }
-        .modal-content .table-wrapper th,
-        .modal-content .table-wrapper td {
+        .table-wrapper th,
+        .table-wrapper td {
             padding: 6px 8px;
         }
+        
+        .alert-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e293b;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            z-index: 9999;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
         @media (max-width: 640px) {
             th, td { font-size: 0.75rem; padding: 6px 4px; }
             .btn-accion { font-size: 0.65rem; padding: 3px 6px; }
-            .modal-content { padding: 16px; }
+            .modal-scroll .modal-body { padding: 16px; }
+            .modal-scroll .modal-header { padding: 16px; }
+            .modal-scroll .modal-footer { padding: 12px 16px; }
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
@@ -206,14 +365,14 @@
             <table id="tablaEmpresas">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>RIF</th>
-                        <th>Correo</th>
-                        <th>Admin</th>
-                        <th>Estado</th>
-                        <th>Reiniciar Historial</th>
-                        <th>Acciones</th>
+                        <th style="position:sticky; top:0; z-index:10;">ID</th>
+                        <th style="position:sticky; top:0; z-index:10;">Nombre</th>
+                        <th style="position:sticky; top:0; z-index:10;">RIF</th>
+                        <th style="position:sticky; top:0; z-index:10;">Correo</th>
+                        <th style="position:sticky; top:0; z-index:10;">Admin</th>
+                        <th style="position:sticky; top:0; z-index:10;">Estado</th>
+                        <th style="position:sticky; top:0; z-index:10;">Reiniciar</th>
+                        <th style="position:sticky; top:0; z-index:10;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tbody-empresas">
@@ -224,102 +383,136 @@
     </div>
 </div>
 
-<!-- Modal para editar empresa -->
-<div id="modalEditar" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
-    <div class="modal-content" style="background:white; max-width:520px; width:95%; padding:24px; border-radius:28px;">
-        <span class="close-modal" onclick="cerrarModalEditar()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
-        <h3 style="margin-bottom:16px;">Editar Empresa</h3>
-        <form id="formEditar">
-            <input type="hidden" id="edit-id">
-            <div class="input-group">
-                <label>🏪 Nombre</label>
-                <input type="text" id="edit-nombre" required>
-            </div>
-            <div class="input-group">
-                <label>📄 RIF</label>
-                <input type="text" id="edit-rif" required>
-            </div>
-            <div class="input-group">
-                <label>📧 Correo</label>
-                <input type="email" id="edit-correo" required>
-            </div>
-            <div class="input-group">
-                <label>📞 Teléfono</label>
-                <input type="text" id="edit-telefono">
-            </div>
-            <div class="input-group">
-                <label>📍 Dirección</label>
-                <input type="text" id="edit-direccion">
-            </div>
-            <div class="input-group">
-                <label>💱 Tasa de cambio (Bs/USD)</label>
-                <input type="number" step="0.01" id="edit-tasa" required>
-            </div>
-            <div class="input-group" style="display:flex; align-items:center; gap:12px;">
-                <label style="margin:0;">🔁 Permitir reiniciar historial de inventario</label>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="edit-permite-reiniciar">
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <hr>
-            <h4 style="font-weight:600; margin-bottom:12px;">Usuario Administrador</h4>
-            <div class="input-group">
-                <label>👤 Nombre de usuario</label>
-                <input type="text" id="edit-admin-username">
-            </div>
-            <div class="input-group">
-                <label>📧 Email del administrador</label>
-                <input type="email" id="edit-admin-email">
-            </div>
-            <div class="input-group">
-                <label>🔒 Nueva contraseña (dejar vacío para no cambiar)</label>
-                <input type="password" id="edit-admin-password" placeholder="Dejar vacío para no cambiar">
-            </div>
-            <div class="flex-btns">
-                <button type="submit" class="btn-success">Guardar cambios</button>
-                <button type="button" class="btn-danger" onclick="cerrarModalEditar()">Cancelar</button>
-            </div>
-        </form>
+<!-- ===== MODAL EDITAR CON SCROLL ===== -->
+<div class="modal-overlay" id="modalEditar">
+    <div class="modal-scroll">
+        <div class="modal-header">
+            <h3>✏️ Editar Empresa</h3>
+            <button class="modal-close" onclick="cerrarModalEditar()">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="formEditar">
+                <input type="hidden" id="edit-id">
+                <div class="input-group">
+                    <label>🏪 Nombre</label>
+                    <input type="text" id="edit-nombre" required>
+                </div>
+                <div class="input-group">
+                    <label>📄 RIF</label>
+                    <input type="text" id="edit-rif" required>
+                </div>
+                <div class="input-group">
+                    <label>📧 Correo</label>
+                    <input type="email" id="edit-correo" required>
+                </div>
+                <div class="input-group">
+                    <label>📞 Teléfono</label>
+                    <input type="text" id="edit-telefono">
+                </div>
+                <div class="input-group">
+                    <label>📍 Dirección</label>
+                    <input type="text" id="edit-direccion">
+                </div>
+                <div class="input-group">
+                    <label>💱 Tasa de cambio (Bs/USD)</label>
+                    <input type="number" step="0.01" id="edit-tasa" required>
+                </div>
+                <div class="input-group" style="display:flex; align-items:center; gap:12px;">
+                    <label style="margin:0;">🔁 Permitir reiniciar historial</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="edit-permite-reiniciar">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <hr>
+                <h4 style="font-weight:600; margin-bottom:12px;">👤 Usuario Administrador</h4>
+                <div class="input-group">
+                    <label>👤 Nombre de usuario</label>
+                    <input type="text" id="edit-admin-username">
+                </div>
+                <div class="input-group">
+                    <label>📧 Email del administrador</label>
+                    <input type="email" id="edit-admin-email">
+                </div>
+                <div class="input-group">
+                    <label>🔒 Nueva contraseña</label>
+                    <input type="password" id="edit-admin-password" placeholder="Dejar vacío para no cambiar">
+                </div>
+                <div id="mensajeEditar" style="margin-top:8px; font-size:0.9rem;"></div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-success" id="btnGuardarEditar" onclick="guardarEditarEmpresa()">💾 Guardar cambios</button>
+            <button class="btn-danger" onclick="cerrarModalEditar()">Cancelar</button>
+        </div>
     </div>
 </div>
 
-<!-- Modal para ver y eliminar Reportes Z -->
-<div id="modalCierres" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); justify-content:center; align-items:center; z-index:2000;">
-    <div class="modal-content" style="background:white; max-width:820px; width:95%; padding:24px; border-radius:28px; max-height:80vh; overflow-y:auto;">
-        <span class="close-modal" onclick="cerrarModalCierres()" style="float:right; font-size:28px; cursor:pointer;">&times;</span>
-        <h3 style="margin-bottom:16px;">📋 Reportes Z de <span id="cierre-empresa-nombre"></span></h3>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Fecha</th>
-                        <th>Usuario</th>
-                        <th>Total USD</th>
-                        <th>Total Bs</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla-cierres-super">
-                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#94a3b8;">Cargando...</td></tr>
-                </tbody>
-            </table>
+<!-- ===== MODAL CIERRES CON SCROLL ===== -->
+<div class="modal-overlay" id="modalCierres">
+    <div class="modal-scroll" style="max-width:820px;">
+        <div class="modal-header">
+            <h3>📋 Reportes Z de <span id="cierre-empresa-nombre"></span></h3>
+            <button class="modal-close" onclick="cerrarModalCierres()">✕</button>
         </div>
-        <div class="flex-btns">
+        <div class="modal-body">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Total USD</th>
+                            <th>Total Bs</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-cierres-super">
+                        <tr><td colspan="6" style="text-align:center; padding:20px; color:#94a3b8;">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
             <button class="btn-danger" onclick="cerrarModalCierres()">Cerrar</button>
         </div>
     </div>
 </div>
 
 <script>
-    const API_URL = '/api';
+    // ========== CONFIGURACIÓN ==========
+    const API_URL = `${window.location.origin}/api`;
     let empresas = [];
     let empresaIdCierres = null;
+    let empresaEditando = null;
 
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
-    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+    function escapeHtml(str) { 
+        if (!str) return ''; 
+        return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); 
+    }
+    function toNum(v, d = 0) { 
+        let n = parseFloat(v); 
+        return isNaN(n) ? d : n; 
+    }
 
+    function mostrarToast(mensaje, tipo) {
+        tipo = tipo || 'info';
+        const toast = document.createElement('div');
+        toast.className = 'alert-toast';
+        const colores = {
+            'info': '#1e293b',
+            'success': '#059669',
+            'error': '#dc2626',
+            'warning': '#d97706'
+        };
+        toast.style.background = colores[tipo] || colores.info;
+        toast.innerText = mensaje;
+        document.body.appendChild(toast);
+        setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 5000);
+    }
+
+    // ========== AUTENTICACIÓN ==========
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -330,7 +523,7 @@
             const res = await fetch(`${API_URL}/check-session`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!res.ok) throw new Error();
+            if (!res.ok) throw new Error('Sesión inválida');
             const data = await res.json();
             if (!data.logged_in || data.role !== 'super_admin') {
                 alert('Acceso denegado. Solo super administrador.');
@@ -339,12 +532,14 @@
             }
             return data;
         } catch(e) {
+            console.error('Error en verificación de sesión:', e);
             localStorage.removeItem('token');
             window.location.href = 'login.html';
             return null;
         }
     }
 
+    // ========== CARGAR EMPRESAS ==========
     async function cargarEmpresas() {
         const token = localStorage.getItem('token');
         const tbody = document.getElementById('tbody-empresas');
@@ -381,25 +576,28 @@
                             <span style="font-size:0.7rem; color:#64748b; margin-left:4px;">${permisoText}</span>
                         </td>
                         <td>
-                            <button class="btn-accion warning" onclick="abrirEditar(${emp.id})">✏️ Editar</button>
-                            <button class="btn-accion info" onclick="verCierres(${emp.id}, '${escapeHtml(emp.nombre)}')">📋 Cierres Z</button>
-                            <button class="btn-accion success" onclick="toggleEstado(${emp.id})">${emp.activa ? '🔒 Desactivar' : '🔓 Activar'}</button>
-                            <button class="btn-accion primary" onclick="resetearEmpresa(${emp.id})">🔄 Reiniciar</button>
-                            <button class="btn-accion danger" onclick="eliminarEmpresa(${emp.id})">🗑️ Eliminar</button>
+                            <button class="btn-accion warning" onclick="abrirEditar(${emp.id})">✏️</button>
+                            <button class="btn-accion info" onclick="verCierres(${emp.id}, '${escapeHtml(emp.nombre)}')">📋</button>
+                            <button class="btn-accion success" onclick="toggleEstado(${emp.id})">${emp.activa ? '🔒' : '🔓'}</button>
+                            <button class="btn-accion primary" onclick="resetearEmpresa(${emp.id})">🔄</button>
+                            <button class="btn-accion danger" onclick="eliminarEmpresa(${emp.id})">🗑️</button>
                         </td>
                     </tr>
                 `;
             });
         } catch(e) {
             tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#ef4444;">❌ Error: ${escapeHtml(e.message)}</td></tr>`;
+            mostrarToast('❌ Error al cargar empresas: ' + e.message, 'error');
         }
     }
 
+    // ========== TOGGLE PERMISO ==========
     window.togglePermiso = async function(id, event) {
         event.stopPropagation();
-        const checked = event.target.querySelector('input').checked;
+        const input = event.target.querySelector('input');
+        const checked = input.checked;
         const nuevoValor = !checked;
-        event.target.querySelector('input').checked = nuevoValor;
+        input.checked = nuevoValor;
         const span = event.target.parentElement.querySelector('span:last-child');
         if (span) {
             span.innerText = nuevoValor ? '✅ Permitido' : '❌ Denegado';
@@ -416,21 +614,17 @@
             });
             if (!res.ok) {
                 alert('Error al actualizar el permiso');
-                event.target.querySelector('input').checked = checked;
+                input.checked = checked;
                 if (span) {
                     span.innerText = checked ? '✅ Permitido' : '❌ Denegado';
                     span.className = checked ? 'badge-permitido' : 'badge-denegado';
                 }
             } else {
                 empresa.permite_reiniciar_historial = nuevoValor;
-                if (span) {
-                    span.innerText = nuevoValor ? '✅ Permitido' : '❌ Denegado';
-                    span.className = nuevoValor ? 'badge-permitido' : 'badge-denegado';
-                }
             }
         } catch(e) {
             alert('Error de conexión');
-            event.target.querySelector('input').checked = checked;
+            input.checked = checked;
             if (span) {
                 span.innerText = checked ? '✅ Permitido' : '❌ Denegado';
                 span.className = checked ? 'badge-permitido' : 'badge-denegado';
@@ -438,6 +632,7 @@
         }
     };
 
+    // ========== TOGGLE ESTADO ==========
     async function toggleEstado(id) {
         if (!confirm('¿Cambiar el estado de activación de esta empresa?')) return;
         const token = localStorage.getItem('token');
@@ -447,7 +642,7 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                alert('✅ Estado actualizado');
+                mostrarToast('✅ Estado actualizado', 'success');
                 cargarEmpresas();
             } else {
                 alert('❌ Error al cambiar estado');
@@ -457,6 +652,7 @@
         }
     }
 
+    // ========== ABRIR EDITAR ==========
     function abrirEditar(id) {
         const empresa = empresas.find(e => e.id === id);
         if (!empresa) return;
@@ -471,15 +667,16 @@
         document.getElementById('edit-admin-username').value = empresa.admin_username || '';
         document.getElementById('edit-admin-email').value = empresa.admin_email || '';
         document.getElementById('edit-admin-password').value = '';
-        document.getElementById('modalEditar').style.display = 'flex';
+        document.getElementById('mensajeEditar').innerHTML = '';
+        document.getElementById('modalEditar').classList.add('active');
     }
 
     function cerrarModalEditar() {
-        document.getElementById('modalEditar').style.display = 'none';
+        document.getElementById('modalEditar').classList.remove('active');
     }
 
-    document.getElementById('formEditar').addEventListener('submit', async (e) => {
-        e.preventDefault();
+    // ========== GUARDAR EDICIÓN ==========
+    async function guardarEditarEmpresa() {
         const id = document.getElementById('edit-id').value;
         const payload = {
             nombre: document.getElementById('edit-nombre').value,
@@ -494,29 +691,35 @@
             admin_password: document.getElementById('edit-admin-password').value
         };
         const token = localStorage.getItem('token');
+        const mensajeDiv = document.getElementById('mensajeEditar');
         try {
+            mensajeDiv.innerHTML = '<span style="color:#4f46e5;">⏳ Guardando cambios...</span>';
             const res = await fetch(`${API_URL}/super/empresas/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
-                alert('✅ Empresa actualizada');
-                cerrarModalEditar();
-                cargarEmpresas();
+                mensajeDiv.innerHTML = '<span style="color:#10b981;">✅ Empresa actualizada correctamente</span>';
+                mostrarToast('✅ Empresa actualizada', 'success');
+                setTimeout(() => {
+                    cerrarModalEditar();
+                    cargarEmpresas();
+                }, 1000);
             } else {
                 const err = await res.json();
-                alert('❌ Error: ' + (err.error || 'No se pudo actualizar'));
+                mensajeDiv.innerHTML = `<span style="color:#ef4444;">❌ Error: ${err.error || 'No se pudo actualizar'}</span>`;
             }
         } catch(e) {
-            alert('❌ Error de conexión: ' + e.message);
+            mensajeDiv.innerHTML = `<span style="color:#ef4444;">❌ Error de conexión: ${e.message}</span>`;
         }
-    });
+    }
 
+    // ========== VER CIERRES Z ==========
     window.verCierres = async function(id, nombre) {
         empresaIdCierres = id;
         document.getElementById('cierre-empresa-nombre').innerText = nombre;
-        document.getElementById('modalCierres').style.display = 'flex';
+        document.getElementById('modalCierres').classList.add('active');
         const tbody = document.getElementById('tabla-cierres-super');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#94a3b8;">Cargando...</td></tr>';
         const token = localStorage.getItem('token');
@@ -548,6 +751,7 @@
         }
     };
 
+    // ========== ELIMINAR CIERRE ==========
     window.eliminarCierre = async function(cierreId, empresaId) {
         if (!confirm('⚠️ ¿Eliminar este reporte Z permanentemente? Esta acción no se puede deshacer.')) return;
         const token = localStorage.getItem('token');
@@ -557,7 +761,7 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                alert('✅ Reporte Z eliminado');
+                mostrarToast('✅ Reporte Z eliminado', 'success');
                 verCierres(empresaId, document.getElementById('cierre-empresa-nombre').innerText);
             } else {
                 const err = await res.json();
@@ -569,11 +773,13 @@
     };
 
     function cerrarModalCierres() {
-        document.getElementById('modalCierres').style.display = 'none';
+        document.getElementById('modalCierres').classList.remove('active');
     }
 
+    // ========== RESETEAR EMPRESA ==========
     async function resetearEmpresa(id) {
         if (!confirm('⚠️ ADVERTENCIA: Se borrarán TODOS los datos de esta empresa (productos, facturas, clientes, historiales). Los usuarios y la empresa se conservarán. ¿Estás seguro?')) return;
+        if (!confirm('Confirmación final: ¿Estás absolutamente seguro de reiniciar esta empresa?')) return;
         const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/super/empresas/${id}/reset`, {
@@ -581,7 +787,7 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                alert('✅ Empresa reiniciada correctamente');
+                mostrarToast('✅ Empresa reiniciada correctamente', 'success');
                 cargarEmpresas();
             } else {
                 alert('❌ Error al reiniciar');
@@ -591,8 +797,10 @@
         }
     }
 
+    // ========== ELIMINAR EMPRESA ==========
     async function eliminarEmpresa(id) {
         if (!confirm('⚠️ ELIMINACIÓN PERMANENTE: Se borrará la empresa y TODOS sus datos (incluyendo usuarios). Esta acción no se puede deshacer. ¿Continuar?')) return;
+        if (!confirm('Confirmación final: ¿Eliminar permanentemente esta empresa?')) return;
         const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/super/empresas/${id}`, {
@@ -600,7 +808,7 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                alert('✅ Empresa eliminada');
+                mostrarToast('✅ Empresa eliminada', 'success');
                 cargarEmpresas();
             } else {
                 alert('❌ Error al eliminar');
@@ -610,21 +818,55 @@
         }
     }
 
-    document.getElementById('menuToggle').addEventListener('click', () => {
+    // ========== EVENTOS ==========
+    document.getElementById('menuToggle').addEventListener('click', function() {
         document.getElementById('sidebar').classList.toggle('open');
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+    // ===== BOTÓN DE SALIR CORREGIDO =====
+    document.getElementById('logoutBtn').addEventListener('click', function(e) {
         e.preventDefault();
-        localStorage.removeItem('token');
-        window.location.href = 'login.html';
+        if (confirm('¿Seguro que deseas cerrar sesión?')) {
+            localStorage.removeItem('token');
+            // Redirigir al login
+            window.location.href = 'login.html';
+        }
     });
 
-    verificarSesion().then(() => cargarEmpresas());
+    // ===== CERRAR MODALES CON ESC =====
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            cerrarModalEditar();
+            cerrarModalCierres();
+        }
+    });
 
+    // ===== CERRAR MODALES CLIC FUERA =====
+    document.getElementById('modalEditar').addEventListener('click', function(e) {
+        if (e.target === e.currentTarget) {
+            cerrarModalEditar();
+        }
+    });
+    document.getElementById('modalCierres').addEventListener('click', function(e) {
+        if (e.target === e.currentTarget) {
+            cerrarModalCierres();
+        }
+    });
+
+    // ===== INICIALIZAR =====
+    verificarSesion().then(function() {
+        cargarEmpresas();
+    }).catch(function(err) {
+        console.error('Error en inicialización:', err);
+        mostrarToast('❌ Error al inicializar la página', 'error');
+    });
+
+    // Exponer funciones globalmente
+    window.togglePermiso = togglePermiso;
     window.toggleEstado = toggleEstado;
     window.abrirEditar = abrirEditar;
     window.cerrarModalEditar = cerrarModalEditar;
+    window.guardarEditarEmpresa = guardarEditarEmpresa;
     window.resetearEmpresa = resetearEmpresa;
     window.eliminarEmpresa = eliminarEmpresa;
     window.verCierres = verCierres;

@@ -495,6 +495,20 @@
         </div>
 
         <h4 style="font-weight:600; margin:20px 0 12px;">📋 Reservas</h4>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+            <input type="text" id="buscarReserva" placeholder="🔍 Buscar por cliente, habitación o # de reserva..." style="flex:1; min-width:220px; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px;">
+            <select id="filtroEstadoReserva" style="padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px;">
+                <option value="">Todos los estados</option>
+                <option value="pendiente">⏳ Pendiente</option>
+                <option value="confirmada">✅ Confirmada</option>
+                <option value="abonada">💰 Abonada</option>
+                <option value="check_in">📥 Check-in</option>
+                <option value="check_out">📤 Check-out</option>
+                <option value="facturada">🧾 Facturada</option>
+                <option value="cancelada">❌ Cancelada</option>
+                <option value="no_show">🚫 No Show</option>
+            </select>
+        </div>
         <div class="table-container">
             <table>
                 <thead>
@@ -595,7 +609,10 @@
             </div>
             <div class="input-group">
                 <label>👤 Cliente *</label>
-                <select id="reserva_cliente" required></select>
+                <div style="display:flex; gap:8px;">
+                    <select id="reserva_cliente" required style="flex:1;"></select>
+                    <button type="button" onclick="abrirClienteRapidoDesdeReserva()" title="Registrar nuevo cliente" style="background:#4f46e5; color:white; border:none; border-radius:12px; padding:0 14px; cursor:pointer; font-weight:600; white-space:nowrap;">➕ Nuevo</button>
+                </div>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                 <div class="input-group">
@@ -1190,12 +1207,23 @@
 
     function renderizarReservas() {
         const tbody = document.getElementById('tabla-reservas');
-        if (!reservas || reservas.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">No hay reservas</td></tr>';
+        const textoFiltro = (document.getElementById('buscarReserva')?.value || '').toLowerCase().trim();
+        const estadoFiltro = document.getElementById('filtroEstadoReserva')?.value || '';
+
+        let reservasFiltradas = (reservas || []).filter(r => {
+            if (estadoFiltro && r.estado !== estadoFiltro) return false;
+            if (!textoFiltro) return true;
+            const texto = `${r.id} ${r.cliente_nombre || ''} ${r.habitacion_numero || ''}`.toLowerCase();
+            return texto.includes(textoFiltro);
+        });
+
+        if (!reservasFiltradas || reservasFiltradas.length === 0) {
+            const mensaje = (reservas && reservas.length > 0) ? 'No hay reservas que coincidan con la búsqueda' : 'No hay reservas';
+            tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:30px; color:#94a3b8;">${mensaje}</td></tr>`;
             return;
         }
         tbody.innerHTML = '';
-        reservas.forEach(r => {
+        reservasFiltradas.forEach(r => {
             const estadoClase = getEstadoClase(r.estado);
             const estadoLabels = {
                 'pendiente': '⏳ Pendiente',
@@ -1830,6 +1858,14 @@
         document.getElementById('modalClienteRapido').style.display = 'flex';
         document.getElementById('formClienteRapido').reset();
         window.clienteDesdeFacturacion = true;
+        window.clienteSelectDestino = 'fd_cliente_id';
+    };
+
+    window.abrirClienteRapidoDesdeReserva = function() {
+        document.getElementById('modalClienteRapido').style.display = 'flex';
+        document.getElementById('formClienteRapido').reset();
+        window.clienteDesdeFacturacion = true;
+        window.clienteSelectDestino = 'reserva_cliente';
     };
 
     document.getElementById('formClienteRapido').addEventListener('submit', async function(e) {
@@ -1853,12 +1889,23 @@
                 cerrarModalClienteRapido();
                 await cargarDatos();
                 if (window.clienteDesdeFacturacion) {
-                    const selectCli = document.getElementById('fd_cliente_id');
+                    const destino = window.clienteSelectDestino || 'fd_cliente_id';
+                    const selectCli = document.getElementById(destino);
                     const newClient = clientes.find(c => c.rif === payload.rif);
-                    if (newClient) {
+                    if (newClient && selectCli) {
+                        // Si el select de la reserva aún no tiene esta opción
+                        // (porque se generó dinámicamente antes de recargar
+                        // clientes), la agregamos también ahí.
+                        if (![...selectCli.options].some(o => o.value == newClient.id)) {
+                            const opt = document.createElement('option');
+                            opt.value = newClient.id;
+                            opt.text = `${newClient.nombre} (${newClient.rif || 'S/RIF'})`;
+                            selectCli.appendChild(opt);
+                        }
                         selectCli.value = newClient.id;
                     }
                     window.clienteDesdeFacturacion = false;
+                    window.clienteSelectDestino = null;
                 }
             } else {
                 const err = await res.json();
@@ -2010,7 +2057,7 @@
     // ============================================================
     // FACTURAR RESERVA
     // ============================================================
-    window.facturarReserva = async function(id) {
+    window.facturarReserva = async function(id, automatico = false) {
         const reserva = (reservas || []).find(r => r.id === id);
         if (!reserva) {
             mostrarError('❌ Reserva no encontrada');
@@ -2023,7 +2070,9 @@
             return;
         }
 
-        if (!confirm(`🧾 ¿Facturar esta reserva?\n\nSe generará una factura con:\n- Hospedaje: $${toNum(reserva.total_usd).toFixed(2)}\n- Abonos registrados: $${toNum(reserva.abono_usd).toFixed(2)}\n- Descuento: $${toNum(reserva.descuento || 0).toFixed(2)}\n- Total a pagar: $0.00 (pagado)`)) return;
+        if (!automatico) {
+            if (!confirm(`🧾 ¿Facturar esta reserva?\n\nSe generará una factura con:\n- Hospedaje: $${toNum(reserva.total_usd).toFixed(2)}\n- Abonos registrados: $${toNum(reserva.abono_usd).toFixed(2)}\n- Descuento: $${toNum(reserva.descuento || 0).toFixed(2)}\n- Total a pagar: $0.00 (pagado)`)) return;
+        }
         
         const token = localStorage.getItem('token');
         try {
@@ -2643,6 +2692,19 @@
     // ============================================================
     // GUARDAR RESERVA
     // ============================================================
+    // ⚠️ Evita que al presionar Enter en cualquier campo (ej: mientras se
+    // escribe el monto del pago) se envíe el formulario por accidente,
+    // creando la reserva antes de tiempo y "limpiando" todo. Solo se debe
+    // poder enviar haciendo clic explícito en el botón "Crear Reserva".
+    document.getElementById('buscarReserva').addEventListener('input', renderizarReservas);
+    document.getElementById('filtroEstadoReserva').addEventListener('change', renderizarReservas);
+
+    document.getElementById('formReserva').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+        }
+    });
+
     document.getElementById('formReserva').addEventListener('submit', async (e) => {
         e.preventDefault();
         const habitacion_id = document.getElementById('reserva_habitacion').value;
@@ -2727,7 +2789,14 @@
             
             mostrarSuccess('✅ Reserva creada correctamente');
             cerrarModalReserva();
-            cargarDatos();
+            await cargarDatos();
+
+            // ✅ Si quedó pagada por completo desde su creación, facturar
+            // automáticamente sin necesidad de un paso manual extra.
+            if (parseFloat(data.saldo_pendiente || 0) <= 0.01) {
+                mostrarSuccess('💰 Reserva pagada por completo — generando factura automáticamente...');
+                await window.facturarReserva(data.id, true);
+            }
         } catch (err) {
             mostrarError('❌ Error: ' + err.message);
         }
@@ -2788,7 +2857,14 @@
             
             mostrarSuccess(`✅ Abono de $${montoUsd.toFixed(2)} registrado`);
             cerrarModalAbono();
-            cargarDatos();
+            await cargarDatos();
+
+            // ✅ Si el abono dejó la reserva completamente pagada, facturarla
+            // automáticamente sin necesidad de que alguien lo haga a mano.
+            if (parseFloat(data.saldo || 0) <= 0.01) {
+                mostrarSuccess('💰 Reserva completamente pagada — generando factura automáticamente...');
+                await window.facturarReserva(id, true);
+            }
         } catch (err) {
             mostrarError('❌ Error: ' + err.message);
         }
