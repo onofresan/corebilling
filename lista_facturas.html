@@ -160,6 +160,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -264,6 +265,28 @@
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
 
+    // ⚠️ Guardián reutilizable: bloquea acciones que modifican facturas
+    // (anular, eliminar) cuando no hay conexión.
+    function requiereConexion() {
+        if (!navigator.onLine) {
+            alert('❌ Necesitas conexión a internet para hacer esto. Puedes seguir viendo el historial, pero anular/eliminar requiere estar en línea.');
+            return false;
+        }
+        return true;
+    }
+
+    function actualizarBannerConexion(datosDesdeCache) {
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner('🔴 Sin conexión — mostrando el último historial guardado. Los filtros de fecha requieren internet.', '#dc2626');
+        } else if (datosDesdeCache) {
+            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+    window.addEventListener('online', () => { actualizarBannerConexion(false); cargarFacturas(); });
+    window.addEventListener('offline', () => actualizarBannerConexion(false));
+
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) { window.location.href = 'login.html'; return null; }
@@ -274,11 +297,22 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data);
             if (data.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             conectarWebSocket();
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch(e) {
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                if (userRole === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                actualizarBannerConexion(true);
+                return sesionCache.data;
+            }
+            localStorage.removeItem('token'); window.location.href = 'login.html'; return null;
+        }
     }
 
     function conectarWebSocket() {
@@ -307,9 +341,22 @@
         if (fechaHasta) url += `fecha_hasta=${fechaHasta}&`;
         const tbody = document.getElementById('tabla-facturas');
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
+        const sinFiltros = !search && !fechaDesde && !fechaHasta;
         try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            const facturas = await res.json();
+            let facturas;
+            if (sinFiltros) {
+                const resultado = await CoreOffline.fetchConCache(url, { headers: { 'Authorization': `Bearer ${token}` } }, 'facturas_recientes');
+                if (!resultado.ok) throw new Error(resultado.error || 'Sin conexión y sin historial guardado');
+                facturas = resultado.data;
+                if (resultado.offline) actualizarBannerConexion(true);
+            } else {
+                if (!navigator.onLine) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#f59e0b;">🔴 Filtrar por fecha/texto requiere conexión. Quita los filtros para ver el último historial guardado.</td></tr>';
+                    return;
+                }
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                facturas = await res.json();
+            }
             if (facturas.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">No hay facturas registradas</td></tr>';
                 return;
@@ -401,6 +448,7 @@
     }
 
     document.getElementById('btnConfirmarMotivo').onclick = async () => {
+        if (!requiereConexion()) return;
         const motivo = document.getElementById('motivoTexto').value.trim();
         if (!motivo) { alert('Debe ingresar un motivo'); return; }
         if (!pendingAction) return;

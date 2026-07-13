@@ -114,6 +114,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
@@ -427,6 +428,7 @@
             }
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data); // por si se cae la red más tarde
             
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
@@ -438,10 +440,25 @@
             conectarWebSocket();
             return data;
         } catch(e) { 
-            console.error('Error en verificación de sesión:', e);
-            localStorage.removeItem('token'); 
-            window.location.href = 'login.html'; 
-            return null; 
+            // ⚠️ IMPORTANTE: si esto falla porque NO HAY INTERNET (y no porque
+            // el token sea inválido), NO debemos cerrar la sesión ni mandar al
+            // login — eso rompería el modo offline por completo. En vez de
+            // eso, reutilizamos la última sesión válida que quedó guardada.
+            console.warn('⚠️ No se pudo verificar la sesión con el servidor (posible falta de conexión):', e);
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                if (userRole === 'admin') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                }
+                actualizarBannerConexion();
+                return sesionCache.data;
+            }
+            // Sin caché de sesión previa y sin conexión: no queda más remedio
+            // que pedir que inicie sesión al menos una vez con internet.
+            mostrarError('❌ No hay conexión y no se encontró una sesión guardada. Conéctate a internet al menos una vez para poder trabajar offline después.');
+            return null;
         }
     }
 
@@ -457,8 +474,12 @@
     // ============================================================
     async function cargarEmpresa() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const emp = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } }, 'empresa');
+        if (!resultado.ok) {
+            console.warn('⚠️ No se pudo cargar datos de la empresa (sin conexión y sin caché)');
+            return;
+        }
+        const emp = resultado.data;
         document.getElementById('lbl-empresa-nombre').innerText = escapeHtml(emp.nombre || 'CoreBilling');
         document.getElementById('lbl-empresa-detalles').innerHTML = `<span>${escapeHtml(emp.rif || '')}</span> | <span>📞 ${escapeHtml(emp.telefono || '')}</span>`;
         const dir = document.getElementById('lbl-empresa-direccion');
@@ -480,58 +501,48 @@
         }
     }
 
+    let listaClientesGlobal = [];
     async function cargarClientes() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const clientes = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } }, 'clientes');
         const select = document.getElementById('cliente-id');
         select.innerHTML = '<option value="">-- Cliente General --</option>';
-        clientes.forEach(c => { select.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)} (${escapeHtml(c.rif)})</option>`; });
+        if (resultado.ok) {
+            listaClientesGlobal = resultado.data;
+            resultado.data.forEach(c => { select.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)} (${escapeHtml(c.rif)})</option>`; });
+        }
     }
 
     async function cargarProductosRecetas() {
         const token = localStorage.getItem('token');
         
-        try {
-            const resP = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (resP.ok) {
-                listaProductos = await resP.json();
-                console.log('✅ Productos cargados:', listaProductos.length);
-            } else {
-                console.error('❌ Error al cargar productos:', resP.status);
-                listaProductos = [];
-            }
-        } catch (e) {
-            console.error('❌ Error cargando productos:', e);
+        const resultadoP = await CoreOffline.fetchConCache(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }, 'productos');
+        if (resultadoP.ok) {
+            listaProductos = resultadoP.data;
+            console.log('✅ Productos cargados:', listaProductos.length, resultadoP.offline ? '(desde caché offline)' : '');
+        } else {
+            console.error('❌ Error al cargar productos (sin conexión y sin caché)');
             listaProductos = [];
         }
 
-        try {
-            const resR = await fetch(`${API_URL}/recetas`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (resR.ok) {
-                listaRecetas = await resR.json();
-                console.log('✅ Recetas cargadas:', listaRecetas.length);
-            } else {
-                console.error('❌ Error al cargar recetas:', resR.status);
-                listaRecetas = [];
-            }
-        } catch (e) {
-            console.error('❌ Error cargando recetas:', e);
+        const resultadoR = await CoreOffline.fetchConCache(`${API_URL}/recetas`, { headers: { 'Authorization': `Bearer ${token}` } }, 'recetas');
+        if (resultadoR.ok) {
+            listaRecetas = resultadoR.data;
+            console.log('✅ Recetas cargadas:', listaRecetas.length, resultadoR.offline ? '(desde caché offline)' : '');
+        } else {
             listaRecetas = [];
         }
 
-        try {
-            const resHab = await fetch(`${API_URL}/habitaciones`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (resHab.ok) {
-                listaHabitaciones = await resHab.json();
-                console.log('✅ Habitaciones cargadas:', listaHabitaciones.length);
-            } else {
-                console.error('❌ Error al cargar habitaciones:', resHab.status);
-                listaHabitaciones = [];
-            }
-        } catch (e) {
-            console.error('❌ Error cargando habitaciones:', e);
+        const resultadoHab = await CoreOffline.fetchConCache(`${API_URL}/habitaciones`, { headers: { 'Authorization': `Bearer ${token}` } }, 'habitaciones');
+        if (resultadoHab.ok) {
+            listaHabitaciones = resultadoHab.data;
+            console.log('✅ Habitaciones cargadas:', listaHabitaciones.length, resultadoHab.offline ? '(desde caché offline)' : '');
+        } else {
             listaHabitaciones = [];
+        }
+
+        if (resultadoP.offline || resultadoR.offline || resultadoHab.offline) {
+            actualizarBannerConexion();
         }
 
         // Llenar el datalist
@@ -572,8 +583,12 @@
     // ============================================================
     async function cargarEstadoMiCaja() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } }, 'mi-caja');
+        if (!resultado.ok) {
+            console.warn('⚠️ No se pudo cargar el estado de caja (sin conexión y sin caché)');
+            return;
+        }
+        const data = resultado.data;
         miCajaEstado = data.estado;
         const span = document.getElementById('estadoCajaUsuario');
         const btnAbrir = document.getElementById('btnAbrirCaja');
@@ -587,10 +602,15 @@
         }
     }
     document.getElementById('btnAbrirCaja').onclick = async () => {
+        if (!navigator.onLine) { mostrarError('❌ Necesitas conexión a internet para abrir la caja.'); return; }
         const token = localStorage.getItem('token');
-        await fetch(`${API_URL}/abrir-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-        cargarEstadoMiCaja();
-        mostrarSuccess('✅ Caja abierta correctamente');
+        try {
+            await fetch(`${API_URL}/abrir-caja`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+            cargarEstadoMiCaja();
+            mostrarSuccess('✅ Caja abierta correctamente');
+        } catch (e) {
+            mostrarError('❌ No se pudo abrir la caja: sin conexión.');
+        }
     };
     document.getElementById('btnCerrarCaja').onclick = async () => {
         if (!confirm('¿Cerrar caja?')) return;
@@ -1411,6 +1431,9 @@
                 }
                 
                 const token = localStorage.getItem('token');
+                if (!navigator.onLine) {
+                    console.warn('⚠️ Sin conexión: se omite la verificación de disponibilidad de la habitación. Se validará al sincronizar.');
+                } else {
                 try {
                     const resVerificar = await fetch(`${API_URL}/disponibilidad/${itemHabitacion.habitacion_id}/verificar`, {
                         method: 'POST',
@@ -1430,9 +1453,8 @@
                         return;
                     }
                 } catch (err) {
-                    console.error('Error verificando disponibilidad:', err);
-                    mostrarError('Error verificando disponibilidad de la habitación');
-                    return;
+                    console.warn('⚠️ No se pudo verificar disponibilidad (sin conexión). Se validará al sincronizar.');
+                }
                 }
             }
         }
@@ -1440,6 +1462,17 @@
         const token = localStorage.getItem('token');
         const codigos = carritoActual.map(item => item.codigo);
         
+        if (!navigator.onLine) {
+            // Sin conexión: confiamos en los productos que ya tenemos cargados
+            // localmente (listaProductos), no podemos re-verificar contra el servidor.
+            const codigosLocales = listaProductos.map(p => p.codigo);
+            const invalidosOffline = carritoActual.filter(item => !item.esHabitacion && !codigosLocales.includes(item.codigo));
+            if (invalidosOffline.length > 0) {
+                const nombresInvalidos = invalidosOffline.map(p => p.nombre).join(', ');
+                mostrarError(`❌ Los siguientes productos no están disponibles en la lista local: ${nombresInvalidos}`);
+                return;
+            }
+        } else {
         try {
             const resCheck = await fetch(`${API_URL}/productos`, { 
                 headers: { 'Authorization': `Bearer ${token}` } 
@@ -1472,8 +1505,8 @@
                 }
             }
         } catch (e) {
-            mostrarError('❌ Error verificando productos: ' + e.message);
-            return;
+            console.warn('⚠️ No se pudo verificar productos contra el servidor (sin conexión). Se validará al sincronizar.');
+        }
         }
 
         abonosAdmin.forEach(a => {
@@ -1537,6 +1570,33 @@
 
         console.log('📤 Enviando factura:', JSON.stringify(payload, null, 2));
 
+        // ===== MODO OFFLINE: si no hay conexión, guardamos la factura
+        // localmente y la sincronizamos apenas vuelva el internet, en vez
+        // de bloquear la venta. =====
+        if (!navigator.onLine) {
+            try {
+                await CoreOffline.encolarFactura(payload);
+
+                // Descontamos el stock localmente de forma optimista, para
+                // que si se hacen varias ventas offline seguidas no se
+                // vendan de más los mismos productos.
+                payload.detalle.forEach(item => {
+                    const prod = listaProductos.find(p => p.codigo === item.codigo);
+                    if (prod && typeof prod.stock === 'number') {
+                        prod.stock = Math.max(0, prod.stock - (item.cantidad || 1));
+                    }
+                });
+
+                mostrarSuccess('🟡 Factura guardada localmente (sin conexión). Se sincronizará automáticamente cuando vuelva el internet.');
+                actualizarBannerConexion();
+                cerrarModalPagos();
+                nuevaFactura();
+            } catch (err) {
+                mostrarError('❌ No se pudo guardar la factura localmente: ' + err.message);
+            }
+            return;
+        }
+
         try {
             const res = await fetch(`${API_URL}/facturas`, {
                 method: 'POST',
@@ -1564,6 +1624,21 @@
             if (imprimir) await generarPDFFactura(data.factura_id);
             nuevaFactura();
         } catch (err) {
+            // Si el error es de RED (no de negocio), lo tratamos igual que
+            // offline: guardamos la venta localmente en vez de perderla.
+            const esErrorDeRed = err instanceof TypeError || !navigator.onLine;
+            if (esErrorDeRed) {
+                try {
+                    await CoreOffline.encolarFactura(payload);
+                    mostrarSuccess('🟡 Se perdió la conexión durante el envío. La factura se guardó localmente y se sincronizará sola.');
+                    actualizarBannerConexion();
+                    cerrarModalPagos();
+                    nuevaFactura();
+                    return;
+                } catch (e2) {
+                    // si ni siquiera se pudo encolar, caemos al mensaje de error normal
+                }
+            }
             console.error('❌ Error en facturación:', err);
             mostrarError('❌ Error al procesar factura: ' + err.message);
         }
@@ -1831,6 +1906,53 @@
         localStorage.removeItem('facturas_transito');
         window.location.href = 'login.html';
     });
+
+    // ============================================================
+    // MODO OFFLINE: aviso de conexión + sincronización automática
+    // ============================================================
+    async function actualizarBannerConexion() {
+        const pendientes = await CoreOffline.contarPendientes();
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner(
+                pendientes > 0
+                    ? `🔴 Sin conexión — trabajando offline (${pendientes} factura(s) pendiente(s) de sincronizar)`
+                    : '🔴 Sin conexión — trabajando offline. Las ventas se guardan localmente.',
+                '#dc2626'
+            );
+        } else if (pendientes > 0) {
+            CoreOffline.actualizarBanner(`🟡 Conectado — sincronizando ${pendientes} factura(s) pendiente(s)...`, '#d97706');
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+
+    async function sincronizarPendientesYActualizar() {
+        const token = localStorage.getItem('token');
+        await CoreOffline.sincronizarFacturasPendientes(API_URL, token, (info) => {
+            if (info.exito) {
+                mostrarSuccess('✅ Factura offline sincronizada correctamente');
+            } else {
+                mostrarError('⚠️ Una factura offline no se pudo sincronizar: ' + info.error + ' (revísala en Historial)');
+            }
+        });
+        await actualizarBannerConexion();
+        // Refrescar productos/stock ya actualizados en el servidor
+        cargarProductosRecetas();
+    }
+
+    window.addEventListener('online', () => {
+        console.log('🟢 Conexión recuperada, sincronizando...');
+        sincronizarPendientesYActualizar();
+    });
+    window.addEventListener('offline', () => {
+        console.log('🔴 Se perdió la conexión');
+        actualizarBannerConexion();
+    });
+
+    // Revisar al cargar la página, y reintentar sincronizar cada 2 minutos por si acaso
+    actualizarBannerConexion();
+    if (navigator.onLine) sincronizarPendientesYActualizar();
+    setInterval(() => { if (navigator.onLine) sincronizarPendientesYActualizar(); }, 120000);
 
     // Exponer funciones globales
     window.actualizarTabla = actualizarTabla;

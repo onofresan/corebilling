@@ -418,6 +418,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
@@ -952,6 +953,18 @@
     // ============================================================
     // AUTENTICACIÓN Y CARGA DE TASA
     // ============================================================
+    // ⚠️ Guardián reutilizable: bloquea acciones que necesitan escribir en el
+    // servidor (crear/editar/eliminar) cuando no hay conexión, con un aviso
+    // claro. La navegación y visualización de datos sí funcionan offline
+    // (se muestran desde la caché local).
+    function requiereConexion() {
+        if (!navigator.onLine) {
+            mostrarError('❌ Necesitas conexión a internet para hacer esto. Puedes seguir viendo la información, pero los cambios requieren estar en línea.');
+            return false;
+        }
+        return true;
+    }
+
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) { window.location.href = 'login.html'; return null; }
@@ -962,26 +975,35 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data);
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             conectarWebSocket();
             await cargarTasaCambio();
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch(e) {
+            // ⚠️ No cerrar sesión si el problema es falta de conexión: se
+            // reutiliza la última sesión válida guardada, para poder seguir
+            // viendo los datos en modo offline.
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                await cargarTasaCambio();
+                actualizarBannerConexion();
+                return sesionCache.data;
+            }
+            localStorage.removeItem('token'); window.location.href = 'login.html'; return null;
+        }
     }
 
     async function cargarTasaCambio() {
         const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/tasa`, { headers: { 'Authorization': `Bearer ${token}` } });
-            const data = await res.json();
-            if (data.tasa) {
-                tasaCambio = data.tasa;
-                document.getElementById('tasaCambioActual').innerText = tasaCambio.toFixed(2);
-                document.getElementById('abonoTasaActual').innerText = tasaCambio.toFixed(2);
-                document.getElementById('tasaDisplay').style.display = 'block';
-            }
-        } catch(e) {
-            console.warn('Error cargando tasa:', e);
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/tasa`, { headers: { 'Authorization': `Bearer ${token}` } }, 'tasa');
+        if (resultado.ok && resultado.data.tasa) {
+            tasaCambio = resultado.data.tasa;
+            document.getElementById('tasaCambioActual').innerText = tasaCambio.toFixed(2);
+            document.getElementById('abonoTasaActual').innerText = tasaCambio.toFixed(2);
+            document.getElementById('tasaDisplay').style.display = 'block';
         }
     }
 
@@ -1127,33 +1149,29 @@
     // ============================================================
     async function cargarDatos() {
         const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
         try {
-            const resHab = await fetch(`${API_URL}/habitaciones`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!resHab.ok) throw new Error('Error al cargar habitaciones');
-            habitaciones = await resHab.json();
-            if (!Array.isArray(habitaciones)) habitaciones = [];
+            const [rHab, rCli, rRes, rSer] = await Promise.all([
+                CoreOffline.fetchConCache(`${API_URL}/habitaciones`, { headers }, 'habitaciones'),
+                CoreOffline.fetchConCache(`${API_URL}/clientes`, { headers }, 'clientes'),
+                CoreOffline.fetchConCache(`${API_URL}/reservas`, { headers }, 'reservas'),
+                CoreOffline.fetchConCache(`${API_URL}/servicios`, { headers }, 'servicios')
+            ]);
 
-            const resCli = await fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!resCli.ok) throw new Error('Error al cargar clientes');
-            clientes = await resCli.json();
-            if (!Array.isArray(clientes)) clientes = [];
-
-            const resRes = await fetch(`${API_URL}/reservas`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!resRes.ok) throw new Error('Error al cargar reservas');
-            reservas = await resRes.json();
-            if (!Array.isArray(reservas)) reservas = [];
-
-            const resSer = await fetch(`${API_URL}/servicios`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!resSer.ok) throw new Error('Error al cargar servicios');
-            servicios = await resSer.json();
-            if (!Array.isArray(servicios)) servicios = [];
+            habitaciones = rHab.ok && Array.isArray(rHab.data) ? rHab.data : [];
+            clientes = rCli.ok && Array.isArray(rCli.data) ? rCli.data : [];
+            reservas = rRes.ok && Array.isArray(rRes.data) ? rRes.data : [];
+            servicios = rSer.ok && Array.isArray(rSer.data) ? rSer.data : [];
 
             renderizarHabitaciones();
             renderizarReservas();
             renderizarEstadisticas();
             actualizarSelects();
             await cargarTasaCambio();
-            
+
+            const huboOffline = [rHab, rCli, rRes, rSer].some(r => r.offline);
+            actualizarBannerConexion(huboOffline);
+
         } catch (error) {
             console.error('Error cargando datos:', error);
             mostrarError('Error al cargar datos: ' + error.message);
@@ -1547,6 +1565,7 @@
     }
 
     async function bloquearFecha(habitacionId, fecha) {
+        if (!requiereConexion()) return;
         const motivo = prompt('Motivo del bloqueo:');
         if (motivo === null) return;
         
@@ -1574,6 +1593,7 @@
     }
 
     async function liberarFecha(habitacionId, fecha) {
+        if (!requiereConexion()) return;
         if (!confirm(`¿Liberar la fecha ${fecha}?`)) return;
         
         try {
@@ -1870,6 +1890,7 @@
 
     document.getElementById('formClienteRapido').addEventListener('submit', async function(e) {
         e.preventDefault();
+        if (!requiereConexion()) return;
         const token = localStorage.getItem('token');
         const payload = {
             rif: document.getElementById('cr_rif').value,
@@ -1934,6 +1955,7 @@
     // ============================================================
     document.getElementById('formFacturacionDirecta').addEventListener('submit', async function(e) {
         e.preventDefault();
+        if (!requiereConexion()) return;
         
         const habitacionId = parseInt(document.getElementById('fd_habitacion_id').value);
         const clienteId = document.getElementById('fd_cliente_id').value;
@@ -2185,6 +2207,7 @@
     // CHECK-IN / CHECK-OUT
     // ============================================================
     window.checkIn = async function(id) {
+        if (!requiereConexion()) return;
         if (!confirm('¿Confirmar check-in para esta reserva?')) return;
         const token = localStorage.getItem('token');
         try {
@@ -2206,6 +2229,7 @@
     };
 
     window.checkOut = async function(id) {
+        if (!requiereConexion()) return;
         if (!confirm('¿Confirmar check-out para esta reserva?\n\nLa habitación pasará automáticamente a estado "Sucia".')) return;
         const token = localStorage.getItem('token');
         try {
@@ -2230,6 +2254,7 @@
     // CANCELAR RESERVA
     // ============================================================
     window.cancelarReserva = async function(id) {
+        if (!requiereConexion()) return;
         if (!confirm('¿Cancelar esta reserva?')) return;
         const token = localStorage.getItem('token');
         try {
@@ -2279,6 +2304,7 @@
 
     document.getElementById('formHabitacion').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!requiereConexion()) return;
         
         const codigoProducto = document.getElementById('hab_codigo_producto').value.trim();
         if (!codigoProducto) {
@@ -2343,6 +2369,7 @@
     };
 
     window.eliminarHabitacion = async function(id) {
+        if (!requiereConexion()) return;
         if (!confirm('⚠️ ¿Eliminar esta habitación? Esta acción no se puede deshacer.')) return;
         const token = localStorage.getItem('token');
         try {
@@ -2381,6 +2408,7 @@
     }
 
     window.confirmarCambioEstado = async function() {
+        if (!requiereConexion()) return;
         if (!habitacionSeleccionadaId) return;
         const nuevoEstado = document.getElementById('estado_nuevo').value;
         const motivo = document.getElementById('estado_motivo').value.trim() || 'Cambio manual';
@@ -2707,6 +2735,7 @@
 
     document.getElementById('formReserva').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!requiereConexion()) return;
         const habitacion_id = document.getElementById('reserva_habitacion').value;
         const cliente_id = document.getElementById('reserva_cliente').value;
         const fecha_entrada = document.getElementById('reserva_fecha_entrada').value;
@@ -2827,6 +2856,7 @@
     }
 
     window.confirmarAbonoReserva = async function() {
+        if (!requiereConexion()) return;
         const id = reservaAbonoId;
         if (!id) return;
         
@@ -2925,6 +2955,23 @@
     window.bloquearFecha = bloquearFecha;
     window.liberarFecha = liberarFecha;
     window.verificarDisponibilidadDirecta = verificarDisponibilidadDirecta;
+
+    // ============================================================
+    // MODO OFFLINE: aviso de conexión (lectura desde caché, escritura bloqueada)
+    // ============================================================
+    function actualizarBannerConexion(datosDesdeCache) {
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner('🔴 Sin conexión — viendo datos guardados. Crear/editar reservas, habitaciones y check-in/out requiere internet.', '#dc2626');
+        } else if (datosDesdeCache) {
+            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+            setTimeout(() => cargarDatos(), 1500);
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+
+    window.addEventListener('online', () => { console.log('🟢 Conexión recuperada'); cargarDatos(); });
+    window.addEventListener('offline', () => { console.log('🔴 Se perdió la conexión'); actualizarBannerConexion(false); });
 </script>
 </body>
 </html>

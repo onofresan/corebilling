@@ -287,6 +287,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
@@ -509,6 +510,14 @@
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
 
+    function requiereConexion() {
+        if (!navigator.onLine) {
+            mostrarToast('❌ Necesitas conexión a internet para hacer esto.');
+            return false;
+        }
+        return true;
+    }
+
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) { window.location.href = 'login.html'; return null; }
@@ -519,6 +528,7 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data);
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
                 document.getElementById('formCard').style.display = 'block';
@@ -528,7 +538,22 @@
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             conectarWebSocket();
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch(e) {
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                if (userRole === 'admin') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                    document.getElementById('formCard').style.display = 'block';
+                } else {
+                    document.getElementById('formCard').style.display = 'none';
+                }
+                actualizarBannerConexion();
+                return sesionCache.data;
+            }
+            localStorage.removeItem('token'); window.location.href = 'login.html'; return null;
+        }
     }
 
     function conectarWebSocket() {
@@ -650,9 +675,10 @@
 
     async function cargarInventario() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
-        productos = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }, 'productos');
+        productos = resultado.ok ? resultado.data : [];
         renderizarTabla(productos);
+        actualizarBannerConexion(resultado.offline);
     }
 
     // ========== CATEGORÍAS ==========
@@ -740,6 +766,7 @@
 
     // ========== ELIMINAR CATEGORÍA ==========
     window.eliminarCategoria = async function(id) {
+        if (!requiereConexion()) return;
         if (!confirm('⚠️ ¿Eliminar esta categoría?\n\nSi tiene productos asociados, solo se desactivará.')) return;
         const token = localStorage.getItem('token');
         try {
@@ -762,6 +789,7 @@
 
     // ========== GUARDAR CATEGORÍA ==========
     document.getElementById('formCategoria').addEventListener('submit', async (e) => {
+        if (!requiereConexion()) return;
         e.preventDefault();
         const id = document.getElementById('categoriaId').value;
         const nombre = document.getElementById('categoriaNombre').value.trim();
@@ -869,6 +897,7 @@
     };
 
     document.getElementById('form-producto').addEventListener('submit', async (e) => {
+        if (!requiereConexion()) return;
         e.preventDefault();
 
         const codigo = document.getElementById('codigo').value.trim();
@@ -945,6 +974,22 @@
         cargarCategorias();
         cargarSelectCategorias();
     });
+
+    // ============================================================
+    // MODO OFFLINE: aviso de conexión (lectura desde caché, escritura bloqueada)
+    // ============================================================
+    function actualizarBannerConexion(datosDesdeCache) {
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner('🔴 Sin conexión — viendo inventario guardado. Agregar/editar productos requiere internet.', '#dc2626');
+        } else if (datosDesdeCache) {
+            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+            setTimeout(() => cargarInventario(), 1500);
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+    window.addEventListener('online', () => { cargarInventario(); cargarCategorias(); });
+    window.addEventListener('offline', () => actualizarBannerConexion(false));
 </script>
 </body>
 </html>

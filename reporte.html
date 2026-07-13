@@ -70,6 +70,7 @@
     </style>
     <!-- Librerías -->
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -154,6 +155,31 @@
     // ============================================================
     // AUTENTICACIÓN Y CARGA DE EMPRESA
     // ============================================================
+    // ⚠️ Guardián reutilizable: bloquea acciones de caja/dinero (abrir caja,
+    // cerrar caja, cierre general) cuando no hay conexión — estas NUNCA se
+    // deben encolar, son movimientos de dinero reales. Ver reportes sí
+    // funciona offline con los últimos datos guardados.
+    function requiereConexion() {
+        if (!navigator.onLine) {
+            alert('❌ Necesitas conexión a internet para hacer esto. Puedes seguir viendo reportes ya guardados, pero abrir/cerrar caja requiere estar en línea.');
+            return false;
+        }
+        return true;
+    }
+
+    function actualizarBannerConexion(datosDesdeCache) {
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner('🔴 Sin conexión — viendo el último reporte guardado. Abrir/cerrar caja requiere internet.', '#dc2626');
+        } else if (datosDesdeCache) {
+            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+
+    window.addEventListener('online', () => { actualizarBannerConexion(false); actualizarEstadoCaja(); });
+    window.addEventListener('offline', () => actualizarBannerConexion(false));
+
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -169,6 +195,7 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data);
 
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
@@ -183,6 +210,18 @@
             conectarWebSocket();
             return data;
         } catch (e) {
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                if (userRole === 'admin') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                    document.getElementById('btnCierreGeneral').style.display = 'inline-block';
+                }
+                await cargarEmpresa();
+                actualizarBannerConexion(true);
+                return sesionCache.data;
+            }
             localStorage.removeItem('token');
             window.location.href = 'login.html';
             return null;
@@ -221,10 +260,9 @@
     // ============================================================
     async function actualizarEstadoCaja() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/mi-caja`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } }, 'mi_caja');
+        if (!resultado.ok) return;
+        const data = resultado.data;
         const span = document.getElementById('estado-caja');
         const btnAbrir = document.getElementById('btnAbrirCaja');
         const btnCerrar = document.getElementById('btnCerrarMiCaja');
@@ -243,6 +281,7 @@
     }
 
     async function abrirCaja() {
+        if (!requiereConexion()) return;
         if (!confirm('¿Abrir tu caja?')) return;
         const token = localStorage.getItem('token');
         await fetch(`${API_URL}/abrir-caja`, {
@@ -254,6 +293,7 @@
     }
 
     async function cerrarMiCaja() {
+        if (!requiereConexion()) return;
         if (!confirm('¿Cerrar tu caja? Se generará reporte Z.')) return;
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/cerrar-caja`, {
@@ -272,6 +312,7 @@
     }
 
     async function cierreGeneral() {
+        if (!requiereConexion()) return;
         if (!confirm('⚠️ Cerrar TODAS las cajas abiertas?')) return;
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/cierre-general`, {
@@ -291,13 +332,16 @@
     // ============================================================
     async function cargarReporteX() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/reporte-x`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/reporte-x`, { headers: { 'Authorization': `Bearer ${token}` } }, 'reporte_x');
+        if (!resultado.ok) {
+            alert('❌ No hay reporte guardado localmente y no hay conexión para consultarlo.');
+            return;
+        }
+        const data = resultado.data;
         currentReporteXData = data;
         document.getElementById('btnPDFReporteX').style.display = 'inline-block';
         mostrarReporteX(data);
+        if (resultado.offline) actualizarBannerConexion(true);
     }
 
     function mostrarReporteX(data) {
