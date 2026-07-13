@@ -119,6 +119,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
@@ -208,6 +209,26 @@
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
 
+    function requiereConexion() {
+        if (!navigator.onLine) {
+            alert('❌ Necesitas conexión a internet para hacer esto. Puedes seguir viendo el historial guardado.');
+            return false;
+        }
+        return true;
+    }
+
+    function actualizarBannerConexion(datosDesdeCache) {
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner('🔴 Sin conexión — mostrando el último historial de inventario guardado.', '#dc2626');
+        } else if (datosDesdeCache) {
+            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+    window.addEventListener('online', () => { actualizarBannerConexion(false); cargarHistorial(); });
+    window.addEventListener('offline', () => actualizarBannerConexion(false));
+
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) { window.location.href = 'login.html'; return null; }
@@ -218,6 +239,7 @@
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data);
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
                 // Verificar si la empresa permite reiniciar el historial
@@ -232,7 +254,20 @@
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             conectarWebSocket();
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch(e) {
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                if (userRole === 'admin') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                    document.getElementById('btnReiniciarHistorial').style.display = 'none'; // requiere confirmar con el servidor
+                }
+                actualizarBannerConexion(true);
+                return sesionCache.data;
+            }
+            localStorage.removeItem('token'); window.location.href = 'login.html'; return null;
+        }
     }
 
     function conectarWebSocket() {
@@ -268,14 +303,19 @@
 
     async function cargarHistorial() {
         const token = localStorage.getItem('token');
-        // Obtener productos para stock actual
-        const prodRes = await fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const productos = await prodRes.json();
+        const resultadoProd = await CoreOffline.fetchConCache(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }, 'productos');
+        const productos = resultadoProd.ok ? resultadoProd.data : [];
         const stockMap = new Map();
         productos.forEach(p => stockMap.set(p.codigo, toNum(p.stock)));
 
-        const movRes = await fetch(`${API_URL}/historial-inventario`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const movimientos = await movRes.json();
+        const resultadoMov = await CoreOffline.fetchConCache(`${API_URL}/historial-inventario`, { headers: { 'Authorization': `Bearer ${token}` } }, 'historial_inventario');
+        if (!resultadoMov.ok) {
+            document.getElementById('tabla-historial').innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#94a3b8;">Sin conexión y sin historial guardado todavía. Visita esta página con internet al menos una vez.</td></tr>';
+            document.getElementById('resumen-body').innerHTML = '';
+            return;
+        }
+        const movimientos = resultadoMov.data;
+        if (resultadoProd.offline || resultadoMov.offline) actualizarBannerConexion(true);
 
         // Resumen por producto
         const resumenMap = new Map();
@@ -428,6 +468,7 @@
 
     // ========== REINICIAR HISTORIAL ==========
     document.getElementById('btnReiniciarHistorial').addEventListener('click', async function() {
+        if (!requiereConexion()) return;
         if (!confirm('⚠️ ¿Estás seguro de que quieres ELIMINAR TODO el historial de inventario? Esta acción no se puede deshacer. Los productos y su stock actual NO se verán afectados.')) return;
         if (!confirm('Confirmación final: ¿Borrar todos los movimientos del historial?')) return;
 

@@ -177,7 +177,7 @@
         }
     }
 
-    window.addEventListener('online', () => { actualizarBannerConexion(false); actualizarEstadoCaja(); });
+    window.addEventListener('online', () => { actualizarBannerConexion(false); actualizarEstadoCaja(); procesarCierrePendienteSiAplica(); });
     window.addEventListener('offline', () => actualizarBannerConexion(false));
 
     async function verificarSesion() {
@@ -293,7 +293,17 @@
     }
 
     async function cerrarMiCaja() {
-        if (!requiereConexion()) return;
+        if (!navigator.onLine) {
+            if (!confirm('📴 Sin conexión ahora mismo.\n\nTu caja se marcará como "cierre pendiente": dejarás de vender bajo esta sesión, y en cuanto vuelva el internet se sincronizarán tus ventas offline y se generará el reporte Z real automáticamente.\n\n¿Continuar?')) return;
+            await CoreOffline.guardarCache('cierre_caja_pendiente', { pendiente: true, fecha: new Date().toISOString() });
+            const span = document.getElementById('estado-caja');
+            span.innerText = '🟡 Cierre pendiente de sincronizar';
+            span.className = 'estado-badge cerrada';
+            document.getElementById('btnAbrirCaja').style.display = 'none';
+            document.getElementById('btnCerrarMiCaja').style.display = 'none';
+            actualizarBannerConexion(false);
+            return;
+        }
         if (!confirm('¿Cerrar tu caja? Se generará reporte Z.')) return;
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/cerrar-caja`, {
@@ -309,6 +319,37 @@
         } else {
             alert('❌ Error: ' + data.error);
         }
+    }
+
+    // ⚠️ Si quedó un cierre marcado como pendiente (se pidió sin conexión),
+    // esta función lo completa de verdad apenas vuelve el internet: primero
+    // sincroniza las ventas offline pendientes (para que el total sea
+    // exacto) y luego sí manda el cierre real al servidor.
+    async function procesarCierrePendienteSiAplica() {
+        const pendiente = await CoreOffline.leerCache('cierre_caja_pendiente');
+        if (!pendiente || !pendiente.data || !pendiente.data.pendiente) return;
+        if (!navigator.onLine) return;
+
+        const token = localStorage.getItem('token');
+        CoreOffline.actualizarBanner('🟡 Sincronizando ventas pendientes antes de cerrar tu caja...', '#d97706');
+        await CoreOffline.sincronizarFacturasPendientes(API_URL, token, () => {});
+
+        const res = await fetch(`${API_URL}/cerrar-caja`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        await CoreOffline.guardarCache('cierre_caja_pendiente', { pendiente: false });
+
+        if (res.ok) {
+            alert(`✅ Tu caja (cierre que quedó pendiente) se cerró correctamente.\n\nTotal: $${toNum(data.reporte.total_cobrado_usd).toFixed(2)}`);
+            currentReporteData = data.reporte;
+            mostrarReporteZ(data.reporte);
+        } else {
+            alert('⚠️ No se pudo completar el cierre pendiente automáticamente: ' + (data.error || 'error desconocido') + '. Intenta cerrar caja manualmente desde aquí.');
+        }
+        actualizarEstadoCaja();
+        actualizarBannerConexion(false);
     }
 
     async function cierreGeneral() {
@@ -654,6 +695,7 @@
 
         verificarSesion().then(() => {
             actualizarEstadoCaja();
+            if (navigator.onLine) procesarCierrePendienteSiAplica();
         });
     });
 

@@ -216,6 +216,8 @@
             </div>
         </div>
 
+        <div id="contenedorPendientesOffline" style="display:none; margin-bottom:16px;"></div>
+
         <div class="table-container">
             <table id="tablaFacturas">
                 <thead>
@@ -284,7 +286,21 @@
             CoreOffline.ocultarBanner();
         }
     }
-    window.addEventListener('online', () => { actualizarBannerConexion(false); cargarFacturas(); });
+    async function sincronizarYRefrescar() {
+        const token = localStorage.getItem('token');
+        await CoreOffline.sincronizarFacturasPendientes(API_URL, token, (info) => {
+            if (info.exito) {
+                mostrarToast('✅ Una venta offline se sincronizó correctamente');
+            } else {
+                mostrarToast('⚠️ Una venta offline no se pudo sincronizar: ' + info.error);
+            }
+        });
+        actualizarBannerConexion(false);
+        await cargarFacturas();
+        await renderizarPendientesOffline();
+    }
+
+    window.addEventListener('online', () => { sincronizarYRefrescar(); });
     window.addEventListener('offline', () => actualizarBannerConexion(false));
 
     async function verificarSesion() {
@@ -392,7 +408,11 @@
                 `;
             });
         } catch(e) {
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;">Error: ${e.message}</td></tr>`;
+            if (!navigator.onLine) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#94a3b8;">🔴 Sin conexión y todavía no hay historial guardado en este dispositivo.<br>Visita esta página una vez con internet y luego sí funcionará sin conexión.</td></tr>`;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;">Error: ${e.message}</td></tr>`;
+            }
         }
     }
 
@@ -490,7 +510,81 @@
         window.location.href = 'login.html';
     });
 
-    verificarSesion().then(() => cargarFacturas());
+    async function renderizarPendientesOffline() {
+        const cont = document.getElementById('contenedorPendientesOffline');
+        const [pendientes, fallidas] = await Promise.all([
+            CoreOffline.obtenerColaFacturas(),
+            CoreOffline.obtenerFacturasFallidas()
+        ]);
+
+        if (pendientes.length === 0 && fallidas.length === 0) {
+            cont.style.display = 'none';
+            cont.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+
+        if (pendientes.length > 0) {
+            html += `<div class="card" style="background:#fffbeb; border:1.5px solid #f59e0b; margin-bottom:12px;">
+                <h4 style="color:#92400e; margin-bottom:10px;">🟡 ${pendientes.length} venta(s) hecha(s) offline, pendiente(s) de subir al servidor</h4>
+                <table style="width:100%; font-size:0.85rem;"><tbody>`;
+            pendientes.forEach(p => {
+                const fecha = new Date(p.fecha).toLocaleString('es-VE');
+                html += `<tr>
+                    <td style="padding:4px 8px;">${fecha}</td>
+                    <td style="padding:4px 8px;">${escapeHtml(p.payload.cliente_nombre || 'Cliente General')}</td>
+                    <td style="padding:4px 8px;">$${toNum(p.payload.total_usd || 0).toFixed(2)}</td>
+                    <td style="padding:4px 8px; color:#92400e;">Se subirá sola cuando haya internet</td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+        }
+
+        if (fallidas.length > 0) {
+            html += `<div class="card" style="background:#fef2f2; border:1.5px solid #ef4444;">
+                <h4 style="color:#991b1b; margin-bottom:10px;">❌ ${fallidas.length} venta(s) offline que NO se pudieron sincronizar (necesitan revisión)</h4>
+                <table style="width:100%; font-size:0.85rem;"><tbody>`;
+            fallidas.forEach(f => {
+                const fecha = new Date(f.fecha).toLocaleString('es-VE');
+                html += `<tr>
+                    <td style="padding:4px 8px;">${fecha}</td>
+                    <td style="padding:4px 8px;">${escapeHtml(f.payload.cliente_nombre || 'Cliente General')}</td>
+                    <td style="padding:4px 8px;">$${toNum(f.payload.total_usd || 0).toFixed(2)}</td>
+                    <td style="padding:4px 8px; color:#991b1b;">${escapeHtml(f.error || 'Error desconocido')}</td>
+                    <td style="padding:4px 8px;">
+                        <button class="btn-accion success" onclick="reintentarVentaFallida(${f.idLocal})">🔄 Reintentar</button>
+                        <button class="btn-accion danger" onclick="descartarVentaFallida(${f.idLocal})">🗑️ Descartar</button>
+                    </td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+        }
+
+        cont.innerHTML = html;
+        cont.style.display = 'block';
+    }
+
+    window.reintentarVentaFallida = async function(idLocal) {
+        if (!requiereConexion()) return;
+        await CoreOffline.reintentarFacturaFallida(idLocal);
+        const token = localStorage.getItem('token');
+        await CoreOffline.sincronizarFacturasPendientes(API_URL, token, () => {});
+        await renderizarPendientesOffline();
+        await cargarFacturas();
+    };
+
+    window.descartarVentaFallida = async function(idLocal) {
+        if (!confirm('¿Descartar esta venta definitivamente? Esta acción no se puede deshacer y la venta NO se registrará.')) return;
+        await CoreOffline.eliminarFacturaFallida(idLocal);
+        await renderizarPendientesOffline();
+    };
+
+    verificarSesion().then(() => {
+        cargarFacturas();
+        renderizarPendientesOffline();
+        if (navigator.onLine) sincronizarYRefrescar();
+    });
     window.cargarFacturas = cargarFacturas;
     window.aplicarFiltros = aplicarFiltros;
     window.limpiarFiltros = limpiarFiltros;

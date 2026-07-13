@@ -17,9 +17,10 @@
  */
 (function () {
     const DB_NAME = 'corebilling_offline';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
     const STORE_CACHE = 'cache_datos';
     const STORE_COLA_FACTURAS = 'cola_facturas';
+    const STORE_FACTURAS_FALLIDAS = 'facturas_fallidas';
 
     let dbPromise = null;
 
@@ -34,6 +35,9 @@
                 }
                 if (!db.objectStoreNames.contains(STORE_COLA_FACTURAS)) {
                     db.createObjectStore(STORE_COLA_FACTURAS, { keyPath: 'idLocal', autoIncrement: true });
+                }
+                if (!db.objectStoreNames.contains(STORE_FACTURAS_FALLIDAS)) {
+                    db.createObjectStore(STORE_FACTURAS_FALLIDAS, { keyPath: 'idLocal', autoIncrement: true });
                 }
             };
             req.onsuccess = (e) => resolve(e.target.result);
@@ -128,6 +132,59 @@
         return cola.length;
     }
 
+    async function moverAFallidas(item, mensajeError) {
+        const db = await abrirDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([STORE_COLA_FACTURAS, STORE_FACTURAS_FALLIDAS], 'readwrite');
+            tx.objectStore(STORE_COLA_FACTURAS).delete(item.idLocal);
+            tx.objectStore(STORE_FACTURAS_FALLIDAS).add({
+                payload: item.payload,
+                fecha: item.fecha,
+                fechaFallo: new Date().toISOString(),
+                error: mensajeError
+            });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    async function obtenerFacturasFallidas() {
+        try {
+            const db = await abrirDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_FACTURAS_FALLIDAS, 'readonly');
+                const req = tx.objectStore(STORE_FACTURAS_FALLIDAS).getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => reject(req.error);
+            });
+        } catch (e) { return []; }
+    }
+
+    async function eliminarFacturaFallida(idLocal) {
+        const db = await abrirDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_FACTURAS_FALLIDAS, 'readwrite');
+            tx.objectStore(STORE_FACTURAS_FALLIDAS).delete(idLocal);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    /** Vuelve a poner una factura fallida en la cola normal para reintentar sincronizarla. */
+    async function reintentarFacturaFallida(idLocal) {
+        const db = await abrirDB();
+        const item = await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_FACTURAS_FALLIDAS, 'readonly');
+            const req = tx.objectStore(STORE_FACTURAS_FALLIDAS).get(idLocal);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        if (!item) return false;
+        await encolarFactura(item.payload);
+        await eliminarFacturaFallida(idLocal);
+        return true;
+    }
+
     let sincronizando = false;
     /**
      * Sube al servidor todas las facturas que se crearon sin conexión,
@@ -150,8 +207,9 @@
                         if (callbackResultado) callbackResultado({ exito: true, item });
                     } else {
                         const data = await res.json().catch(() => ({}));
-                        if (callbackResultado) callbackResultado({ exito: false, item, error: data.error || 'Error al sincronizar', permanente: true });
-                        await eliminarDeCola(item.idLocal); // error de negocio (ej: stock insuficiente) — no reintentar solo, requiere revisión
+                        const mensajeError = data.error || 'Error al sincronizar';
+                        await moverAFallidas(item, mensajeError);
+                        if (callbackResultado) callbackResultado({ exito: false, item, error: mensajeError, permanente: true });
                     }
                 } catch (err) {
                     // Se cayó la conexión de nuevo a mitad de camino: paramos y reintentamos luego.
@@ -194,6 +252,9 @@
         eliminarDeCola,
         contarPendientes,
         sincronizarFacturasPendientes,
+        obtenerFacturasFallidas,
+        eliminarFacturaFallida,
+        reintentarFacturaFallida,
         actualizarBanner,
         ocultarBanner
     };

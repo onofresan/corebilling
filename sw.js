@@ -22,6 +22,7 @@ const ARCHIVOS_CASCARON = [
     '/inventario.html',
     '/reporte.html',
     '/lista_facturas.html',
+    '/historial_inventario.html',
     '/clientes.html',
     '/static/icon-192.png',
     '/static/icon-512.png'
