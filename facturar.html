@@ -1574,26 +1574,7 @@
         // localmente y la sincronizamos apenas vuelva el internet, en vez
         // de bloquear la venta. =====
         if (!navigator.onLine) {
-            try {
-                await CoreOffline.encolarFactura(payload);
-
-                // Descontamos el stock localmente de forma optimista, para
-                // que si se hacen varias ventas offline seguidas no se
-                // vendan de más los mismos productos.
-                payload.detalle.forEach(item => {
-                    const prod = listaProductos.find(p => p.codigo === item.codigo);
-                    if (prod && typeof prod.stock === 'number') {
-                        prod.stock = Math.max(0, prod.stock - (item.cantidad || 1));
-                    }
-                });
-
-                mostrarSuccess('🟡 Factura guardada localmente (sin conexión). Se sincronizará automáticamente cuando vuelva el internet.');
-                actualizarBannerConexion();
-                cerrarModalPagos();
-                nuevaFactura();
-            } catch (err) {
-                mostrarError('❌ No se pudo guardar la factura localmente: ' + err.message);
-            }
+            await guardarFacturaOffline(payload, '🟡 Factura guardada localmente (sin conexión). Se sincronizará automáticamente cuando vuelva el internet.');
             return;
         }
 
@@ -1628,19 +1609,37 @@
             // offline: guardamos la venta localmente en vez de perderla.
             const esErrorDeRed = err instanceof TypeError || !navigator.onLine;
             if (esErrorDeRed) {
-                try {
-                    await CoreOffline.encolarFactura(payload);
-                    mostrarSuccess('🟡 Se perdió la conexión durante el envío. La factura se guardó localmente y se sincronizará sola.');
-                    actualizarBannerConexion();
-                    cerrarModalPagos();
-                    nuevaFactura();
-                    return;
-                } catch (e2) {
-                    // si ni siquiera se pudo encolar, caemos al mensaje de error normal
-                }
+                await guardarFacturaOffline(payload, '🟡 Se perdió la conexión durante el envío. La factura se guardó localmente y se sincronizará sola.');
+                return;
             }
             console.error('❌ Error en facturación:', err);
             mostrarError('❌ Error al procesar factura: ' + err.message);
+        }
+    }
+
+    // Único punto donde se guarda una venta offline: encola la factura,
+    // descuenta el stock localmente de forma optimista (usando "stock", que
+    // es el campo que devuelve la API) y GUARDA la caché de nuevo para que
+    // otras páginas (Inventario, etc.) también vean el descuento mientras
+    // no hay conexión.
+    async function guardarFacturaOffline(payload, mensaje) {
+        try {
+            await CoreOffline.encolarFactura(payload);
+
+            payload.detalle.forEach(item => {
+                const prod = listaProductos.find(p => p.codigo === item.codigo);
+                if (prod && typeof prod.stock === 'number') {
+                    prod.stock = Math.max(0, prod.stock - (item.cantidad || 1));
+                }
+            });
+            await CoreOffline.guardarCache('productos', listaProductos);
+
+            mostrarSuccess(mensaje);
+            actualizarBannerConexion();
+            cerrarModalPagos();
+            nuevaFactura();
+        } catch (err) {
+            mostrarError('❌ No se pudo guardar la factura localmente: ' + err.message);
         }
     }
 
