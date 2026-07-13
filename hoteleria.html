@@ -509,6 +509,13 @@
                 <option value="cancelada">❌ Cancelada</option>
                 <option value="no_show">🚫 No Show</option>
             </select>
+            <select id="periodoExportarReserva" style="padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px;">
+                <option value="dia">📅 Hoy</option>
+                <option value="semana">📅 Esta semana</option>
+                <option value="mes" selected>📅 Este mes</option>
+                <option value="todas">📅 Todas (según filtros)</option>
+            </select>
+            <button type="button" onclick="exportarReservasPDF()" style="background:#4f46e5; color:white; border:none; border-radius:12px; padding:10px 16px; cursor:pointer; font-weight:600; white-space:nowrap;">📄 Exportar PDF</button>
         </div>
         <div class="table-container">
             <table>
@@ -1289,6 +1296,100 @@
                 </tr>
             `;
         });
+    }
+
+    function exportarReservasPDF() {
+        const textoFiltro = (document.getElementById('buscarReserva')?.value || '').toLowerCase().trim();
+        const estadoFiltro = document.getElementById('filtroEstadoReserva')?.value || '';
+        const periodo = document.getElementById('periodoExportarReserva')?.value || 'mes';
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        let desde = null, hasta = null, tituloPeriodo = 'Todas las reservas';
+
+        if (periodo === 'dia') {
+            desde = new Date(hoy);
+            hasta = new Date(hoy);
+            tituloPeriodo = `Reservas de hoy (${hoy.toLocaleDateString('es-VE')})`;
+        } else if (periodo === 'semana') {
+            const diaSemana = hoy.getDay(); // 0=domingo
+            const offsetLunes = (diaSemana === 0) ? 6 : diaSemana - 1;
+            desde = new Date(hoy); desde.setDate(hoy.getDate() - offsetLunes);
+            hasta = new Date(desde); hasta.setDate(desde.getDate() + 6);
+            tituloPeriodo = `Reservas de esta semana (${desde.toLocaleDateString('es-VE')} al ${hasta.toLocaleDateString('es-VE')})`;
+        } else if (periodo === 'mes') {
+            desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+            hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+            tituloPeriodo = `Reservas de este mes (${desde.toLocaleDateString('es-VE', {month:'long', year:'numeric'})})`;
+        }
+
+        let filtradas = (reservas || []).filter(r => {
+            if (estadoFiltro && r.estado !== estadoFiltro) return false;
+            if (textoFiltro) {
+                const texto = `${r.id} ${r.cliente_nombre || ''} ${r.habitacion_numero || ''}`.toLowerCase();
+                if (!texto.includes(textoFiltro)) return false;
+            }
+            if (desde && hasta) {
+                const fEntrada = new Date(r.fecha_entrada + 'T00:00:00');
+                if (fEntrada < desde || fEntrada > hasta) return false;
+            }
+            return true;
+        });
+
+        if (filtradas.length === 0) {
+            alert('No hay reservas para exportar con ese período/filtro.');
+            return;
+        }
+
+        const estadoLabels = {
+            'pendiente': '⏳ Pendiente', 'confirmada': '✅ Confirmada', 'abonada': '💰 Abonada',
+            'check_in': '📥 Check-in', 'check_out': '📤 Check-out', 'cancelada': '❌ Cancelada',
+            'no_show': '🚫 No Show', 'facturada': '🧾 Facturada'
+        };
+
+        let totalGeneral = 0, abonadoGeneral = 0, saldoGeneral = 0;
+        let filas = '';
+        filtradas.forEach(r => {
+            totalGeneral += toNum(r.total_usd);
+            abonadoGeneral += toNum(r.abono_usd);
+            saldoGeneral += toNum(r.saldo_pendiente);
+            filas += `<tr>
+                <td>#${r.id}</td>
+                <td>${escapeHtml(r.habitacion_numero || '')}</td>
+                <td>${escapeHtml(r.cliente_nombre || '')}</td>
+                <td>${escapeHtml(r.fecha_entrada)}</td>
+                <td>${escapeHtml(r.fecha_salida)}</td>
+                <td>$${toNum(r.total_usd).toFixed(2)}</td>
+                <td>$${toNum(r.abono_usd).toFixed(2)}</td>
+                <td>$${toNum(r.saldo_pendiente).toFixed(2)}</td>
+                <td>${estadoLabels[r.estado] || r.estado}</td>
+            </tr>`;
+        });
+
+        const html = `
+            <div style="font-family:Arial, sans-serif; padding:20px;">
+                <h2 style="margin-bottom:4px;">🏨 Reporte de Reservas</h2>
+                <div style="color:#64748b; margin-bottom:6px;">${tituloPeriodo}</div>
+                <div style="color:#64748b; margin-bottom:16px;">Generado: ${new Date().toLocaleString('es-VE')}${estadoFiltro ? ' — Estado: ' + (estadoLabels[estadoFiltro] || estadoFiltro) : ''}${textoFiltro ? ' — Búsqueda: "' + textoFiltro + '"' : ''}</div>
+                <table border="1" cellpadding="6" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                    <thead style="background:#f1f5f9;">
+                        <tr><th>#</th><th>Habitación</th><th>Cliente</th><th>Entrada</th><th>Salida</th><th>Total</th><th>Abonado</th><th>Saldo</th><th>Estado</th></tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+                <hr style="margin:20px 0;">
+                <div style="display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem;">
+                    <div>Total reservado: $${totalGeneral.toFixed(2)}</div>
+                    <div>Total abonado: $${abonadoGeneral.toFixed(2)}</div>
+                    <div>Saldo pendiente: $${saldoGeneral.toFixed(2)}</div>
+                </div>
+                <div style="color:#94a3b8; margin-top:8px;">${filtradas.length} reserva(s) en este reporte</div>
+            </div>`;
+
+        const win = window.open();
+        win.document.write(html);
+        win.document.title = 'Reporte de Reservas';
+        win.print();
     }
 
     function renderizarEstadisticas() {
@@ -2728,7 +2829,11 @@
     document.getElementById('filtroEstadoReserva').addEventListener('change', renderizarReservas);
 
     document.getElementById('formReserva').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+        const tag = e.target.tagName;
+        // Solo bloqueamos Enter dentro de campos de texto/número/fecha — si el
+        // foco está en el botón de enviar (o en un <select>), Enter debe
+        // seguir funcionando normalmente para poder confirmar la reserva.
+        if (e.key === 'Enter' && (tag === 'INPUT')) {
             e.preventDefault();
         }
     });
@@ -2922,7 +3027,7 @@
     // ============================================================
     verificarSesion().then(() => {
         cargarDatos();
-        setInterval(cargarDatos, 30000);
+        setInterval(cargarDatos, 60000); // antes 30s: cargarDatos hace ~6 llamadas paralelas, con 60s se reduce a la mitad la carga sin perder frescura real
     });
 
     // Exponer funciones globales

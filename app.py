@@ -38,15 +38,45 @@ import requests
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
 
-# ===== CONFIGURACIÓN PARA DESARROLLO LOCAL (CON FALLBACK SEGURO) =====
-JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'clave_jwt_super_secreta_cambiar_1234567890')
+# ===== CLAVE JWT =====
+# ⚠️ SEGURIDAD: antes esta línea tenía un valor de respaldo escrito en el
+# código ('clave_jwt_super_secreta_cambiar_1234567890'). Si la variable de
+# entorno JWT_SECRET_KEY no estaba configurada, la app usaba esa clave
+# predecible sin avisar — cualquiera que conociera esa cadena podría
+# falsificar tokens de sesión válidos para cualquier usuario.
+# Ahora: si no está configurada, se genera una clave aleatoria segura en
+# cada arranque (con aviso bien visible en el log). Esto es más seguro,
+# aunque tiene una consecuencia: si el servidor se reinicia sin tener
+# JWT_SECRET_KEY configurada en el entorno, todas las sesiones activas
+# se invalidan (los usuarios tendrían que volver a iniciar sesión).
+JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+if not JWT_SECRET_KEY:
+    import secrets as _secrets
+    JWT_SECRET_KEY = _secrets.token_hex(32)
+    print("⚠️⚠️⚠️ ADVERTENCIA DE SEGURIDAD: JWT_SECRET_KEY no está configurada en las")
+    print("variables de entorno. Se generó una clave aleatoria temporal para esta")
+    print("sesión del servidor. Configura JWT_SECRET_KEY en Render (Environment)")
+    print("con un valor fijo y aleatorio para que las sesiones no se invaliden")
+    print("cada vez que el servidor se reinicie.")
 app.config['SECRET_KEY'] = JWT_SECRET_KEY
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_...')
 STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', 'pk_test_...')
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+# ===== CORS =====
+# ⚠️ SEGURIDAD: antes estaba en origins="*", permitiendo que CUALQUIER sitio
+# web en internet pudiera hacerle peticiones a esta API. Ahora se restringe
+# a los dominios reales de la app. Se puede agregar más dominios (ej. uno
+# propio) separándolos por comas en la variable de entorno CORS_ORIGENES.
+_origenes_extra = os.environ.get('CORS_ORIGENES', '')
+ORIGENES_PERMITIDOS = [
+    'https://corebilling-1.onrender.com',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+] + [o.strip() for o in _origenes_extra.split(',') if o.strip()]
+
+socketio = SocketIO(app, cors_allowed_origins=ORIGENES_PERMITIDOS)
 
 UPLOAD_FOLDER = 'static/logos'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -54,8 +84,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# CORS - permite cualquier origen
-CORS(app, origins="*", supports_credentials=True)
+CORS(app, origins=ORIGENES_PERMITIDOS, supports_credentials=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -636,11 +665,47 @@ def handle_join(data):
         join_room(str(empresa_id))
 
 # ========== AUTENTICACIÓN ==========
+# ========== PROTECCIÓN CONTRA FUERZA BRUTA EN EL LOGIN ==========
+# En memoria (suficiente porque el servidor corre con un solo worker, per
+# la config de gunicorn --workers 1). Bloquea por combinación de IP +
+# usuario tras varios intentos fallidos seguidos, para dificultar que
+# alguien adivine contraseñas a la fuerza.
+_intentos_login_lock = threading.Lock()
+_intentos_login_fallidos = {}  # clave -> [timestamps de intentos fallidos]
+MAX_INTENTOS_LOGIN = 5
+VENTANA_BLOQUEO_MINUTOS = 15
+
+def _clave_rate_limit(username):
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'desconocida'
+    return f"{ip}:{(username or '').lower()}"
+
+def login_bloqueado(username):
+    clave = _clave_rate_limit(username)
+    ahora = ahora_venezuela()
+    with _intentos_login_lock:
+        intentos = _intentos_login_fallidos.get(clave, [])
+        intentos = [t for t in intentos if (ahora - t).total_seconds() < VENTANA_BLOQUEO_MINUTOS * 60]
+        _intentos_login_fallidos[clave] = intentos
+        return len(intentos) >= MAX_INTENTOS_LOGIN
+
+def registrar_intento_fallido(username):
+    clave = _clave_rate_limit(username)
+    with _intentos_login_lock:
+        _intentos_login_fallidos.setdefault(clave, []).append(ahora_venezuela())
+
+def limpiar_intentos_fallidos(username):
+    clave = _clave_rate_limit(username)
+    with _intentos_login_lock:
+        _intentos_login_fallidos.pop(clave, None)
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('usuario')
     password = data.get('contrasena')
+
+    if login_bloqueado(username):
+        return jsonify({'error': f'Demasiados intentos fallidos. Espera {VENTANA_BLOQUEO_MINUTOS} minutos antes de volver a intentar.'}), 429
     
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -655,8 +720,10 @@ def login():
         user = cursor.fetchone()
         
         if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+            registrar_intento_fallido(username)
             return jsonify({'error': 'Credenciales inválidas'}), 401
 
+        limpiar_intentos_fallidos(username)
         empresa_id = user.get('empresa_id')
         
         if user['role'] != 'super_admin':

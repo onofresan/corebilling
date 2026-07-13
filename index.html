@@ -294,7 +294,7 @@
     verificarSesion().then(() => {
         cargarDashboard();
         // Actualizar cada 30 segundos
-        setInterval(cargarDashboard, 30000);
+        setInterval(cargarDashboard, 60000); // antes 30s, se reduce carga del dashboard
     });
 </script>
 </body>

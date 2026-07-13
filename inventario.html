@@ -419,6 +419,7 @@
             <input type="checkbox" id="vistaAgrupada" checked onchange="filtrarTabla()" style="width:auto;">
             Agrupar por tipo
         </label>
+        <button type="button" onclick="exportarInventarioPDF()" style="background:#4f46e5; color:white; border:none; border-radius:12px; padding:10px 16px; cursor:pointer; font-weight:600; white-space:nowrap;">📄 Exportar PDF</button>
     </div>
 
     <!-- Tabla de productos -->
@@ -735,6 +736,85 @@
         }
 
         renderizarTabla(filtrados);
+    }
+
+    function exportarInventarioPDF() {
+        const busqueda = document.getElementById('buscador').value.toLowerCase().trim();
+        const grupoSeleccionado = document.getElementById('filtroGrupo').value;
+        let items = productos;
+        if (grupoSeleccionado) items = items.filter(p => obtenerGrupoProducto(p) === grupoSeleccionado);
+        if (busqueda) {
+            items = items.filter(p =>
+                p.codigo.toLowerCase().includes(busqueda) ||
+                p.nombre.toLowerCase().includes(busqueda) ||
+                (p.categoria && p.categoria.toLowerCase().includes(busqueda))
+            );
+        }
+
+        if (items.length === 0) {
+            alert('No hay productos para exportar con el filtro actual.');
+            return;
+        }
+
+        const porGrupo = {};
+        items.forEach(p => {
+            const g = obtenerGrupoProducto(p);
+            if (!porGrupo[g]) porGrupo[g] = [];
+            porGrupo[g].push(p);
+        });
+
+        const fechaHoy = new Date().toLocaleString('es-VE');
+        let totalCosto = 0, totalVenta = 0;
+
+        let html = `
+            <div style="font-family:Arial, sans-serif; padding:20px;">
+                <h2 style="margin-bottom:4px;">📦 Reporte de Inventario</h2>
+                <div style="color:#64748b; margin-bottom:16px;">Generado: ${fechaHoy}${grupoSeleccionado ? ' — Grupo: ' + (GRUPOS_INFO[grupoSeleccionado]?.titulo || grupoSeleccionado) : ''}${busqueda ? ' — Búsqueda: "' + busqueda + '"' : ''}</div>
+        `;
+
+        ORDEN_GRUPOS.forEach(grupo => {
+            const lista = porGrupo[grupo];
+            if (!lista || lista.length === 0) return;
+            const info = GRUPOS_INFO[grupo] || { titulo: grupo, color: '#64748b' };
+            html += `<h3 style="color:${info.color}; border-bottom:2px solid ${info.color}; padding-bottom:4px; margin-top:24px;">${info.titulo} (${lista.length})</h3>
+                <table border="1" cellpadding="6" style="width:100%; border-collapse:collapse; font-size:0.85rem; margin-bottom:10px;">
+                    <thead style="background:#f1f5f9;">
+                        <tr><th>Código</th><th>Descripción</th><th>Categoría</th><th>Costo</th><th>Venta</th><th>Stock</th><th>Valor en venta</th></tr>
+                    </thead>
+                    <tbody>`;
+            let subtotalVenta = 0;
+            lista.forEach(p => {
+                const costo = toNum(p.costo), venta = toNum(p.venta), stock = toNum(p.stock);
+                const valor = venta * stock;
+                subtotalVenta += valor;
+                totalCosto += costo * stock;
+                totalVenta += valor;
+                html += `<tr>
+                    <td>${escapeHtml(p.codigo)}</td>
+                    <td>${escapeHtml(p.nombre)}</td>
+                    <td>${escapeHtml(p.categoria || '')}</td>
+                    <td>$${costo.toFixed(2)}</td>
+                    <td>$${venta.toFixed(2)}</td>
+                    <td>${stock.toFixed(2)}</td>
+                    <td>$${valor.toFixed(2)}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>
+                <div style="text-align:right; font-weight:600; margin-bottom:10px;">Subtotal del grupo: $${subtotalVenta.toFixed(2)}</div>`;
+        });
+
+        html += `
+                <hr style="margin:20px 0;">
+                <div style="display:flex; justify-content:space-between; font-weight:700; font-size:1.1rem;">
+                    <div>Capital invertido total: $${totalCosto.toFixed(2)}</div>
+                    <div>Valor en venta total: $${totalVenta.toFixed(2)}</div>
+                </div>
+            </div>`;
+
+        const win = window.open();
+        win.document.write(html);
+        win.document.title = 'Reporte de Inventario';
+        win.print();
     }
 
     async function cargarInventario() {
