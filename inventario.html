@@ -404,8 +404,21 @@
     </div>
 
     <!-- Buscador -->
-    <div class="search-wrapper">
-        <input type="text" id="buscador" placeholder="🔍  Buscar en el inventario por código, nombre o categoría..." oninput="filtrarTabla()">
+    <div class="search-wrapper" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input type="text" id="buscador" placeholder="🔍  Buscar en el inventario por código, nombre o categoría..." oninput="filtrarTabla()" style="flex:1; min-width:220px;">
+        <select id="filtroGrupo" onchange="filtrarTabla()" style="padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px;">
+            <option value="">📋 Todos los grupos</option>
+            <option value="normal">🛒 Productos normales</option>
+            <option value="ingrediente">🥕 Ingredientes</option>
+            <option value="receta">🍽️ Recetas</option>
+            <option value="kit_padre">📦 Kits (padre)</option>
+            <option value="kit_hijo">🔧 Piezas de kit (hijo)</option>
+            <option value="habitacion">🏨 Hotelería (habitaciones)</option>
+        </select>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:500; white-space:nowrap;">
+            <input type="checkbox" id="vistaAgrupada" checked onchange="filtrarTabla()" style="width:auto;">
+            Agrupar por tipo
+        </label>
     </div>
 
     <!-- Tabla de productos -->
@@ -597,6 +610,24 @@
     }
 
     // ========== RENDERIZADO CON FILTRO ==========
+    // Las habitaciones de hotelería se guardan con tipo_producto='normal' pero
+    // categoria='habitacion' (o código que empieza con HAB_), así que hay que
+    // revisar ambos campos para agruparlas aparte de los productos normales.
+    function obtenerGrupoProducto(p) {
+        if (p.categoria === 'habitacion' || (p.codigo || '').startsWith('HAB_')) return 'habitacion';
+        return p.tipo_producto || 'normal';
+    }
+
+    const GRUPOS_INFO = {
+        normal:      { titulo: '🛒 Productos Normales',        color: '#4f46e5' },
+        ingrediente: { titulo: '🥕 Ingredientes',               color: '#059669' },
+        receta:      { titulo: '🍽️ Recetas',                    color: '#d97706' },
+        kit_padre:   { titulo: '📦 Kits (Padre)',               color: '#7c3aed' },
+        kit_hijo:    { titulo: '🔧 Piezas de Kit (Hijo)',       color: '#0891b2' },
+        habitacion:  { titulo: '🏨 Hotelería (Habitaciones)',   color: '#be185d' }
+    };
+    const ORDEN_GRUPOS = ['normal', 'ingrediente', 'receta', 'kit_padre', 'kit_hijo', 'habitacion'];
+
     function renderizarTabla(productosFiltrados) {
         const tbody = document.getElementById('tabla-productos');
         tbody.innerHTML = '';
@@ -608,8 +639,9 @@
         }
 
         let totalCosto = 0, totalVenta = 0, totalGanancia = 0;
+        const agrupar = document.getElementById('vistaAgrupada').checked;
 
-        productosFiltrados.forEach(p => {
+        const filaHtml = (p) => {
             const costo = toNum(p.costo);
             const venta = toNum(p.venta);
             const ganancia = venta - costo;
@@ -631,7 +663,7 @@
                  <button class="btn-danger" onclick="eliminarConNota('${escapeHtml(p.codigo)}')">🗑️</button>` :
                 '<span style="color:#94a3b8; font-size:0.8rem;">🔒</span>';
 
-            tbody.innerHTML += `
+            return `
                 <tr class="${stockClass}">
                     <td>${escapeHtml(p.codigo)}</td>
                     <td>${escapeHtml(p.nombre)}</td>
@@ -646,7 +678,32 @@
                     <td>${acciones}</td>
                 </tr>
             `;
-        });
+        };
+
+        if (!agrupar) {
+            productosFiltrados.forEach(p => { tbody.innerHTML += filaHtml(p); });
+        } else {
+            const porGrupo = {};
+            productosFiltrados.forEach(p => {
+                const g = obtenerGrupoProducto(p);
+                if (!porGrupo[g]) porGrupo[g] = [];
+                porGrupo[g].push(p);
+            });
+
+            ORDEN_GRUPOS.forEach(grupo => {
+                const items = porGrupo[grupo];
+                if (!items || items.length === 0) return;
+                const info = GRUPOS_INFO[grupo] || { titulo: grupo, color: '#64748b' };
+                tbody.innerHTML += `
+                    <tr>
+                        <td colspan="11" style="background:${info.color}15; padding:10px 12px; font-weight:700; color:${info.color}; border-top:2px solid ${info.color};">
+                            ${info.titulo} <span style="font-weight:500; font-size:0.85rem; color:#64748b;">(${items.length})</span>
+                        </td>
+                    </tr>
+                `;
+                items.forEach(p => { tbody.innerHTML += filaHtml(p); });
+            });
+        }
 
         actualizarMetricas({ totalCosto, totalVenta, totalGanancia, totalItems: productosFiltrados.length });
     }
@@ -661,15 +718,22 @@
     // ========== FILTRO ==========
     function filtrarTabla() {
         const busqueda = document.getElementById('buscador').value.toLowerCase().trim();
-        if (!busqueda) {
-            renderizarTabla(productos);
-            return;
+        const grupoSeleccionado = document.getElementById('filtroGrupo').value;
+
+        let filtrados = productos;
+
+        if (grupoSeleccionado) {
+            filtrados = filtrados.filter(p => obtenerGrupoProducto(p) === grupoSeleccionado);
         }
-        const filtrados = productos.filter(p =>
-            p.codigo.toLowerCase().includes(busqueda) ||
-            p.nombre.toLowerCase().includes(busqueda) ||
-            (p.categoria && p.categoria.toLowerCase().includes(busqueda))
-        );
+
+        if (busqueda) {
+            filtrados = filtrados.filter(p =>
+                p.codigo.toLowerCase().includes(busqueda) ||
+                p.nombre.toLowerCase().includes(busqueda) ||
+                (p.categoria && p.categoria.toLowerCase().includes(busqueda))
+            );
+        }
+
         renderizarTabla(filtrados);
     }
 
