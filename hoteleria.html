@@ -1396,7 +1396,12 @@
         if (!habitaciones || habitaciones.length === 0) return;
         const disponibles = habitaciones.filter(h => h.estado === 'disponible').length;
         const ocupadas = habitaciones.filter(h => h.estado === 'ocupada').length;
-        const reservadas = habitaciones.filter(h => h.estado === 'reservada').length;
+        // ⚠️ El estado de la habitación (habitacion.estado) refleja SOLO el día
+        // de hoy — una reserva futura NO le cambia el estado a la habitación
+        // (para no pisar "ocupada" si hoy tiene otro huésped). Por eso este
+        // contador cuenta las RESERVAS activas/pendientes reales (de la tabla
+        // reservas), no cuántas habitaciones tienen estado='reservada'.
+        const reservasActivas = (reservas || []).filter(r => ['pendiente', 'confirmada', 'abonada'].includes(r.estado)).length;
         const sucias = habitaciones.filter(h => h.estado === 'sucia').length;
         const total = habitaciones.length;
         const porcentaje = total > 0 ? Math.round((ocupadas / total) * 100) : 0;
@@ -1406,7 +1411,7 @@
 
         document.getElementById('stat-disponible').innerText = disponibles;
         document.getElementById('stat-ocupada').innerText = ocupadas;
-        document.getElementById('stat-reservada').innerText = reservadas;
+        document.getElementById('stat-reservada').innerText = reservasActivas;
         document.getElementById('stat-sucia').innerText = sucias;
         document.getElementById('stat-ocupacion').innerText = porcentaje + '%';
         document.getElementById('stat-ingresos').innerText = '$' + ingresos.toFixed(2);

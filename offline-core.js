@@ -76,8 +76,25 @@
      * Devuelve: { ok, data, offline, fecha }
      */
     async function fetchConCache(url, opciones, cacheKey) {
+        // Si el navegador ya sabe que no hay conexión, ni intentamos la red:
+        // vamos directo a la caché, para que se sienta instantáneo en vez de
+        // esperar a que el fetch falle solo.
+        if (!navigator.onLine) {
+            const cacheado = await leerCache(cacheKey);
+            if (cacheado) return { ok: true, data: cacheado.data, offline: true, fecha: cacheado.fecha };
+            return { ok: false, offline: true, error: 'Sin conexión y sin datos guardados' };
+        }
+
         try {
-            const res = await fetch(url, opciones);
+            // Límite de 4 segundos: si el navegador dice que hay conexión pero
+            // en realidad no responde (ej: proxy caído, wifi sin internet real),
+            // no queremos esperar el timeout lento por defecto del navegador
+            // (puede tardar 20-30+ segundos) — a los 4s caemos a la caché.
+            const controlador = new AbortController();
+            const timeoutId = setTimeout(() => controlador.abort(), 4000);
+            const res = await fetch(url, { ...opciones, signal: controlador.signal });
+            clearTimeout(timeoutId);
+
             if (res.ok) {
                 const data = await res.clone().json();
                 guardarCache(cacheKey, data);

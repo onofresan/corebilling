@@ -178,6 +178,7 @@
         </div>
 
         <h3 style="font-weight:600; margin-top:24px;">📋 Movimientos Detallados</h3>
+        <input type="text" id="buscarMovimiento" placeholder="🔍 Buscar por código, producto, usuario o nota..." oninput="filtrarMovimientos()" style="width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:12px; margin-bottom:12px;">
         <div class="table-container" id="detalleContainer">
             <table>
                 <thead>
@@ -203,6 +204,7 @@
 <script>
     const API_URL = `${window.location.origin}/api`;
     let userRole = null;
+    let movimientosGlobal = [];
     let socket = null;
     let empresaId = null;
 
@@ -361,14 +363,20 @@
             }
         }
 
+        movimientosGlobal = movimientos;
+
         // Movimientos detallados
+        renderizarMovimientos(movimientos);
+    }
+
+    function renderizarMovimientos(lista) {
         const tbody = document.getElementById('tabla-historial');
         tbody.innerHTML = '';
-        if (movimientos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">No hay movimientos registrados</td></tr>';
+        if (!lista || lista.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">No hay movimientos que coincidan</td></tr>';
             return;
         }
-        movimientos.forEach(m => {
+        lista.forEach(m => {
             const badgeClass = getTipoBadge(m.tipo);
             tbody.innerHTML += `
                 <tr>
@@ -383,6 +391,19 @@
                 </tr>
             `;
         });
+    }
+
+    function filtrarMovimientos() {
+        const texto = document.getElementById('buscarMovimiento').value.toLowerCase().trim();
+        if (!texto) { renderizarMovimientos(movimientosGlobal); return; }
+        const filtrados = (movimientosGlobal || []).filter(m =>
+            (m.producto_codigo || '').toLowerCase().includes(texto) ||
+            (m.producto_descripcion || '').toLowerCase().includes(texto) ||
+            (m.usuario || '').toLowerCase().includes(texto) ||
+            (m.nota || '').toLowerCase().includes(texto) ||
+            (m.tipo || '').toLowerCase().includes(texto)
+        );
+        renderizarMovimientos(filtrados);
     }
 
     // ========== EXPORTAR CSV ==========

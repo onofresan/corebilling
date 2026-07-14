@@ -597,16 +597,22 @@ def verificar_habitaciones_vencidas():
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
-            hoy = ahora_venezuela().strftime('%Y-%m-%d')
+            ahora_dt = ahora_venezuela()
+            ahora_str = ahora_dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            # Buscar habitaciones ocupadas cuya fecha de salida ya pasó
+            # ⚠️ IMPORTANTE: antes esto solo comparaba la FECHA de salida contra
+            # el día de hoy con "<" (estrictamente anterior a hoy). Eso significa
+            # que si el checkout era HOY a las 12:00pm, nunca se detectaba como
+            # vencida hasta el día SIGUIENTE. Ahora se combina fecha_salida_ultima
+            # + hora_salida_ultima (con 12:00pm de respaldo si no hay hora
+            # registrada) y se compara contra la fecha/hora actual real.
             cursor.execute("""
-                SELECT id, numero, codigo_producto, fecha_salida_ultima, empresa_id
+                SELECT id, numero, codigo_producto, fecha_salida_ultima, hora_salida_ultima, empresa_id
                 FROM habitaciones 
                 WHERE estado = 'ocupada' 
                 AND fecha_salida_ultima IS NOT NULL
-                AND fecha_salida_ultima < %s
-            """, (hoy,))
+                AND TIMESTAMP(fecha_salida_ultima, COALESCE(hora_salida_ultima, '12:00:00')) <= %s
+            """, (ahora_str,))
             
             habitaciones_vencidas = cursor.fetchall()
             
@@ -4886,16 +4892,16 @@ def verificar_habitaciones_vencidas_manual():
     cursor = conn.cursor(dictionary=True)
     
     try:
-        hoy = ahora_venezuela().strftime('%Y-%m-%d')
+        ahora_str = ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute("""
-            SELECT id, numero, codigo_producto, fecha_salida_ultima
+            SELECT id, numero, codigo_producto, fecha_salida_ultima, hora_salida_ultima
             FROM habitaciones 
             WHERE estado = 'ocupada' 
             AND fecha_salida_ultima IS NOT NULL
-            AND fecha_salida_ultima < %s
+            AND TIMESTAMP(fecha_salida_ultima, COALESCE(hora_salida_ultima, '12:00:00')) <= %s
             AND empresa_id = %s
-        """, (hoy, empresa_id))
+        """, (ahora_str, empresa_id))
         
         habitaciones_vencidas = cursor.fetchall()
         
