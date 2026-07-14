@@ -908,6 +908,7 @@
             <span>🔴 Ocupada / Bloqueada</span>
         </div>
         <div id="calendarioVerDisponibilidad" style="max-width:100%; margin-bottom:16px;"></div>
+        <button type="button" onclick="bloquearFechaManualPrompt()" style="background:#64748b; color:white; border:none; border-radius:12px; padding:8px 14px; cursor:pointer; font-size:0.85rem; margin-bottom:12px;">🔧 Bloquear/Liberar una fecha manualmente</button>
         <div id="disponibilidad_contenido">
             <p style="text-align:center; color:#94a3b8; padding:20px;">Cargando...</p>
         </div>
@@ -937,6 +938,7 @@
     let limpiarHabitacionId = null;
     let calendar = null;
     let calendarVerDisponibilidad = null;
+    let habitacionVistaActualId = null;
     let reservaFechasOk = false; // true solo si ya se verificó que el rango elegido está libre
     let habitacionCalendarId = null;
 
@@ -1578,14 +1580,13 @@
             },
             height: 'auto',
             events: function(info, successCallback, failureCallback) {
-                // Los días SIN eventos se consideran disponibles (🟢) automáticamente.
-                // Solo se pintan los días bloqueados (🔴) o reservados (🟡).
                 fetch(`${API_URL}/disponibilidad/${habitacionId}?fecha_inicio=${info.startStr}&fecha_fin=${info.endStr}`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 })
                 .then(res => res.json())
                 .then(data => {
                     const events = [];
+                    const diasOcupados = new Set();
 
                     if (data.bloqueos && data.bloqueos.length > 0) {
                         data.bloqueos.forEach(b => {
@@ -1596,6 +1597,7 @@
                                 color: '#ef4444',
                                 textColor: 'white'
                             });
+                            diasOcupados.add(b.fecha);
                         });
                     }
 
@@ -1604,16 +1606,39 @@
                             let fecha = new Date(r.fecha_inicio + 'T00:00:00');
                             const fin = new Date(r.fecha_fin + 'T00:00:00');
                             while (fecha < fin) {
+                                const fechaStr = fecha.toISOString().split('T')[0];
                                 events.push({
                                     title: '🟡 Reservada',
-                                    start: fecha.toISOString().split('T')[0],
+                                    start: fechaStr,
                                     allDay: true,
                                     color: '#f59e0b',
                                     textColor: 'white'
                                 });
+                                diasOcupados.add(fechaStr);
                                 fecha.setDate(fecha.getDate() + 1);
                             }
                         });
+                    }
+
+                    // ✅ Marcar EXPLÍCITAMENTE en verde cada día visible que no
+                    // esté ya bloqueado ni reservado, para que "disponible" se
+                    // vea igual de claro que "reservado" u "ocupado" — antes
+                    // esos días simplemente se dejaban en blanco, y parecía que
+                    // el calendario no estaba marcando nada.
+                    let cursor = new Date(info.start);
+                    const limite = new Date(info.end);
+                    while (cursor < limite) {
+                        const cursorStr = cursor.toISOString().split('T')[0];
+                        if (!diasOcupados.has(cursorStr)) {
+                            events.push({
+                                title: '🟢 Disponible',
+                                start: cursorStr,
+                                allDay: true,
+                                display: 'background',
+                                color: '#10b98130'
+                            });
+                        }
+                        cursor.setDate(cursor.getDate() + 1);
                     }
 
                     successCallback(events);
@@ -1622,16 +1647,28 @@
                     console.error('Error cargando disponibilidad:', err);
                     failureCallback(err);
                 });
-            },
-            dateClick: function(info) {
-                // Permite hacer clic en un día del calendario para bloquearlo
-                // o liberarlo manualmente (útil para corregir un bloqueo viejo/incorrecto).
-                verificarFechaDisponible(habitacionId, info.dateStr);
             }
+            // ⚠️ Este calendario es SOLO PARA VER — a propósito ya no tiene
+            // dateClick con un confirm() de bloquear/liberar, porque eso hacía
+            // que cada clic mostrara un mensaje molesto en vez de simplemente
+            // dejarte mirar la disponibilidad con colores.
         });
 
         calendarVerDisponibilidad.render();
     }
+
+    window.bloquearFechaManualPrompt = function() {
+        if (!habitacionVistaActualId) return;
+        const fecha = prompt('Escribe la fecha a bloquear/liberar (formato: AAAA-MM-DD), ej: 2026-07-18');
+        if (!fecha) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim())) {
+            alert('❌ Formato de fecha inválido. Usa AAAA-MM-DD, ej: 2026-07-18');
+            return;
+        }
+        verificarFechaDisponible(habitacionVistaActualId, fecha.trim()).then(() => {
+            if (calendarVerDisponibilidad) calendarVerDisponibilidad.refetchEvents();
+        });
+    };
 
     async function verificarFechaDisponible(habitacionId, fecha) {
         const habitacion = habitaciones.find(h => h.id === habitacionId);
@@ -1773,6 +1810,7 @@
     }
 
     async function verDisponibilidad(habitacionId) {
+        habitacionVistaActualId = habitacionId;
         const modal = document.getElementById('modalDisponibilidad');
         const contenido = document.getElementById('disponibilidad_contenido');
         modal.style.display = 'flex';
