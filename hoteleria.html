@@ -666,6 +666,19 @@
             <h4 style="font-weight:600; margin:16px 0 8px;">💳 Pagos / Abonos</h4>
             <div id="pagosContainer"></div>
             <button type="button" class="btn-primary" onclick="agregarPagoReserva()" style="margin-top:8px;">+ Agregar Pago</button>
+
+            <div id="cashea-reserva-campos" style="display:none; background:#fffbeb; border:1.5px solid #f59e0b; border-radius:12px; padding:12px; margin-top:10px;">
+                <div style="font-weight:600; color:#92400e; margin-bottom:8px;">🟡 Ayuda para Cashea (financiamiento)</div>
+                <div style="margin-bottom:8px;">
+                    <label style="font-size:0.85rem; font-weight:600;">📊 Inicial rápido (%)</label>
+                    <div id="botones-cashea-reserva" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;"></div>
+                </div>
+                <div style="display:flex; gap:16px; font-size:0.9rem;">
+                    <div>Inicial calculado: <strong id="cashea-reserva-inicial">$0.00</strong></div>
+                    <div>Saldo financiado por Cashea: <strong id="cashea-reserva-financiado">$0.00</strong></div>
+                </div>
+                <div style="color:#92400e; font-size:0.8rem; margin-top:6px;">Al elegir un %, se rellena el monto de la última fila de pago con método Cashea. El resto queda como saldo pendiente normal de la reserva.</div>
+            </div>
             <div id="resumenPagos" class="resumen-pagos">
                 <span>Total abonado: <strong class="total-abonado" id="totalAbonadoReserva">$0.00</strong></span>
                 <span style="margin-left:20px;">Saldo pendiente: <strong class="saldo-pendiente" id="saldoPendienteReserva">$0.00</strong></span>
@@ -2649,6 +2662,7 @@
         document.getElementById('reserva_total').innerText = '$' + total.toFixed(2);
         document.getElementById('reserva_saldo').innerText = '$' + saldo.toFixed(2);
         actualizarResumenPagos();
+        actualizarCasheaReserva();
     }
 
     async function verificarDisponibilidadFormReserva() {
@@ -2762,6 +2776,7 @@
         select.addEventListener('change', (e) => {
             const i = parseInt(e.target.dataset.idx);
             pagosReserva[i].metodo_pago = e.target.value;
+            actualizarCasheaReserva();
         });
         moneda.addEventListener('change', (e) => {
             const i = parseInt(e.target.dataset.idx);
@@ -2773,11 +2788,65 @@
             pagosReserva[i].monto = parseFloat(e.target.value) || 0;
             actualizarEquivalentePago(i);
             calcularTotalesReserva();
+            actualizarCasheaReserva();
         });
         ref.addEventListener('change', (e) => {
             const i = parseInt(e.target.dataset.idx);
             pagosReserva[i].referencia = e.target.value;
         });
+    }
+
+    // Genera los botones de % una sola vez (se reutilizan siempre)
+    let botonesCasheaReservaListos = false;
+    function inicializarBotonesCasheaReserva() {
+        if (botonesCasheaReservaListos) return;
+        botonesCasheaReservaListos = true;
+        const cont = document.getElementById('botones-cashea-reserva');
+        [25, 30, 35, 40, 45, 50, 60].forEach(pct => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.innerText = `${pct}%`;
+            btn.style.cssText = 'padding:4px 10px; border-radius:20px; border:1px solid #f59e0b; background:white; color:#92400e; cursor:pointer; font-size:0.8rem;';
+            btn.onclick = () => {
+                const total = parseFloat(document.getElementById('reserva_total').innerText.replace('$', '')) || 0;
+                const inicial = total * pct / 100;
+                // Rellena la última fila de pago que tenga método Cashea
+                for (let i = pagosReserva.length - 1; i >= 0; i--) {
+                    if (pagosReserva[i].metodo_pago === 'Cashea') {
+                        pagosReserva[i].monto = inicial;
+                        const inputMonto = document.querySelector(`.pago-monto[data-idx="${i}"]`);
+                        if (inputMonto) inputMonto.value = inicial.toFixed(2);
+                        actualizarEquivalentePago(i);
+                        break;
+                    }
+                }
+                calcularTotalesReserva();
+                actualizarCasheaReserva();
+            };
+            cont.appendChild(btn);
+        });
+    }
+
+    // ⚠️ Réplica de la ayuda de Cashea que ya existe en Facturación: muestra
+    // el % rápido para calcular el "inicial" y el "saldo financiado" (lo que
+    // Cashea cubre). A diferencia de Facturación, aquí NO se colapsa el
+    // total de la reserva — el resto sigue como saldo_pendiente normal,
+    // porque las reservas ya manejan sus propios abonos parciales.
+    function actualizarCasheaReserva() {
+        const hayCashea = pagosReserva.some(p => p.metodo_pago === 'Cashea');
+        const bloque = document.getElementById('cashea-reserva-campos');
+        if (!hayCashea) {
+            bloque.style.display = 'none';
+            return;
+        }
+        inicializarBotonesCasheaReserva();
+        bloque.style.display = 'block';
+
+        const total = parseFloat(document.getElementById('reserva_total').innerText.replace('$', '')) || 0;
+        const inicial = pagosReserva.filter(p => p.metodo_pago === 'Cashea').reduce((s, p) => s + toNum(p.monto), 0);
+        const financiado = Math.max(0, total - inicial);
+        document.getElementById('cashea-reserva-inicial').innerText = '$' + inicial.toFixed(2);
+        document.getElementById('cashea-reserva-financiado').innerText = '$' + financiado.toFixed(2);
     }
 
     function actualizarEquivalentePago(idx) {

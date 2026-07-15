@@ -120,6 +120,42 @@
     <div class="card">
         <h2 style="font-weight:700;">📈 Estadísticas</h2>
 
+        <!-- Balance de Ventas con comparación histórica -->
+        <div class="chart-card full-width" style="margin-bottom:20px;">
+            <h3>💰 Balance de Ventas</h3>
+            <div class="filtros">
+                <div class="input-group">
+                    <label>Período</label>
+                    <select id="balancePeriodo">
+                        <option value="dia">Día</option>
+                        <option value="semana">Semana</option>
+                        <option value="mes" selected>Mes</option>
+                        <option value="anio">Año</option>
+                    </select>
+                </div>
+                <div class="input-group" style="flex:0 0 auto; display:flex; align-items:flex-end; gap:6px;">
+                    <button id="balanceAnterior" style="padding:10px 14px;">◀ Anterior</button>
+                    <button id="balanceHoy" style="padding:10px 14px;">Hoy</button>
+                    <button id="balanceSiguiente" style="padding:10px 14px;">Siguiente ▶</button>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:10px;">
+                <div style="background:#f0fdf4; border:1.5px solid #10b981; border-radius:16px; padding:16px;">
+                    <div style="font-size:0.8rem; color:#065f46; font-weight:600;" id="balanceLabelActual">Este período</div>
+                    <div style="font-size:1.8rem; font-weight:700; color:#065f46;" id="balanceTotalActual">$0.00</div>
+                    <div style="font-size:0.8rem; color:#059669;" id="balanceFacturasActual">0 facturas</div>
+                </div>
+                <div style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:16px; padding:16px;">
+                    <div style="font-size:0.8rem; color:#475569; font-weight:600;" id="balanceLabelAnterior">Período anterior</div>
+                    <div style="font-size:1.8rem; font-weight:700; color:#334155;" id="balanceTotalAnterior">$0.00</div>
+                    <div style="font-size:0.8rem; color:#64748b;" id="balanceFacturasAnterior">0 facturas</div>
+                </div>
+            </div>
+
+            <div id="balanceVariacion" style="margin-top:14px; padding:12px 16px; border-radius:12px; font-weight:700; text-align:center; font-size:1.1rem;"></div>
+        </div>
+
         <div class="chart-grid">
             <!-- Gráfico 1: Ventas últimos 7 días -->
             <div class="chart-card">
@@ -204,7 +240,7 @@
 
     function conectarWebSocket() {
         if (!empresaId) return;
-        socket = io(window.location.origin);
+        socket = io('http://localhost:5000');
         socket.emit('join', { empresa_id: empresaId });
         socket.on('nueva_alerta', (data) => {
             mostrarToast(data.mensaje);
@@ -218,6 +254,51 @@
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 5000);
     }
+
+    let balanceOffset = 0;
+
+    async function cargarBalance() {
+        const token = localStorage.getItem('token');
+        const periodo = document.getElementById('balancePeriodo').value;
+        try {
+            const res = await fetch(`${API_URL}/estadisticas/balance?periodo=${periodo}&offset=${balanceOffset}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Error al cargar el balance');
+            const data = await res.json();
+
+            document.getElementById('balanceLabelActual').innerText = `📅 ${data.actual.label}`;
+            document.getElementById('balanceTotalActual').innerText = '$' + data.actual.total_usd.toFixed(2);
+            document.getElementById('balanceFacturasActual').innerText = `${data.actual.cantidad_facturas} factura(s)`;
+
+            document.getElementById('balanceLabelAnterior').innerText = `📅 ${data.anterior.label}`;
+            document.getElementById('balanceTotalAnterior').innerText = '$' + data.anterior.total_usd.toFixed(2);
+            document.getElementById('balanceFacturasAnterior').innerText = `${data.anterior.cantidad_facturas} factura(s)`;
+
+            const variacionDiv = document.getElementById('balanceVariacion');
+            const pct = data.variacion_pct;
+            if (pct > 0) {
+                variacionDiv.style.background = '#dcfce7';
+                variacionDiv.style.color = '#166534';
+                variacionDiv.innerHTML = `📈 Subieron un ${pct}% respecto al período anterior`;
+            } else if (pct < 0) {
+                variacionDiv.style.background = '#fee2e2';
+                variacionDiv.style.color = '#991b1b';
+                variacionDiv.innerHTML = `📉 Bajaron un ${Math.abs(pct)}% respecto al período anterior`;
+            } else {
+                variacionDiv.style.background = '#f1f5f9';
+                variacionDiv.style.color = '#475569';
+                variacionDiv.innerHTML = `➖ Sin cambios respecto al período anterior`;
+            }
+        } catch (e) {
+            console.error('Error cargando balance:', e);
+        }
+    }
+
+    document.getElementById('balancePeriodo').addEventListener('change', () => { balanceOffset = 0; cargarBalance(); });
+    document.getElementById('balanceAnterior').addEventListener('click', () => { balanceOffset++; cargarBalance(); });
+    document.getElementById('balanceSiguiente').addEventListener('click', () => { if (balanceOffset > 0) balanceOffset--; cargarBalance(); });
+    document.getElementById('balanceHoy').addEventListener('click', () => { balanceOffset = 0; cargarBalance(); });
 
     async function cargarGraficos() {
         const token = localStorage.getItem('token');
@@ -349,6 +430,7 @@
     verificarSesion()
         .then(() => {
             cargarGraficos();
+            cargarBalance();
         })
         .catch(err => {
             console.error('Fallo en la inicialización:', err);

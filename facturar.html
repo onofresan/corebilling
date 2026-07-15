@@ -1600,7 +1600,7 @@
                 mostrarSuccess(`🏠 Habitación facturada - Estado actualizado a OCUPADA`);
             }
             
-            mostrarSuccess(`✅ Factura #${data.factura_id} guardada correctamente`);
+            mostrarSuccess(`✅ Factura #${data.numero_factura || data.factura_id} guardada correctamente`);
             cerrarModalPagos();
             if (imprimir) await generarPDFFactura(data.factura_id);
             nuevaFactura();
@@ -1676,10 +1676,10 @@
             
             html += `
                 <table border="1" style="width:100%; margin-top:10px;">
-                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th><th>Nota</th></tr></thead>
                     <tbody>`;
             data.productos.forEach(p => {
-                html += `<tr><td>${escapeHtml(p.nombre)}</td><td>${p.cantidad}</td><td>$${p.precio_unitario}</td><td>$${p.subtotal_con_iva}</td></tr>`;
+                html += `<tr><td>${escapeHtml(p.nombre)}</td><td>${p.cantidad}</td><td>$${p.precio_unitario}</td><td>$${p.subtotal_con_iva}</td><td>${escapeHtml(p.nota_descuento || '')}</td></tr>`;
             });
             html += `</tbody></table></div>`;
             const win = window.open();

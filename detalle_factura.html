@@ -85,7 +85,7 @@
 </div>
 
 <script>
-    const API_URL = `${window.location.origin}/api`;
+    const API_URL = `http://${window.location.hostname}:5000/api`;
 
     function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
     function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
@@ -187,6 +187,7 @@
                                 <th style="text-align:right;">Precio c/IVA</th>
                                 <th style="text-align:right;">Descuento</th>
                                 <th style="text-align:right;">Subtotal</th>
+                                <th>Nota</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -206,6 +207,7 @@
                         <td style="text-align:right;">$${precioConIva.toFixed(2)}</td>
                         <td style="text-align:right;">$${toNum(p.descuento, 0).toFixed(2)}</td>
                         <td style="text-align:right;">$${toNum(p.subtotal_con_iva, 0).toFixed(2)}</td>
+                        <td>${escapeHtml(p.nota_descuento || '')}</td>
                     </tr>
                 `;
             });
@@ -259,7 +261,7 @@
             // Info principal
             const infoHtml = `
                 <div class="info-grid">
-                    <div class="item"><span class="label">N° Factura</span><span class="value">${escapeHtml(f.numero)}</span></div>
+                    <div class="item"><span class="label">N° Factura</span><span class="value">${escapeHtml(f.numero_factura_empresa || f.numero)}</span></div>
                     <div class="item"><span class="label">Fecha</span><span class="value">${new Date(f.fecha).toLocaleString()}</span></div>
                     <div class="item"><span class="label">Cliente</span><span class="value">${escapeHtml(f.cliente_nombre || 'Cliente General')}</span></div>
                     <div class="item"><span class="label">RIF</span><span class="value">${escapeHtml(f.cliente_rif || 'J-00000000-0')}</span></div>
@@ -338,7 +340,7 @@
         doc.setFontSize(10);
         doc.setTextColor(60);
         const lines = [
-            `N° Factura: ${f.numero}`,
+            `N° Factura: ${f.numero_factura_empresa || f.numero}`,
             `Fecha: ${new Date(f.fecha).toLocaleString()}`,
             `Cliente: ${f.cliente_nombre || 'Cliente General'}`,
             `RIF: ${f.cliente_rif || 'J-00000000-0'}`,
@@ -437,7 +439,7 @@
         doc.setTextColor(150);
         doc.text('Documento generado por CoreBilling', pageWidth/2, 285, { align: 'center' });
 
-        doc.save(`factura_${f.numero}.pdf`);
+        doc.save(`factura_${f.numero_factura_empresa || f.numero}.pdf`);
     }
 
     verificarSesion().then(() => cargarDetalle());

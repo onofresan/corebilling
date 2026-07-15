@@ -20,6 +20,7 @@ def ahora_venezuela():
     importar en qué zona horaria esté físicamente el servidor."""
     return datetime.now(timezone.utc).astimezone(VENEZUELA_TZ).replace(tzinfo=None)
 import json
+import calendar
 import bcrypt
 from functools import wraps
 import csv
@@ -2097,6 +2098,14 @@ def guardar_factura():
         pagos = data.get('pagos', [])
         metodo = data.get('metodo_pago', 'Efectivo')
         
+        # ⚠️ Además de la nota por producto (nota_descuento), también existe la
+        # nota a nivel de PAGO (ej: "cena personal" en la fila de Efectivo).
+        # La juntamos aquí para poder reflejarla también en el historial de
+        # inventario, ya que ese es un lugar común donde el usuario espera
+        # ver cualquier nota que haya escrito en la venta.
+        notas_pago = [p.get('nota', '').strip() for p in pagos if p.get('nota', '').strip()]
+        nota_pago_texto = ' / '.join(notas_pago)
+        
         es_casa = (metodo == 'Casa')
         es_credito = (metodo == 'Credito')
         
@@ -2276,10 +2285,16 @@ def guardar_factura():
                     stock_ant = Decimal(str(ing_data['existencia']))
                     nuevo_stock = stock_ant - needed
                     cursor.execute("UPDATE productos SET existencia = %s WHERE codigo = %s AND empresa_id = %s", (float(nuevo_stock), ing['codigo'], empresa_id))
+                    nota_producto = det.get('nota_descuento', '') or det.get('nota_desc', '')
+                    nota_completa = f"Factura #{numero_factura_empresa} - {'Gasto/Crédito' if (es_casa or es_credito) else 'Receta ' + det['codigo']}"
+                    if nota_producto:
+                        nota_completa += f" | Nota producto: {nota_producto}"
+                    if nota_pago_texto:
+                        nota_completa += f" | Nota pago: {nota_pago_texto}"
                     registrar_historial_inventario(cursor, ing['codigo'], ing_data['descripcion'], 
                                                    'reduccion' if (es_casa or es_credito) else 'venta', 
                                                    float(stock_ant), float(nuevo_stock), 
-                                                   f"Factura #{numero_factura_empresa} - {'Gasto/Crédito' if (es_casa or es_credito) else 'Receta ' + det['codigo']}")
+                                                   nota_completa)
             else:
                 cursor.execute("SELECT existencia, descripcion FROM productos WHERE codigo = %s AND empresa_id = %s", (det['codigo'], empresa_id))
                 prod_data = cursor.fetchone()
@@ -2294,10 +2309,16 @@ def guardar_factura():
                     nuevo_stock = stock_ant - det['cantidad']
                 
                 cursor.execute("UPDATE productos SET existencia = %s WHERE codigo = %s AND empresa_id = %s", (float(nuevo_stock), det['codigo'], empresa_id))
+                nota_producto = det.get('nota_descuento', '') or det.get('nota_desc', '')
+                nota_completa = f"Factura #{numero_factura_empresa} {'Gasto/Crédito' if (es_casa or es_credito) else ''}"
+                if nota_producto:
+                    nota_completa += f" | Nota producto: {nota_producto}"
+                if nota_pago_texto:
+                    nota_completa += f" | Nota pago: {nota_pago_texto}"
                 registrar_historial_inventario(cursor, det['codigo'], prod_data['descripcion'], 
                                                'reduccion' if (es_casa or es_credito) else 'venta', 
                                                float(stock_ant), float(nuevo_stock), 
-                                               f"Factura #{numero_factura_empresa} {'Gasto/Crédito' if (es_casa or es_credito) else ''}")
+                                               nota_completa)
             cursor.execute("""
                 INSERT INTO facturas_detalle (factura_numero, producto_codigo, cantidad, precio_unitario, iva_unitario,
                     descuento, nota_descuento, subtotal_sin_iva, subtotal_con_iva, empresa_id)
@@ -2481,7 +2502,7 @@ def guardar_factura():
         conn.commit()
         crear_alerta(empresa_id, 'factura', f"Factura #{numero_factura_empresa} creada por {request.username}" + 
                     (" (Gasto interno)" if es_casa else " (Crédito/Fiado)" if es_credito else ""))
-        return jsonify({'status': 'OK', 'factura_id': factura_id}), 200
+        return jsonify({'status': 'OK', 'factura_id': factura_id, 'numero_factura': numero_factura_empresa}), 200
     except Exception as e:
         conn.rollback()
         traceback.print_exc()
@@ -2743,7 +2764,101 @@ def marcar_alerta_leida(id):
         return jsonify({'error': str(e)}), 500
 
 # ========== REPORTE X ==========
-@app.route('/api/reporte-x', methods=['GET'])
+@app.route('/api/estadisticas/balance', methods=['GET'])
+@requiere_rol('cajero')
+def estadisticas_balance():
+    """
+    Calcula el total vendido en un período (día/semana/mes/año) y lo compara
+    contra el período anterior equivalente, para saber si las ventas subieron
+    o bajaron. 'offset' permite ir hacia atrás en el tiempo (offset=1 es el
+    período pasado, offset=2 el anterior a ese, etc.), para poder buscar
+    meses/semanas/días/años anteriores específicos.
+    """
+    empresa_id = request.empresa_id
+    periodo = request.args.get('periodo', 'dia')
+    try:
+        offset = int(request.args.get('offset', 0))
+    except ValueError:
+        offset = 0
+
+    hoy = ahora_venezuela().date()
+
+    def rango_periodo(periodo, offset):
+        if periodo == 'dia':
+            dia = hoy - timedelta(days=offset)
+            return dia, dia, dia.strftime('%d/%m/%Y')
+        elif periodo == 'semana':
+            inicio_semana_actual = hoy - timedelta(days=hoy.weekday())  # lunes de esta semana
+            desde = inicio_semana_actual - timedelta(weeks=offset)
+            hasta = desde + timedelta(days=6)
+            return desde, hasta, f"{desde.strftime('%d/%m')} al {hasta.strftime('%d/%m/%Y')}"
+        elif periodo == 'mes':
+            mes_idx = (hoy.year * 12 + (hoy.month - 1)) - offset
+            anio_calc, mes_calc = divmod(mes_idx, 12)
+            mes_calc += 1
+            desde = date(anio_calc, mes_calc, 1)
+            ultimo_dia = calendar.monthrange(anio_calc, mes_calc)[1]
+            hasta = date(anio_calc, mes_calc, ultimo_dia)
+            meses_es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+            return desde, hasta, f"{meses_es[mes_calc-1]} {anio_calc}"
+        elif periodo == 'anio':
+            anio_calc = hoy.year - offset
+            desde = date(anio_calc, 1, 1)
+            hasta = date(anio_calc, 12, 31)
+            return desde, hasta, str(anio_calc)
+        else:
+            raise ValueError('periodo inválido')
+
+    try:
+        desde_actual, hasta_actual, label_actual = rango_periodo(periodo, offset)
+        desde_anterior, hasta_anterior, label_anterior = rango_periodo(periodo, offset + 1)
+    except ValueError:
+        return jsonify({'error': "El parámetro 'periodo' debe ser: dia, semana, mes o anio"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        def totales_rango(desde, hasta):
+            cursor.execute("""
+                SELECT COALESCE(SUM(total_usd), 0) as total_usd, COUNT(*) as cantidad
+                FROM facturas_cabecera
+                WHERE DATE(fecha) BETWEEN %s AND %s
+                AND estado = 'activa'
+                AND metodo_pago NOT IN ('Casa', 'Credito')
+                AND empresa_id = %s
+            """, (desde, hasta, empresa_id))
+            row = cursor.fetchone()
+            return float(row['total_usd'] or 0), int(row['cantidad'] or 0)
+
+        total_actual, cantidad_actual = totales_rango(desde_actual, hasta_actual)
+        total_anterior, cantidad_anterior = totales_rango(desde_anterior, hasta_anterior)
+
+        if total_anterior > 0:
+            variacion_pct = round(((total_actual - total_anterior) / total_anterior) * 100, 1)
+        elif total_actual > 0:
+            variacion_pct = 100.0
+        else:
+            variacion_pct = 0.0
+
+        return jsonify({
+            'periodo': periodo,
+            'offset': offset,
+            'actual': {
+                'desde': desde_actual.strftime('%Y-%m-%d'), 'hasta': hasta_actual.strftime('%Y-%m-%d'),
+                'label': label_actual, 'total_usd': total_actual, 'cantidad_facturas': cantidad_actual
+            },
+            'anterior': {
+                'desde': desde_anterior.strftime('%Y-%m-%d'), 'hasta': hasta_anterior.strftime('%Y-%m-%d'),
+                'label': label_anterior, 'total_usd': total_anterior, 'cantidad_facturas': cantidad_anterior
+            },
+            'variacion_pct': variacion_pct
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        safe_close_conn(conn, cursor)
+
+
 @requiere_rol('cajero')
 def reporte_detallado():
     empresa_id = request.empresa_id
@@ -3619,6 +3734,20 @@ def obtener_disponibilidad_habitacion(habitacion_id):
         """, (habitacion_id, empresa_id, fecha_inicio, fecha_fin))
         
         reservas = cursor.fetchall()
+        
+        # ⚠️ IMPORTANTE: sin este formateo explícito, Flask serializa los
+        # objetos date/datetime de MySQL como "Sat, 18 Jul 2026 00:00:00 GMT"
+        # (formato HTTP), que no coincide con las fechas "YYYY-MM-DD" que usa
+        # el calendario en el frontend para comparar — por eso el calendario
+        # nunca reconocía los días bloqueados/reservados como tal.
+        for b in disponibles:
+            if b.get('fecha') is not None:
+                b['fecha'] = b['fecha'].strftime('%Y-%m-%d') if hasattr(b['fecha'], 'strftime') else str(b['fecha'])
+        for r in reservas:
+            if r.get('fecha_inicio') is not None:
+                r['fecha_inicio'] = r['fecha_inicio'].strftime('%Y-%m-%d') if hasattr(r['fecha_inicio'], 'strftime') else str(r['fecha_inicio'])
+            if r.get('fecha_fin') is not None:
+                r['fecha_fin'] = r['fecha_fin'].strftime('%Y-%m-%d') if hasattr(r['fecha_fin'], 'strftime') else str(r['fecha_fin'])
         
         safe_close_conn(conn, cursor)
         return jsonify({
