@@ -3,23 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="estilos.css">
     <title>CoreBilling - Detalle de Factura</title>
     <style>
-        /* ... estilos iguales a los anteriores ... */
-        body { background: #f1f5f9; font-family: 'Inter', 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .container { max-width: 900px; width: 100%; background: white; border-radius: 28px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
-        .header h1 { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0; }
-        .badge-estado { display: inline-block; padding: 6px 16px; border-radius: 40px; font-weight: 600; font-size: 0.8rem; }
-        .badge-activa { background: #d1fae5; color: #065f46; }
-        .badge-anulada { background: #fee2e2; color: #991b1b; }
-        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; background: #f8fafc; padding: 16px 20px; border-radius: 16px; margin-bottom: 20px; font-size: 0.9rem; }
-        .info-grid .item { display: flex; flex-direction: column; }
-        .info-grid .item .label { font-weight: 600; color: #475569; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        .info-grid .item .value { font-weight: 500; color: #0f172a; margin-top: 2px; }
-        .extras-box { background: #fef3c7; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 0.85rem; }
-        .extras-box.casa { background: #e0f2fe; }
+        body { 
+            background: #f1f5f9; 
+            font-family: 'Inter', 'Segoe UI', sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh; 
+        }
+        .container { 
+            max-width: 900px; 
+            width: 100%; 
+            background: white; 
+            border-radius: 28px; 
+            padding: 28px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+            margin-bottom: 20px; 
+        }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 12px; 
+            border-bottom: 2px solid #e2e8f0; 
+            padding-bottom: 16px; 
+            margin-bottom: 20px; 
+        }
+        .header h1 { 
+            font-size: 1.6rem; 
+            font-weight: 700; 
+            color: #0f172a; 
+            margin: 0; 
+        }
+        .badge-estado { 
+            display: inline-block; 
+            padding: 6px 16px; 
+            border-radius: 40px; 
+            font-weight: 600; 
+            font-size: 0.8rem; 
+        }
+        .badge-activa { 
+            background: #d1fae5; 
+            color: #065f46; 
+        }
+        .badge-anulada { 
+            background: #fee2e2; 
+            color: #991b1b; 
+        }
+        .info-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 12px; 
+            background: #f8fafc; 
+            padding: 16px 20px; 
+            border-radius: 16px; 
+            margin-bottom: 20px; 
+            font-size: 0.9rem; 
+        }
+        .info-grid .item { 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .info-grid .item .label { 
+            font-weight: 600; 
+            color: #475569; 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+        }
+        .info-grid .item .value { 
+            font-weight: 500; 
+            color: #0f172a; 
+            margin-top: 2px; 
+        }
+        .extras-box { 
+            background: #fef3c7; 
+            padding: 12px 16px; 
+            border-radius: 12px; 
+            margin-bottom: 16px; 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+            gap: 8px; 
+            font-size: 0.85rem; 
+        }
+        .extras-box.casa { 
+            background: #e0f2fe; 
+        }
         .hotel-box {
             background: #f0f7ff;
             padding: 16px 20px;
@@ -40,84 +116,314 @@
         .hotel-box .hotel-grid .full {
             grid-column: 1 / -1;
         }
-        h3 { font-weight: 600; margin: 20px 0 12px; color: #0f172a; }
-        .table-wrapper { overflow-x: auto; border-radius: 16px; border: 1px solid #e2e8f0; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        th { background: #f8fafc; color: #475569; font-weight: 600; padding: 12px 14px; border-bottom: 2px solid #e2e8f0; text-align: left; }
-        td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
-        tr:last-child td { border-bottom: none; }
-        .resumen-iva { background: #eef2ff; padding: 12px 16px; border-radius: 12px; margin: 16px 0; display: flex; flex-wrap: wrap; gap: 16px; font-weight: 500; }
-        .total-box { text-align: right; padding: 16px 20px; background: #0f172a; color: white; border-radius: 16px; margin-top: 12px; }
-        .total-box .total-usd { font-size: 1.8rem; font-weight: 700; color: #34d399; }
-        .total-box .total-bs { font-size: 1.2rem; font-weight: 600; color: #94a3b8; }
-        .pagos-table { margin-top: 8px; }
-        .action-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
-        .action-buttons button { padding: 10px 24px; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn-pdf { background: #10b981; color: white; }
-        .btn-pdf:hover { background: #059669; transform: translateY(-2px); }
-        .btn-cerrar { background: #64748b; color: white; }
-        .btn-cerrar:hover { background: #475569; transform: translateY(-2px); }
-        .btn-imprimir { background: #f59e0b; color: white; }
-        .btn-imprimir:hover { background: #d97706; transform: translateY(-2px); }
-        @media print { body { background: white; padding: 0; } .container { box-shadow: none; padding: 16px; } .action-buttons { display: none; } }
+        h3 { 
+            font-weight: 600; 
+            margin: 20px 0 12px; 
+            color: #0f172a; 
+        }
+        .table-wrapper { 
+            overflow-x: auto; 
+            border-radius: 16px; 
+            border: 1px solid #e2e8f0; 
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 0.9rem; 
+        }
+        th { 
+            background: #f8fafc; 
+            color: #475569; 
+            font-weight: 600; 
+            padding: 12px 14px; 
+            border-bottom: 2px solid #e2e8f0; 
+            text-align: left; 
+        }
+        td { 
+            padding: 10px 14px; 
+            border-bottom: 1px solid #f1f5f9; 
+        }
+        tr:last-child td { 
+            border-bottom: none; 
+        }
+        .resumen-iva { 
+            background: #eef2ff; 
+            padding: 12px 16px; 
+            border-radius: 12px; 
+            margin: 16px 0; 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 16px; 
+            font-weight: 500; 
+        }
+        .total-box { 
+            text-align: right; 
+            padding: 16px 20px; 
+            background: #0f172a; 
+            color: white; 
+            border-radius: 16px; 
+            margin-top: 12px; 
+        }
+        .total-box .total-usd { 
+            font-size: 1.8rem; 
+            font-weight: 700; 
+            color: #34d399; 
+        }
+        .total-box .total-bs { 
+            font-size: 1.2rem; 
+            font-weight: 600; 
+            color: #94a3b8; 
+        }
+        .pagos-table { 
+            margin-top: 8px; 
+        }
+        .action-buttons { 
+            display: flex; 
+            gap: 12px; 
+            justify-content: center; 
+            flex-wrap: wrap; 
+            margin-top: 16px; 
+        }
+        .action-buttons button { 
+            padding: 10px 24px; 
+            border-radius: 40px; 
+            border: none; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+        }
+        .btn-pdf { 
+            background: #10b981; 
+            color: white; 
+        }
+        .btn-pdf:hover { 
+            background: #059669; 
+            transform: translateY(-2px); 
+        }
+        .btn-cerrar { 
+            background: #64748b; 
+            color: white; 
+        }
+        .btn-cerrar:hover { 
+            background: #475569; 
+            transform: translateY(-2px); 
+        }
+        .btn-imprimir { 
+            background: #f59e0b; 
+            color: white; 
+        }
+        .btn-imprimir:hover { 
+            background: #d97706; 
+            transform: translateY(-2px); 
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+        }
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #ef4444;
+        }
+        .btn-volver {
+            background: #4f46e5;
+            color: white;
+        }
+        .btn-volver:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+        @media print { 
+            body { 
+                background: white; 
+                padding: 0; 
+            } 
+            .container { 
+                box-shadow: none; 
+                padding: 16px; 
+            } 
+            .action-buttons { 
+                display: none; 
+            } 
+        }
         @media (max-width: 640px) {
-            .hotel-box .hotel-grid { grid-template-columns: 1fr; }
+            .hotel-box .hotel-grid { 
+                grid-template-columns: 1fr; 
+            }
+            .header h1 { 
+                font-size: 1.2rem; 
+            }
+            .info-grid { 
+                grid-template-columns: 1fr 1fr; 
+                padding: 12px; 
+            }
+            .resumen-iva { 
+                flex-direction: column; 
+                gap: 8px; 
+            }
+            .container { 
+                padding: 16px; 
+            }
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
+
 <div class="container" id="facturaContainer">
     <div class="header">
         <h1>🧾 Detalle de Factura</h1>
         <span id="estadoBadge" class="badge-estado">Cargando...</span>
     </div>
     <div id="detalle">
-        <p style="text-align:center; color:#94a3b8; padding:40px;">Cargando factura...</p>
+        <div class="loading">⏳ Cargando factura...</div>
     </div>
 </div>
 
 <div class="action-buttons" id="actionButtons" style="display:none;">
     <button class="btn-pdf" id="btnPDF">📄 Descargar PDF</button>
     <button class="btn-imprimir" id="btnImprimir">🖨️ Imprimir</button>
-    <button class="btn-cerrar" onclick="window.close()">✖ Cerrar</button>
+    <button class="btn-volver" onclick="window.history.back()">⬅️ Volver</button>
 </div>
 
 <script>
-    const API_URL = `http://${window.location.hostname}:5000/api`;
+    // ============================================================
+    // CONFIGURACIÓN CORREGIDA - Funciona en cualquier entorno
+    // ============================================================
+    
+    // Opción 1: Usar la misma URL que el frontend (RECOMENDADO)
+    const API_URL = `${window.location.origin}/api`;
+    
+    // Opción 2: Si estás en desarrollo local y quieres forzar localhost
+    // const API_URL = `http://localhost:5000/api`;
+    
+    // Opción 3: Si estás en Clever Cloud con HTTPS
+    // const API_URL = `https://tudominio.clever-cloud.com/api`;
 
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); }
-    function toNum(v, d = 0) { let n = parseFloat(v); return isNaN(n) ? d : n; }
+    // ============================================================
+    // FUNCIONES AUXILIARES
+    // ============================================================
+
+    function escapeHtml(str) { 
+        if (!str) return ''; 
+        return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m] || m); 
+    }
+    
+    function toNum(v, d = 0) { 
+        let n = parseFloat(v); 
+        return isNaN(n) ? d : n; 
+    }
+
+    function mostrarError(mensaje) {
+        document.getElementById('detalle').innerHTML = `
+            <div class="error">
+                ❌ ${escapeHtml(mensaje)}
+                <br><br>
+                <button class="btn-volver" onclick="window.history.back()">⬅️ Volver</button>
+            </div>
+        `;
+        document.getElementById('estadoBadge').innerText = '❌ Error';
+        document.getElementById('estadoBadge').className = 'badge-estado badge-anulada';
+    }
+
+    // ============================================================
+    // VERIFICACIÓN DE SESIÓN MEJORADA
+    // ============================================================
 
     async function verificarSesion() {
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return null; }
+        
+        // Si no hay token, redirigir al login
+        if (!token) {
+            console.warn('⚠️ No hay token, redirigiendo a login');
+            window.location.href = 'login.html';
+            return null;
+        }
+        
         try {
-            const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) throw new Error();
+            // Verificar sesión con el token
+            const res = await fetch(`${API_URL}/check-session`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            
+            // Si la respuesta no es OK, error
+            if (!res.ok) {
+                throw new Error(`Error ${res.status}: ${res.statusText}`);
+            }
+            
             const data = await res.json();
-            if (!data.logged_in) throw new Error();
-            if (data.role === 'super_admin') window.location.href = 'super_admin.html';
+            
+            // Si no está logueado, error
+            if (!data.logged_in) {
+                throw new Error('Sesión no válida');
+            }
+            
+            // Si es super_admin, redirigir
+            if (data.role === 'super_admin') {
+                window.location.href = 'super_admin.html';
+                return null;
+            }
+            
+            console.log('✅ Sesión verificada:', data.username);
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+            
+        } catch (error) {
+            console.error('❌ Error verificando sesión:', error);
+            
+            // Limpiar token inválido y redirigir al login
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+            return null;
+        }
     }
 
+    // ============================================================
+    // CARGAR DETALLE DE FACTURA
+    // ============================================================
+
     async function cargarDetalle() {
+        // Obtener ID de la URL
         const id = new URLSearchParams(window.location.search).get('id');
+        
         if (!id) {
-            document.getElementById('detalle').innerHTML = '<p style="color:#ef4444; text-align:center;">No se especificó factura.</p>';
+            mostrarError('No se especificó número de factura.');
             return;
         }
+        
         const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
         try {
-            const res = await fetch(`${API_URL}/facturas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) throw new Error('Error al cargar factura');
+            console.log(`🔍 Cargando factura ID: ${id}`);
+            
+            const res = await fetch(`${API_URL}/facturas/${id}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    localStorage.removeItem('token');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                throw new Error(`Error ${res.status}: ${res.statusText}`);
+            }
+            
             const data = await res.json();
             const f = data.factura;
-            if (!f) throw new Error('Factura no encontrada');
-
-            // Estado
+            
+            if (!f) {
+                throw new Error('Factura no encontrada');
+            }
+            
+            console.log('✅ Factura cargada:', f.numero_factura_empresa || f.numero);
+            
+            // ===== ESTADO =====
             const badge = document.getElementById('estadoBadge');
             if (f.estado === 'activa') {
                 badge.innerText = '✅ Activa';
@@ -127,7 +433,7 @@
                 badge.className = 'badge-estado badge-anulada';
             }
 
-            // Extras Cashea
+            // ===== EXTRAS - CASH EA =====
             let extrasHtml = '';
             if (f.metodo_pago === 'Cashea' && f.extras) {
                 try {
@@ -144,15 +450,23 @@
                             <div><strong>💵 Monto por Cuota:</strong> $${montoCuota.toFixed(2)} (Bs ${(montoCuota * toNum(f.tasa_cambio)).toFixed(2)})</div>
                         </div>
                     `;
-                } catch (e) { console.error(e); }
+                } catch (e) { 
+                    console.error('Error parseando Cashea:', e); 
+                }
             } else if (f.metodo_pago === 'Casa' && f.extras) {
                 try {
                     const e = JSON.parse(f.extras);
-                    extrasHtml = `<div class="extras-box casa"><strong>🏠 Motivo Casa:</strong> ${escapeHtml(e.nota || '')}</div>`;
-                } catch(e) {}
+                    extrasHtml = `
+                        <div class="extras-box casa">
+                            <strong>🏠 Motivo Casa:</strong> ${escapeHtml(e.nota || '')}
+                        </div>
+                    `;
+                } catch(e) {
+                    console.error('Error parseando Casa:', e);
+                }
             }
 
-            // Datos de Hotel
+            // ===== DATOS DE HOTEL =====
             let hotelHtml = '';
             if (f.extras) {
                 try {
@@ -170,11 +484,14 @@
                             </div>
                         `;
                     }
-                } catch(e) {}
+                } catch(e) {
+                    console.error('Error parseando hotel:', e);
+                }
             }
 
-            // Productos
+            // ===== PRODUCTOS =====
             let productosHtml = `
+                <h3>📦 Productos</h3>
                 <div class="table-wrapper">
                     <table>
                         <thead>
@@ -192,6 +509,7 @@
                         </thead>
                         <tbody>
             `;
+            
             data.productos.forEach(p => {
                 const precioSinIva = toNum(p.subtotal_sin_iva, 0) / toNum(p.cantidad, 1);
                 const ivaUnitario = toNum(p.iva_unitario, 0);
@@ -213,7 +531,7 @@
             });
             productosHtml += `</tbody></table></div>`;
 
-            // Resumen IVA
+            // ===== RESUMEN IVA =====
             const resumenHtml = `
                 <div class="resumen-iva">
                     <span>Subtotal sin IVA: $${toNum(f.subtotal_usd, 0).toFixed(2)}</span>
@@ -223,7 +541,7 @@
                 </div>
             `;
 
-            // Pagos
+            // ===== PAGOS =====
             let pagosHtml = '';
             if (data.pagos && data.pagos.length) {
                 pagosHtml = `
@@ -231,7 +549,13 @@
                     <div class="table-wrapper pagos-table">
                         <table>
                             <thead>
-                                <tr><th>Método</th><th style="text-align:right;">Monto USD</th><th style="text-align:right;">Monto Bs</th><th>Referencia</th><th>Nota</th></tr>
+                                <tr>
+                                    <th>Método</th>
+                                    <th style="text-align:right;">Monto USD</th>
+                                    <th style="text-align:right;">Monto Bs</th>
+                                    <th>Referencia</th>
+                                    <th>Nota</th>
+                                </tr>
                             </thead>
                             <tbody>
                 `;
@@ -249,34 +573,60 @@
                 pagosHtml += `</tbody></table></div>`;
             }
 
-            // Totales
+            // ===== TOTALES =====
             const totalHtml = `
                 <div class="total-box">
                     <div class="total-usd">$${toNum(f.total_usd, 0).toFixed(2)} USD</div>
                     <div class="total-bs">Bs ${(toNum(f.total_usd, 0) * toNum(f.tasa_cambio)).toFixed(2)}</div>
-                    <div style="font-size:0.8rem; color:#94a3b8; margin-top:4px;">Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}</div>
+                    <div style="font-size:0.8rem; color:#94a3b8; margin-top:4px;">
+                        Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}
+                    </div>
                 </div>
             `;
 
-            // Info principal
+            // ===== INFO PRINCIPAL =====
             const infoHtml = `
                 <div class="info-grid">
-                    <div class="item"><span class="label">N° Factura</span><span class="value">${escapeHtml(f.numero_factura_empresa || f.numero)}</span></div>
-                    <div class="item"><span class="label">Fecha</span><span class="value">${new Date(f.fecha).toLocaleString()}</span></div>
-                    <div class="item"><span class="label">Cliente</span><span class="value">${escapeHtml(f.cliente_nombre || 'Cliente General')}</span></div>
-                    <div class="item"><span class="label">RIF</span><span class="value">${escapeHtml(f.cliente_rif || 'J-00000000-0')}</span></div>
-                    <div class="item"><span class="label">Cajero</span><span class="value">${escapeHtml(f.cajero || 'N/A')}</span></div>
-                    <div class="item"><span class="label">Método de Pago</span><span class="value">${escapeHtml(f.metodo_pago)}</span></div>
-                    <div class="item"><span class="label">Referencia</span><span class="value">${escapeHtml(f.referencia || 'N/A')}</span></div>
-                    <div class="item"><span class="label">Tasa</span><span class="value">Bs ${toNum(f.tasa_cambio).toFixed(2)}</span></div>
+                    <div class="item">
+                        <span class="label">N° Factura</span>
+                        <span class="value">${escapeHtml(f.numero_factura_empresa || f.numero)}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Fecha</span>
+                        <span class="value">${new Date(f.fecha).toLocaleString()}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Cliente</span>
+                        <span class="value">${escapeHtml(f.cliente_nombre || 'Cliente General')}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">RIF</span>
+                        <span class="value">${escapeHtml(f.cliente_rif || 'J-00000000-0')}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Cajero</span>
+                        <span class="value">${escapeHtml(f.cajero || 'N/A')}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Método de Pago</span>
+                        <span class="value">${escapeHtml(f.metodo_pago)}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Referencia</span>
+                        <span class="value">${escapeHtml(f.referencia || 'N/A')}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Tasa</span>
+                        <span class="value">Bs ${toNum(f.tasa_cambio).toFixed(2)}</span>
+                    </div>
                 </div>
             `;
 
+            // ===== ENSAMBLAR TODO =====
             const fullHtml = `
                 ${hotelHtml}
                 ${infoHtml}
                 ${extrasHtml}
-                <h3>📦 Productos</h3>
                 ${productosHtml}
                 ${resumenHtml}
                 ${pagosHtml}
@@ -286,163 +636,210 @@
             document.getElementById('detalle').innerHTML = fullHtml;
             document.getElementById('actionButtons').style.display = 'flex';
 
-            // PDF con jsPDF (mejorado)
+            // ===== EVENTOS =====
             document.getElementById('btnPDF').onclick = () => generarPDF(f, data);
             document.getElementById('btnImprimir').onclick = () => window.print();
 
         } catch (err) {
-            document.getElementById('detalle').innerHTML = `<p style="color:#ef4444; text-align:center;">❌ Error: ${escapeHtml(err.message)}</p>`;
+            console.error('❌ Error cargando factura:', err);
+            mostrarError(err.message);
         }
     }
 
-    // ===== GENERAR PDF MODERNO =====
+    // ============================================================
+    // GENERAR PDF MEJORADO
+    // ============================================================
+
     function generarPDF(f, data) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'mm', 'a4');
-        const pageWidth = doc.internal.pageSize.getWidth();
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
 
-        // Encabezado
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.setTextColor(40, 40, 80);
-        doc.text('DETALLE DE FACTURA', pageWidth/2, 20, { align: 'center' });
-
-        // Datos de hotel
-        let yPos = 32;
-        if (f.extras) {
-            try {
-                const extras = JSON.parse(f.extras);
-                if (extras.hotel) {
-                    const h = extras.hotel;
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(11);
-                    doc.setTextColor(30, 64, 175);
-                    doc.text('🏨 DATOS DE LA ESTADÍA', 14, yPos);
-                    yPos += 6;
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(9);
-                    doc.setTextColor(60);
-                    doc.text(`Entrada: ${h.fecha_entrada || ''} ${h.hora_entrada || ''}`, 14, yPos);
-                    yPos += 5;
-                    doc.text(`Salida: ${h.fecha_salida || ''} ${h.hora_salida || ''}`, 14, yPos);
-                    yPos += 5;
-                    if (h.nota) {
-                        doc.text(`Nota: ${h.nota}`, 14, yPos);
-                        yPos += 5;
-                    }
-                    yPos += 4;
-                }
-            } catch(e) {}
-        }
-
-        // Información de la factura
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(60);
-        const lines = [
-            `N° Factura: ${f.numero_factura_empresa || f.numero}`,
-            `Fecha: ${new Date(f.fecha).toLocaleString()}`,
-            `Cliente: ${f.cliente_nombre || 'Cliente General'}`,
-            `RIF: ${f.cliente_rif || 'J-00000000-0'}`,
-            `Cajero: ${f.cajero || 'N/A'}`,
-            `Método: ${f.metodo_pago}`,
-            `Referencia: ${f.referencia || 'N/A'}`,
-            `Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}`
-        ];
-        if (yPos < 32) yPos = 32;
-        lines.forEach(line => {
-            doc.text(line, 14, yPos);
-            yPos += 6;
-        });
-        yPos += 4;
-
-        // Tabla de productos
-        const tableData = data.productos.map(p => [
-            p.nombre,
-            p.cantidad,
-            `$${toNum(p.precio_unitario).toFixed(2)}`,
-            `$${toNum(p.subtotal_con_iva).toFixed(2)}`
-        ]);
-        doc.autoTable({
-            startY: yPos,
-            head: [['Producto', 'Cant', 'Precio Unit.', 'Subtotal']],
-            body: tableData,
-            theme: 'striped',
-            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
-            columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 20 }, 2: { cellWidth: 35 }, 3: { cellWidth: 35 } },
-            margin: { left: 14, right: 14 },
-            didDrawPage: function(data) {
-                doc.setFontSize(8);
-                doc.setTextColor(150);
-                doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
-            }
-        });
-        yPos = doc.lastAutoTable.finalY + 6;
-
-        // Resumen IVA y totales
-        const subtotal = toNum(f.subtotal_usd);
-        const iva = toNum(f.iva_usd);
-        const servicio = toNum(f.monto_servicio_usd);
-        const total = toNum(f.total_usd);
-        const totalBs = total * toNum(f.tasa_cambio);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text(`Subtotal sin IVA: $${subtotal.toFixed(2)}`, 14, yPos);
-        yPos += 6;
-        doc.text(`IVA Total: $${iva.toFixed(2)}`, 14, yPos);
-        yPos += 6;
-        doc.text(`Servicio (${f.porcentaje_servicio || 0}%): $${servicio.toFixed(2)}`, 14, yPos);
-        yPos += 8;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.setTextColor(0, 128, 0);
-        doc.text(`Total con IVA + Servicio: $${total.toFixed(2)}`, 14, yPos);
-        yPos += 6;
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.text(`Total en Bs: Bs ${totalBs.toFixed(2)}`, 14, yPos);
-
-        // Pagos (si existen)
-        if (data.pagos && data.pagos.length > 0) {
-            yPos += 10;
+            // ===== ENCABEZADO =====
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(12);
-            doc.text('Detalle de Pagos', 14, yPos);
-            yPos += 6;
-            const pagosData = data.pagos.map(p => [
-                p.metodo_pago,
-                `$${toNum(p.monto_usd).toFixed(2)}`,
-                `Bs ${toNum(p.monto_bs).toFixed(2)}`,
-                p.referencia || '',
-                p.nota || ''
+            doc.setFontSize(18);
+            doc.setTextColor(40, 40, 80);
+            doc.text('DETALLE DE FACTURA', pageWidth/2, 20, { align: 'center' });
+
+            let yPos = 32;
+
+            // ===== DATOS DE HOTEL =====
+            if (f.extras) {
+                try {
+                    const extras = JSON.parse(f.extras);
+                    if (extras.hotel) {
+                        const h = extras.hotel;
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(11);
+                        doc.setTextColor(30, 64, 175);
+                        doc.text('🏨 DATOS DE LA ESTADÍA', 14, yPos);
+                        yPos += 6;
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(9);
+                        doc.setTextColor(60);
+                        doc.text(`Entrada: ${h.fecha_entrada || ''} ${h.hora_entrada || ''}`, 14, yPos);
+                        yPos += 5;
+                        doc.text(`Salida: ${h.fecha_salida || ''} ${h.hora_salida || ''}`, 14, yPos);
+                        yPos += 5;
+                        if (h.nota) {
+                            doc.text(`Nota: ${h.nota}`, 14, yPos);
+                            yPos += 5;
+                        }
+                        yPos += 4;
+                    }
+                } catch(e) {
+                    console.error('Error parseando hotel para PDF:', e);
+                }
+            }
+
+            // ===== INFORMACIÓN DE FACTURA =====
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setTextColor(60);
+            const lines = [
+                `N° Factura: ${f.numero_factura_empresa || f.numero}`,
+                `Fecha: ${new Date(f.fecha).toLocaleString()}`,
+                `Cliente: ${f.cliente_nombre || 'Cliente General'}`,
+                `RIF: ${f.cliente_rif || 'J-00000000-0'}`,
+                `Cajero: ${f.cajero || 'N/A'}`,
+                `Método: ${f.metodo_pago}`,
+                `Referencia: ${f.referencia || 'N/A'}`,
+                `Tasa: Bs ${toNum(f.tasa_cambio).toFixed(2)}`
+            ];
+            if (yPos < 32) yPos = 32;
+            lines.forEach(line => {
+                doc.text(line, 14, yPos);
+                yPos += 6;
+            });
+            yPos += 4;
+
+            // ===== TABLA DE PRODUCTOS =====
+            const tableData = data.productos.map(p => [
+                p.nombre,
+                p.cantidad,
+                `$${toNum(p.precio_unitario).toFixed(2)}`,
+                `$${toNum(p.subtotal_con_iva).toFixed(2)}`
             ]);
+            
             doc.autoTable({
                 startY: yPos,
-                head: [['Método', 'Monto USD', 'Monto Bs', 'Referencia', 'Nota']],
-                body: pagosData,
+                head: [['Producto', 'Cant', 'Precio Unit.', 'Subtotal']],
+                body: tableData,
                 theme: 'striped',
                 headStyles: { fillColor: [79, 70, 229], textColor: 255 },
-                styles: { fontSize: 8 },
-                columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 25 }, 2: { cellWidth: 25 }, 3: { cellWidth: 30 }, 4: { cellWidth: 30 } },
-                margin: { left: 14, right: 14 },
-                didDrawPage: function(data) {
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    doc.text('CoreBilling - Detalle de Factura', pageWidth/2, 285, { align: 'center' });
-                }
+                columnStyles: { 
+                    0: { cellWidth: 70 }, 
+                    1: { cellWidth: 20 }, 
+                    2: { cellWidth: 35 }, 
+                    3: { cellWidth: 35 } 
+                },
+                margin: { left: 14, right: 14 }
             });
+            
             yPos = doc.lastAutoTable.finalY + 6;
+
+            // ===== RESUMEN IVA Y TOTALES =====
+            const subtotal = toNum(f.subtotal_usd);
+            const iva = toNum(f.iva_usd);
+            const servicio = toNum(f.monto_servicio_usd);
+            const total = toNum(f.total_usd);
+            const totalBs = total * toNum(f.tasa_cambio);
+            
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`Subtotal sin IVA: $${subtotal.toFixed(2)}`, 14, yPos);
+            yPos += 6;
+            doc.text(`IVA Total: $${iva.toFixed(2)}`, 14, yPos);
+            yPos += 6;
+            doc.text(`Servicio (${f.porcentaje_servicio || 0}%): $${servicio.toFixed(2)}`, 14, yPos);
+            yPos += 8;
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(0, 128, 0);
+            doc.text(`Total con IVA + Servicio: $${total.toFixed(2)}`, 14, yPos);
+            yPos += 6;
+            
+            doc.setFontSize(12);
+            doc.setTextColor(0);
+            doc.text(`Total en Bs: Bs ${totalBs.toFixed(2)}`, 14, yPos);
+
+            // ===== PAGOS =====
+            if (data.pagos && data.pagos.length > 0) {
+                yPos += 10;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.text('Detalle de Pagos', 14, yPos);
+                yPos += 6;
+                
+                const pagosData = data.pagos.map(p => [
+                    p.metodo_pago,
+                    `$${toNum(p.monto_usd).toFixed(2)}`,
+                    `Bs ${toNum(p.monto_bs).toFixed(2)}`,
+                    p.referencia || '',
+                    p.nota || ''
+                ]);
+                
+                doc.autoTable({
+                    startY: yPos,
+                    head: [['Método', 'Monto USD', 'Monto Bs', 'Referencia', 'Nota']],
+                    body: pagosData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+                    styles: { fontSize: 8 },
+                    columnStyles: { 
+                        0: { cellWidth: 30 }, 
+                        1: { cellWidth: 25 }, 
+                        2: { cellWidth: 25 }, 
+                        3: { cellWidth: 30 }, 
+                        4: { cellWidth: 30 } 
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // ===== PIE DE PÁGINA =====
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text('Documento generado por CoreBilling', pageWidth/2, 285, { align: 'center' });
+
+            doc.save(`factura_${f.numero_factura_empresa || f.numero}.pdf`);
+            
+        } catch (error) {
+            console.error('❌ Error generando PDF:', error);
+            alert('Error al generar el PDF: ' + error.message);
         }
-
-        // Pie de página fijo
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text('Documento generado por CoreBilling', pageWidth/2, 285, { align: 'center' });
-
-        doc.save(`factura_${f.numero_factura_empresa || f.numero}.pdf`);
     }
 
-    verificarSesion().then(() => cargarDetalle());
+    // ============================================================
+    // INICIALIZACIÓN
+    // ============================================================
+
+    verificarSesion().then(() => {
+        cargarDetalle();
+    }).catch(error => {
+        console.error('❌ Error en inicialización:', error);
+        mostrarError('Error al verificar la sesión. Por favor, inicia sesión nuevamente.');
+    });
+
+    // ============================================================
+    // RECUPERAR SESIÓN SI EL TOKEN EXPIRÓ
+    // ============================================================
+
+    // Si el usuario vuelve de un login, recargar la página
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            const token = localStorage.getItem('token');
+            if (token) {
+                cargarDetalle();
+            }
+        }
+    });
+
+    console.log('📄 detalle_factura.html cargado correctamente');
+    console.log('🔗 API URL:', API_URL);
 </script>
+
 </body>
 </html>
