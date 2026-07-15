@@ -1021,6 +1021,7 @@
     async function cargarTasaCambio() {
         const token = localStorage.getItem('token');
         const resultado = await CoreOffline.fetchConCache(`${API_URL}/tasa`, { headers: { 'Authorization': `Bearer ${token}` } }, 'tasa');
+        if (CoreOffline.manejarSesionInvalida(resultado)) return;
         if (resultado.ok && resultado.data.tasa) {
             tasaCambio = resultado.data.tasa;
             document.getElementById('tasaCambioActual').innerText = tasaCambio.toFixed(2);
@@ -1179,6 +1180,8 @@
                 CoreOffline.fetchConCache(`${API_URL}/reservas`, { headers }, 'reservas'),
                 CoreOffline.fetchConCache(`${API_URL}/servicios`, { headers }, 'servicios')
             ]);
+
+            if ([rHab, rCli, rRes, rSer].some(r => CoreOffline.manejarSesionInvalida(r))) return;
 
             habitaciones = rHab.ok && Array.isArray(rHab.data) ? rHab.data : [];
             clientes = rCli.ok && Array.isArray(rCli.data) ? rCli.data : [];

@@ -820,6 +820,7 @@
     async function cargarInventario() {
         const token = localStorage.getItem('token');
         const resultado = await CoreOffline.fetchConCache(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }, 'productos');
+        if (CoreOffline.manejarSesionInvalida(resultado)) return;
         productos = resultado.ok ? resultado.data : [];
         renderizarTabla(productos);
         actualizarBannerConexion(resultado.offline);

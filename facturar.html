@@ -475,6 +475,7 @@
     async function cargarEmpresa() {
         const token = localStorage.getItem('token');
         const resultado = await CoreOffline.fetchConCache(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } }, 'empresa');
+        if (CoreOffline.manejarSesionInvalida(resultado)) return;
         if (!resultado.ok) {
             console.warn('⚠️ No se pudo cargar datos de la empresa (sin conexión y sin caché)');
             return;
@@ -505,6 +506,7 @@
     async function cargarClientes() {
         const token = localStorage.getItem('token');
         const resultado = await CoreOffline.fetchConCache(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } }, 'clientes');
+        if (CoreOffline.manejarSesionInvalida(resultado)) return;
         const select = document.getElementById('cliente-id');
         select.innerHTML = '<option value="">-- Cliente General --</option>';
         if (resultado.ok) {
@@ -517,6 +519,7 @@
         const token = localStorage.getItem('token');
         
         const resultadoP = await CoreOffline.fetchConCache(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }, 'productos');
+        if (CoreOffline.manejarSesionInvalida(resultadoP)) return;
         if (resultadoP.ok) {
             listaProductos = resultadoP.data;
             console.log('✅ Productos cargados:', listaProductos.length, resultadoP.offline ? '(desde caché offline)' : '');
@@ -584,6 +587,7 @@
     async function cargarEstadoMiCaja() {
         const token = localStorage.getItem('token');
         const resultado = await CoreOffline.fetchConCache(`${API_URL}/mi-caja`, { headers: { 'Authorization': `Bearer ${token}` } }, 'mi-caja');
+        if (CoreOffline.manejarSesionInvalida(resultado)) return;
         if (!resultado.ok) {
             console.warn('⚠️ No se pudo cargar el estado de caja (sin conexión y sin caché)');
             return;

@@ -100,6 +100,17 @@
                 guardarCache(cacheKey, data);
                 return { ok: true, data, offline: false };
             }
+
+            // ⚠️ IMPORTANTE: un 401/403 significa que SÍ hay conexión, pero la
+            // sesión ya no es válida (token vencido, o el servidor se reinició
+            // con una clave distinta). Esto NO es un problema de conexión —
+            // antes se trataba igual que "sin internet" y mostraba el aviso
+            // equivocado de "sin conexión/reconectando" en vez de mandar a
+            // iniciar sesión de nuevo.
+            if (res.status === 401 || res.status === 403) {
+                return { ok: false, offline: false, sesionInvalida: true, error: 'Sesión inválida o expirada' };
+            }
+
             throw new Error('Respuesta no OK: ' + res.status);
         } catch (err) {
             const cacheado = await leerCache(cacheKey);
@@ -260,6 +271,21 @@
         if (banner) banner.style.display = 'none';
     }
 
+    /**
+     * Revisa el resultado de fetchConCache: si la sesión ya no es válida
+     * (token vencido / servidor reiniciado con otra clave), limpia el token
+     * y redirige a login.html. Devuelve true si redirigió (para que el
+     * código que llama pueda hacer un `return` inmediatamente después).
+     */
+    function manejarSesionInvalida(resultado) {
+        if (resultado && resultado.sesionInvalida) {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+            return true;
+        }
+        return false;
+    }
+
     window.CoreOffline = {
         fetchConCache,
         guardarCache,
@@ -273,7 +299,8 @@
         eliminarFacturaFallida,
         reintentarFacturaFallida,
         actualizarBanner,
-        ocultarBanner
+        ocultarBanner,
+        manejarSesionInvalida
     };
 
     if ('serviceWorker' in navigator) {

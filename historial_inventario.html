@@ -306,6 +306,7 @@
     async function cargarHistorial() {
         const token = localStorage.getItem('token');
         const resultadoProd = await CoreOffline.fetchConCache(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }, 'productos');
+        if (CoreOffline.manejarSesionInvalida(resultadoProd)) return;
         const productos = resultadoProd.ok ? resultadoProd.data : [];
         const stockMap = new Map();
         productos.forEach(p => stockMap.set(p.codigo, toNum(p.stock)));

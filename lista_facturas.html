@@ -362,6 +362,7 @@
             let facturas;
             if (sinFiltros) {
                 const resultado = await CoreOffline.fetchConCache(url, { headers: { 'Authorization': `Bearer ${token}` } }, 'facturas_recientes');
+                if (CoreOffline.manejarSesionInvalida(resultado)) return;
                 if (!resultado.ok) throw new Error(resultado.error || 'Sin conexión y sin historial guardado');
                 facturas = resultado.data;
                 if (resultado.offline) actualizarBannerConexion(true);
