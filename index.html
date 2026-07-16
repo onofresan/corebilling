@@ -204,22 +204,15 @@
         if (!token) return;
 
         try {
-            // Obtener estadísticas de ventas
-            const resStats = await fetch(`${API_URL}/sales-stats`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            // Las 3 se piden en paralelo (antes iban una detrás de otra,
+            // sumando sus tiempos; en paralelo el total es el de la más lenta).
+            const [resStats, resProd, resCli] = await Promise.all([
+                fetch(`${API_URL}/sales-stats`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${API_URL}/productos`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${API_URL}/clientes`, { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
             const stats = await resStats.json();
-
-            // Obtener productos
-            const resProd = await fetch(`${API_URL}/productos`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
             const productos = await resProd.json();
-
-            // Obtener clientes
-            const resCli = await fetch(`${API_URL}/clientes`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
             const clientes = await resCli.json();
 
             // Calcular total ventas hoy

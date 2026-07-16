@@ -142,7 +142,10 @@
                 </div>
                 <div class="input-group">
                     <label>🔒 Contraseña</label>
-                    <input type="password" id="password" placeholder="••••••••" required>
+                    <div style="position:relative;">
+                        <input type="password" id="password" placeholder="••••••••" required style="padding-right:44px;">
+                        <button type="button" id="togglePassword" aria-label="Mostrar contraseña" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:1.1rem; padding:4px;">👁️</button>
+                    </div>
                 </div>
                 <button type="submit" class="btn-login" id="loginBtn">Ingresar</button>
                 <div id="errorMsg" class="error-message"></div>
@@ -160,6 +163,18 @@
 
 <script>
     const API_URL = `${window.location.origin}/api`;
+
+    document.getElementById('togglePassword').addEventListener('click', () => {
+        const input = document.getElementById('password');
+        const btn = document.getElementById('togglePassword');
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.innerText = '🙈';
+        } else {
+            input.type = 'password';
+            btn.innerText = '👁️';
+        }
+    });
 
     // Si ya hay token, redirigir a index (que a su vez verificará y enviará a facturar)
     (function() {

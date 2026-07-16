@@ -2568,7 +2568,8 @@ def detalle_factura(id):
         SELECT fc.numero, fc.numero_factura_empresa, fc.fecha, fc.subtotal_usd, fc.iva_usd, fc.total_usd, fc.tasa_cambio,
                fc.metodo_pago, fc.referencia, fc.extras, fc.moneda, fc.monto_bs, fc.estado,
                fc.porcentaje_servicio, fc.monto_servicio_usd, fc.tipo_credito,
-               c.nombre AS cliente_nombre, c.rif AS cliente_rif, u.username as cajero
+               c.nombre AS cliente_nombre, c.rif AS cliente_rif, c.telefono AS cliente_telefono,
+               c.direccion AS cliente_direccion, u.username as cajero
         FROM facturas_cabecera fc
         LEFT JOIN clientes c ON fc.cliente_id = c.id
         LEFT JOIN usuarios u ON fc.usuario_id = u.id
@@ -2578,6 +2579,10 @@ def detalle_factura(id):
     if not factura:
         safe_close_conn(conn, cursor)
         return jsonify({'error': 'Factura no encontrada'}), 404
+    
+    # Datos de la empresa, para el encabezado de la factura impresa/PDF
+    cursor.execute("SELECT nombre, rif, direccion, telefono FROM empresas WHERE id = %s", (empresa_id,))
+    factura['empresa'] = cursor.fetchone() or {}
     
     # Parsear extras para obtener datos de hotel
     if factura.get('extras'):

@@ -2759,6 +2759,14 @@
                 <option value="Divisa">Divisa</option>
                 <option value="Cashea">Cashea</option>
             </select>
+            <select class="pago-metodo-real" data-idx="${idx}" style="display:none;" title="¿Cómo se cobró en realidad el inicial de Cashea?">
+                <option value="">¿Cobrado cómo?</option>
+                <option value="Efectivo">💵 Efectivo</option>
+                <option value="Pago Movil">📱 Pago Móvil</option>
+                <option value="Punto de Venta">💳 Punto de Venta</option>
+                <option value="Transferencia">🏦 Transferencia</option>
+                <option value="Divisa">💲 Divisa</option>
+            </select>
             <select class="pago-moneda" data-idx="${idx}" onchange="actualizarEquivalentePago(${idx})">
                 <option value="USD">USD</option>
                 <option value="Bs">Bolívares</option>
@@ -2769,17 +2777,33 @@
             <button type="button" class="btn-remove" onclick="eliminarPagoReserva(this, ${idx})">✖</button>
         `;
         container.appendChild(div);
-        pagosReserva.push({ metodo_pago: 'Efectivo', moneda: 'USD', monto: 0, referencia: '' });
+        // ⚠️ "Cashea" en metodo_pago es solo una bandera de UI (esCasheaInicial).
+        // Al guardar la reserva, el metodo_pago REAL que se envía al servidor
+        // es el que elijas en "¿Cobrado cómo?" (Efectivo, Pago Móvil, etc.),
+        // para que el cuadre de caja sepa dónde cayó ese dinero de verdad.
+        pagosReserva.push({ metodo_pago: 'Efectivo', moneda: 'USD', monto: 0, referencia: '', esCasheaInicial: false });
 
         const select = div.querySelector('.pago-metodo');
+        const selectReal = div.querySelector('.pago-metodo-real');
         const moneda = div.querySelector('.pago-moneda');
         const monto = div.querySelector('.pago-monto');
         const ref = div.querySelector('.pago-referencia');
 
         select.addEventListener('change', (e) => {
             const i = parseInt(e.target.dataset.idx);
-            pagosReserva[i].metodo_pago = e.target.value;
+            const esCashea = e.target.value === 'Cashea';
+            pagosReserva[i].esCasheaInicial = esCashea;
+            selectReal.style.display = esCashea ? 'inline-block' : 'none';
+            if (!esCashea) {
+                pagosReserva[i].metodo_pago = e.target.value;
+            } else if (!selectReal.value) {
+                pagosReserva[i].metodo_pago = ''; // pendiente hasta elegir el método real
+            }
             actualizarCasheaReserva();
+        });
+        selectReal.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.idx);
+            pagosReserva[i].metodo_pago = e.target.value;
         });
         moneda.addEventListener('change', (e) => {
             const i = parseInt(e.target.dataset.idx);
@@ -2813,12 +2837,15 @@
             btn.onclick = () => {
                 const total = parseFloat(document.getElementById('reserva_total').innerText.replace('$', '')) || 0;
                 const inicial = total * pct / 100;
-                // Rellena la última fila de pago que tenga método Cashea
+                // Rellena la última fila marcada como Cashea
                 for (let i = pagosReserva.length - 1; i >= 0; i--) {
-                    if (pagosReserva[i].metodo_pago === 'Cashea') {
+                    if (pagosReserva[i].esCasheaInicial) {
                         pagosReserva[i].monto = inicial;
                         const inputMonto = document.querySelector(`.pago-monto[data-idx="${i}"]`);
                         if (inputMonto) inputMonto.value = inicial.toFixed(2);
+                        if (!pagosReserva[i].referencia) pagosReserva[i].referencia = `Cashea inicial ${pct}%`;
+                        const inputRef = document.querySelector(`.pago-referencia[data-idx="${i}"]`);
+                        if (inputRef && !inputRef.value) inputRef.value = `Cashea inicial ${pct}%`;
                         actualizarEquivalentePago(i);
                         break;
                     }
@@ -2835,8 +2862,12 @@
     // Cashea cubre). A diferencia de Facturación, aquí NO se colapsa el
     // total de la reserva — el resto sigue como saldo_pendiente normal,
     // porque las reservas ya manejan sus propios abonos parciales.
+    // ⚠️ Usamos la bandera esCasheaInicial (no metodo_pago) porque el
+    // metodo_pago real que se envía al servidor es el que se elige en
+    // "¿Cobrado cómo?" (Efectivo, Pago Móvil, etc.), para que el cuadre de
+    // caja sepa dónde cayó ese dinero de verdad.
     function actualizarCasheaReserva() {
-        const hayCashea = pagosReserva.some(p => p.metodo_pago === 'Cashea');
+        const hayCashea = pagosReserva.some(p => p.esCasheaInicial);
         const bloque = document.getElementById('cashea-reserva-campos');
         if (!hayCashea) {
             bloque.style.display = 'none';
@@ -2846,7 +2877,7 @@
         bloque.style.display = 'block';
 
         const total = parseFloat(document.getElementById('reserva_total').innerText.replace('$', '')) || 0;
-        const inicial = pagosReserva.filter(p => p.metodo_pago === 'Cashea').reduce((s, p) => s + toNum(p.monto), 0);
+        const inicial = pagosReserva.filter(p => p.esCasheaInicial).reduce((s, p) => s + toNum(p.monto), 0);
         const financiado = Math.max(0, total - inicial);
         document.getElementById('cashea-reserva-inicial').innerText = '$' + inicial.toFixed(2);
         document.getElementById('cashea-reserva-financiado').innerText = '$' + financiado.toFixed(2);
@@ -2971,6 +3002,12 @@
         if (!reservaFechasOk) {
             mostrarError('❌ Verifica primero la disponibilidad de la habitación para esas fechas (revisa el mensaje arriba de las fechas).');
             await verificarDisponibilidadFormReserva();
+            return;
+        }
+
+        const pagoCasheaSinMetodo = pagosReserva.find(p => p.esCasheaInicial && !p.metodo_pago);
+        if (pagoCasheaSinMetodo) {
+            mostrarError('❌ Elige cómo se cobró en realidad el inicial de Cashea (Efectivo, Pago Móvil, etc.) antes de guardar.');
             return;
         }
 

@@ -1655,9 +1655,21 @@
             });
             const data = await res.json();
             const f = data.factura;
+            const emp = f.empresa || {};
             let html = `<div style="padding:20px; font-family:monospace;">
+                <div style="text-align:center; border-bottom:2px solid #333; padding-bottom:12px; margin-bottom:12px;">
+                    <h1 style="margin:0;">${escapeHtml(emp.nombre || 'CoreBilling')}</h1>
+                    <div>${escapeHtml(emp.rif || '')}</div>
+                    <div>${escapeHtml(emp.direccion || '')}</div>
+                    <div>${emp.telefono ? '📞 ' + escapeHtml(emp.telefono) : ''}</div>
+                </div>
                 <h2>Factura N° ${f.numero_factura_empresa || f.numero}</h2>
-                <div>Cliente: ${escapeHtml(f.cliente_nombre)}</div>
+                <div style="background:#f8fafc; padding:10px; border-radius:8px; margin-bottom:10px;">
+                    <div><strong>Cliente:</strong> ${escapeHtml(f.cliente_nombre || 'Cliente General')}</div>
+                    <div><strong>RIF/CI:</strong> ${escapeHtml(f.cliente_rif || 'N/A')}</div>
+                    ${f.cliente_telefono ? `<div><strong>Teléfono:</strong> ${escapeHtml(f.cliente_telefono)}</div>` : ''}
+                    ${f.cliente_direccion ? `<div><strong>Dirección:</strong> ${escapeHtml(f.cliente_direccion)}</div>` : ''}
+                </div>
                 <div>Fecha: ${f.fecha}</div>
                 <div>Tasa: Bs ${f.tasa_cambio}</div>
                 <div>Total: $${f.total_usd}</div>`;
