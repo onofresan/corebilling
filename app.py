@@ -19,7 +19,6 @@ def ahora_venezuela():
     (sin tzinfo) pero con la hora de reloj correcta de Venezuela, sin
     importar en qué zona horaria esté físicamente el servidor."""
     return datetime.now(timezone.utc).astimezone(VENEZUELA_TZ).replace(tzinfo=None)
-
 import json
 import calendar
 import bcrypt
@@ -37,91 +36,27 @@ import threading
 import time
 import requests
 
-# ============================================
-# CONFIGURACIÓN DE RENDIMIENTO
-# ============================================
-
-# Cache de consultas frecuentes en memoria
-_query_cache = {}
-_query_cache_ttl = 30  # segundos
-
-def cache_get(key):
-    """Obtiene datos del caché si no han expirado"""
-    if key in _query_cache:
-        data, timestamp = _query_cache[key]
-        if time.time() - timestamp < _query_cache_ttl:
-            return data
-    return None
-
-def cache_set(key, data):
-    """Guarda datos en caché con timestamp"""
-    _query_cache[key] = (data, time.time())
-
-def cache_clear(key=None):
-    """Limpia el caché, opcionalmente solo una clave"""
-    if key:
-        _query_cache.pop(key, None)
-    else:
-        _query_cache.clear()
-
-# Cache de productos por empresa
-_productos_cache = {}
-_productos_cache_time = {}
-
-def get_productos_cached(empresa_id):
-    """Obtiene productos con caché de 30 segundos"""
-    key = f"productos_{empresa_id}"
-    now = time.time()
-    
-    if key in _productos_cache and (now - _productos_cache_time.get(key, 0)) < 30:
-        return _productos_cache[key]
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("""
-            SELECT codigo, descripcion as nombre, categoria, 
-                   COALESCE(unidad_medida, 'unidad') as unidad_medida,
-                   COALESCE(tipo_producto, 'normal') as tipo_producto,
-                   COALESCE(precio_compra, 0) as costo,
-                   COALESCE(precio_venta, 0) as venta,
-                   COALESCE(iva, 16) as iva,
-                   COALESCE(existencia, 0) as stock
-            FROM productos 
-            WHERE empresa_id = %s
-            ORDER BY codigo
-        """, (empresa_id,))
-        productos = cursor.fetchall()
-        for p in productos:
-            for key in ['costo', 'venta', 'iva', 'stock']:
-                if p[key] is not None:
-                    p[key] = float(p[key])
-        safe_close_conn(conn, cursor)
-        
-        _productos_cache[key] = productos
-        _productos_cache_time[key] = now
-        return productos
-    except Exception as e:
-        safe_close_conn(conn, cursor)
-        raise e
-
-def invalidar_cache_productos(empresa_id):
-    """Invalida el caché de productos de una empresa"""
-    key = f"productos_{empresa_id}"
-    _productos_cache.pop(key, None)
-    _productos_cache_time.pop(key, None)
-
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
 
 # ===== CLAVE JWT =====
+# ⚠️ SEGURIDAD: antes esta línea tenía un valor de respaldo escrito en el
+# código ('clave_jwt_super_secreta_cambiar_1234567890'). Si la variable de
+# entorno JWT_SECRET_KEY no estaba configurada, la app usaba esa clave
+# predecible sin avisar — cualquiera que conociera esa cadena podría
+# falsificar tokens de sesión válidos para cualquier usuario.
+# Ahora: si no está configurada, se genera una clave aleatoria segura en
+# cada arranque (con aviso bien visible en el log). Esto es más seguro,
+# aunque tiene una consecuencia: si el servidor se reinicia sin tener
+# JWT_SECRET_KEY configurada en el entorno, todas las sesiones activas
+# se invalidan (los usuarios tendrían que volver a iniciar sesión).
 JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
 if not JWT_SECRET_KEY:
     import secrets as _secrets
     JWT_SECRET_KEY = _secrets.token_hex(32)
     print("⚠️⚠️⚠️ ADVERTENCIA DE SEGURIDAD: JWT_SECRET_KEY no está configurada en las")
     print("variables de entorno. Se generó una clave aleatoria temporal para esta")
-    print("sesión del servidor. Configura JWT_SECRET_KEY en las variables de entorno")
+    print("sesión del servidor. Configura JWT_SECRET_KEY en Render (Environment)")
     print("con un valor fijo y aleatorio para que las sesiones no se invaliden")
     print("cada vez que el servidor se reinicie.")
 app.config['SECRET_KEY'] = JWT_SECRET_KEY
@@ -131,6 +66,10 @@ stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_...')
 STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', 'pk_test_...')
 
 # ===== CORS =====
+# ⚠️ SEGURIDAD: antes estaba en origins="*", permitiendo que CUALQUIER sitio
+# web en internet pudiera hacerle peticiones a esta API. Ahora se restringe
+# a los dominios reales de la app. Se puede agregar más dominios (ej. uno
+# propio) separándolos por comas en la variable de entorno CORS_ORIGENES.
 _origenes_extra = os.environ.get('CORS_ORIGENES', '')
 ORIGENES_PERMITIDOS = [
     'https://corebilling-1.onrender.com',
@@ -151,15 +90,12 @@ CORS(app, origins=ORIGENES_PERMITIDOS, supports_credentials=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ===== POOL DE CONEXIONES CON FALLBACK Y TIMEOUTS =====
+# ===== POOL DE CONEXIONES CON FALLBACK =====
 DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'localhost'),
     'user': os.environ.get('DB_USER', 'root'),
     'password': os.environ.get('DB_PASSWORD', 'Koko.2590'),
-    'database': os.environ.get('DB_NAME', 'facturacion'),
-    'connect_timeout': 5,
-    'read_timeout': 10,
-    'write_timeout': 10,
+    'database': os.environ.get('DB_NAME', 'facturacion')
 }
 
 try:
@@ -182,13 +118,7 @@ def get_db_connection():
             return connection_pool.get_connection()
         except Exception as e:
             print(f"❌ Error obteniendo conexión del pool: {e}")
-            # Intentar reconectar directamente
-            try:
-                return mysql.connector.connect(**DB_CONFIG)
-            except:
-                # Si falla, esperar y reintentar
-                time.sleep(1)
-                return mysql.connector.connect(**DB_CONFIG)
+            return mysql.connector.connect(**DB_CONFIG)
     else:
         return mysql.connector.connect(**DB_CONFIG)
 
@@ -671,6 +601,12 @@ def verificar_habitaciones_vencidas():
             ahora_dt = ahora_venezuela()
             ahora_str = ahora_dt.strftime('%Y-%m-%d %H:%M:%S')
             
+            # ⚠️ IMPORTANTE: antes esto solo comparaba la FECHA de salida contra
+            # el día de hoy con "<" (estrictamente anterior a hoy). Eso significa
+            # que si el checkout era HOY a las 12:00pm, nunca se detectaba como
+            # vencida hasta el día SIGUIENTE. Ahora se combina fecha_salida_ultima
+            # + hora_salida_ultima (con 12:00pm de respaldo si no hay hora
+            # registrada) y se compara contra la fecha/hora actual real.
             cursor.execute("""
                 SELECT id, numero, codigo_producto, fecha_salida_ultima, hora_salida_ultima, empresa_id
                 FROM habitaciones 
@@ -682,6 +618,7 @@ def verificar_habitaciones_vencidas():
             habitaciones_vencidas = cursor.fetchall()
             
             for hab in habitaciones_vencidas:
+                # Pasar a SUCIA automáticamente
                 cursor.execute("""
                     UPDATE habitaciones 
                     SET estado = 'sucia',
@@ -689,6 +626,7 @@ def verificar_habitaciones_vencidas():
                     WHERE id = %s
                 """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), hab['id']))
                 
+                # Stock a 0 (sucia = no disponible)
                 if hab.get('codigo_producto'):
                     cursor.execute("""
                         UPDATE productos 
@@ -697,12 +635,14 @@ def verificar_habitaciones_vencidas():
                     """, (hab['codigo_producto'], hab['empresa_id']))
                     print(f"✅ Stock de {hab['codigo_producto']} → 0 (habitación sucia)")
                 
+                # Liberar fechas bloqueadas
                 cursor.execute("""
                     DELETE FROM disponibilidad_habitaciones
                     WHERE habitacion_id = %s AND empresa_id = %s
                 """, (hab['id'], hab['empresa_id']))
                 print(f"✅ Fechas liberadas para habitación {hab['numero']}")
                 
+                # Registrar en historial
                 cursor.execute("""
                     INSERT INTO historial_habitaciones (habitacion_id, estado_anterior, estado_nuevo, usuario_id, motivo, empresa_id)
                     VALUES (%s, 'ocupada', 'sucia', 1, 'Check-out automático por vencimiento', %s)
@@ -720,6 +660,7 @@ def verificar_habitaciones_vencidas():
         except Exception as e:
             print(f"❌ Error en verificación de habitaciones: {e}")
         
+        # Esperar 5 minutos antes de la próxima verificación
         time.sleep(300)
 
 # ========== WEBSOCKETS ==========
@@ -732,8 +673,12 @@ def handle_join(data):
 
 # ========== AUTENTICACIÓN ==========
 # ========== PROTECCIÓN CONTRA FUERZA BRUTA EN EL LOGIN ==========
+# En memoria (suficiente porque el servidor corre con un solo worker, per
+# la config de gunicorn --workers 1). Bloquea por combinación de IP +
+# usuario tras varios intentos fallidos seguidos, para dificultar que
+# alguien adivine contraseñas a la fuerza.
 _intentos_login_lock = threading.Lock()
-_intentos_login_fallidos = {}
+_intentos_login_fallidos = {}  # clave -> [timestamps de intentos fallidos]
 MAX_INTENTOS_LOGIN = 5
 VENTANA_BLOQUEO_MINUTOS = 15
 
@@ -1177,15 +1122,33 @@ def eliminar_cliente(id):
     safe_close_conn(conn, cursor)
     return jsonify({'status': 'OK'}), 200
 
-# ========== PRODUCTOS (OPTIMIZADO CON CACHÉ) ==========
+# ========== PRODUCTOS ==========
 @app.route('/api/productos', methods=['GET'])
 @requiere_rol('cajero')
 def obtener_productos():
-    try:
-        productos = get_productos_cached(request.empresa_id)
-        return jsonify(productos), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    empresa_id = request.empresa_id
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT 
+            p.codigo, p.descripcion AS nombre, p.categoria, 
+            COALESCE(p.unidad_medida, 'unidad') AS unidad_medida,
+            COALESCE(p.tipo_producto, 'normal') AS tipo_producto,
+            COALESCE(p.precio_compra, 0) AS costo,
+            COALESCE(p.precio_venta, 0) AS venta,
+            COALESCE(p.iva, 16) AS iva,
+            COALESCE(p.existencia, 0) AS stock
+        FROM productos p
+        WHERE p.empresa_id = %s
+        ORDER BY p.codigo
+    """, (empresa_id,))
+    productos = cursor.fetchall()
+    for p in productos:
+        for key in ['costo', 'venta', 'iva', 'stock']:
+            if p[key] is not None:
+                p[key] = float(p[key])
+    safe_close_conn(conn, cursor)
+    return jsonify(productos), 200
 
 @app.route('/api/productos', methods=['POST'])
 @requiere_rol('admin')
@@ -1223,7 +1186,6 @@ def agregar_producto():
             """, (data['codigo'], data['nombre'], data['categoria'], costo, venta, nuevo_stock, iva, data.get('unidad_medida', 'unidad'), tipo_producto, empresa_id))
             registrar_historial_inventario(cursor, data['codigo'], data['nombre'], 'creacion', 0, nuevo_stock, f'Creado | Nota: {nota}')
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         if nuevo_stock < 5 and tipo_producto not in ['receta', 'kit_hijo']:
             crear_alerta(empresa_id, 'stock_bajo', f"Producto {data['codigo']} stock bajo: {nuevo_stock}")
         return jsonify({'status': 'OK'}), 200
@@ -1311,7 +1273,6 @@ def eliminar_producto(codigo):
         
         cursor.execute("DELETE FROM productos WHERE codigo = %s AND empresa_id = %s", (codigo, empresa_id))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         
         crear_alerta(empresa_id, 'producto_eliminado', f"Producto {codigo} - {prod['descripcion']} eliminado por {request.username}")
         
@@ -1365,7 +1326,6 @@ def registrar_movimiento_inventario():
     cursor.execute("UPDATE productos SET existencia = %s WHERE codigo = %s AND empresa_id = %s", (nuevo_stock, codigo, empresa_id))
     registrar_historial_inventario(cursor, codigo, prod['descripcion'], tipo_mov, stock_anterior, nuevo_stock, nota)
     conn.commit()
-    invalidar_cache_productos(empresa_id)
     safe_close_conn(conn, cursor)
     if nuevo_stock < 5:
         crear_alerta(empresa_id, 'stock_bajo', f"Producto {codigo} stock {nuevo_stock}")
@@ -1716,7 +1676,6 @@ def realizar_despiece():
         registrar_historial_inventario(cursor, padre_codigo, padre['descripcion'], 'despiece',
                                        float(padre['existencia']), nuevo_stock_padre, f"Despiece kit {kit_id}")
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         return jsonify({'status': 'OK', 'mensaje': f'Despiece realizado. Nuevo stock padre: {nuevo_stock_padre}'}), 200
     except Exception as e:
         conn.rollback()
@@ -1764,7 +1723,6 @@ def realizar_despiece_selectivo():
                 registrar_historial_inventario(cursor, h['codigo'], hijo_actual['descripcion'], 'despiece',
                                                float(hijo_actual['existencia']), nuevo_stock, f"Selectivo desde {padre_codigo}")
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         return jsonify({'status': 'OK', 'mensaje': f'Despiece selectivo realizado. Padre descontado: {padre_necesario}'}), 200
     except Exception as e:
         conn.rollback()
@@ -2140,6 +2098,11 @@ def guardar_factura():
         pagos = data.get('pagos', [])
         metodo = data.get('metodo_pago', 'Efectivo')
         
+        # ⚠️ Además de la nota por producto (nota_descuento), también existe la
+        # nota a nivel de PAGO (ej: "cena personal" en la fila de Efectivo).
+        # La juntamos aquí para poder reflejarla también en el historial de
+        # inventario, ya que ese es un lugar común donde el usuario espera
+        # ver cualquier nota que haya escrito en la venta.
         notas_pago = [p.get('nota', '').strip() for p in pagos if p.get('nota', '').strip()]
         nota_pago_texto = ' / '.join(notas_pago)
         
@@ -2188,6 +2151,7 @@ def guardar_factura():
             tipo = prod['tipo_producto']
             stock_actual = Decimal(str(prod['existencia']))
             
+            # Validar stock para habitaciones (stock debe ser 1)
             if codigo.startswith('HAB_'):
                 if stock_actual < 1:
                     return jsonify({'error': f'La habitación {codigo} no está disponible. Stock: {stock_actual}'}), 400
@@ -2265,6 +2229,7 @@ def guardar_factura():
             extras = json.dumps({'tipo': 'credito'})
             referencia = ''
         
+        # ===== GUARDAR DATOS DE HOTEL SI EXISTEN =====
         hotel_data = data.get('hotel')
         if hotel_data:
             hotel_json = {
@@ -2337,6 +2302,7 @@ def guardar_factura():
                     raise Exception(f"Producto {det['codigo']} no encontrado")
                 stock_ant = Decimal(str(prod_data['existencia']))
                 
+                # Si es habitación, stock a 0 (se agota)
                 if det['codigo'].startswith('HAB_'):
                     nuevo_stock = Decimal('0')
                 else:
@@ -2360,12 +2326,14 @@ def guardar_factura():
             """, (factura_id, det['codigo'], float(det['cantidad']), float(det['precio_unitario']), float(det['iva_unitario']),
                   float(det['descuento']), det['nota_desc'], float(det['subtotal_sin_iva']), float(det['subtotal_con_iva']), empresa_id))
         
+        # ===== ACTUALIZAR ESTADO DE HABITACIÓN SI SE FACTURÓ =====
         habitaciones_en_carrito = data.get('habitaciones_en_carrito', [])
         hotel_data = data.get('hotel')
         
         print(f"🔍 Procesando habitaciones: {habitaciones_en_carrito}")
         print(f"🔍 Hotel data: {hotel_data}")
         
+        # Método 1: Usar el array explícito de habitaciones en carrito
         if habitaciones_en_carrito and len(habitaciones_en_carrito) > 0:
             for hab_info in habitaciones_en_carrito:
                 codigo = hab_info.get('codigo')
@@ -2375,6 +2343,7 @@ def guardar_factura():
                 print(f"🏠 Procesando habitación ID: {habitacion_id}, Código: {codigo}, Número: {numero}")
                 
                 if habitacion_id:
+                    # Buscar la habitación por ID
                     cursor.execute("""
                         SELECT id, numero, codigo_producto FROM habitaciones 
                         WHERE id = %s AND empresa_id = %s
@@ -2389,6 +2358,7 @@ def guardar_factura():
                         
                         print(f"✅ Habitación encontrada: {habitacion['numero']} - Actualizando a OCUPADA")
                         
+                        # Actualizar estado a OCUPADA
                         cursor.execute("""
                             UPDATE habitaciones 
                             SET estado = 'ocupada',
@@ -2407,6 +2377,7 @@ def guardar_factura():
                             habitacion['id'], empresa_id
                         ))
                         
+                        # Stock a 0 (ocupada = no disponible)
                         if habitacion.get('codigo_producto'):
                             cursor.execute("""
                                 UPDATE productos 
@@ -2415,6 +2386,7 @@ def guardar_factura():
                             """, (habitacion['codigo_producto'], empresa_id))
                             print(f"✅ Stock de {habitacion['codigo_producto']} → 0")
                         
+                        # Bloquear fechas en disponibilidad SOLO entre entrada y salida
                         if fecha_entrada and fecha_salida:
                             cursor.execute("""
                                 INSERT INTO disponibilidad_habitaciones (habitacion_id, fecha, estado, motivo, reserva_id, empresa_id)
@@ -2441,6 +2413,7 @@ def guardar_factura():
                 else:
                     print(f"⚠️ No hay habitacion_id para: {codigo}")
         
+        # Método 2: Fallback - Buscar por código de producto
         elif hotel_data:
             for item in articulos:
                 codigo_producto = item.get('producto_id', '')
@@ -2486,6 +2459,7 @@ def guardar_factura():
                             """, (codigo_producto, empresa_id))
                             print(f"✅ Stock de {codigo_producto} → 0")
                         
+                        # Bloquear fechas en disponibilidad SOLO entre entrada y salida
                         if fecha_entrada and fecha_salida:
                             cursor.execute("""
                                 INSERT INTO disponibilidad_habitaciones (habitacion_id, fecha, estado, motivo, reserva_id, empresa_id)
@@ -2526,7 +2500,6 @@ def guardar_factura():
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (factura_id, p['metodo_pago'], monto_usd, monto_bs, p.get('referencia', ''), p.get('nota', ''), 1 if es_admin else 0))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'factura', f"Factura #{numero_factura_empresa} creada por {request.username}" + 
                     (" (Gasto interno)" if es_casa else " (Crédito/Fiado)" if es_credito else ""))
         return jsonify({'status': 'OK', 'factura_id': factura_id, 'numero_factura': numero_factura_empresa}), 200
@@ -2544,92 +2517,46 @@ def listar_facturas():
     search = request.args.get('search', '')
     fecha_desde = request.args.get('fecha_desde', '')
     fecha_hasta = request.args.get('fecha_hasta', '')
-    limit = request.args.get('limit', 100, type=int)
-    offset = request.args.get('offset', 0, type=int)
-    
-    if limit > 500:
-        limit = 500
-    
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
-    try:
-        count_query = """
-            SELECT COUNT(*) as total
-            FROM facturas_cabecera fc
-            LEFT JOIN clientes c ON fc.cliente_id = c.id
-            WHERE fc.empresa_id = %s
-        """
-        count_params = [empresa_id]
-        
-        if search:
-            count_query += " AND (fc.numero_factura_empresa LIKE %s OR c.nombre LIKE %s)"
-            count_params.extend([f'%{search}%', f'%{search}%'])
-        if fecha_desde:
-            count_query += " AND DATE(fc.fecha) >= %s"
-            count_params.append(fecha_desde)
-        if fecha_hasta:
-            count_query += " AND DATE(fc.fecha) <= %s"
-            count_params.append(fecha_hasta)
-        
-        cursor.execute(count_query, count_params)
-        total = cursor.fetchone()['total']
-        
-        query = """
-            SELECT fc.numero AS id, fc.numero_factura_empresa AS numero_factura, 
-                   fc.fecha, COALESCE(c.nombre, 'Cliente General') AS cliente_nombre,
-                   fc.tasa_cambio, fc.total_usd, fc.monto_bs, fc.metodo_pago, fc.referencia, fc.estado,
-                   u.username as cajero,
-                   fc.porcentaje_servicio, fc.monto_servicio_usd,
-                   CASE WHEN fc.metodo_pago = 'Casa' THEN '🏠 Gasto interno' 
-                        WHEN fc.metodo_pago = 'Credito' THEN '💳 Crédito/Fiado'
-                        ELSE 'Venta' END as tipo_factura,
-                   fc.extras
-            FROM facturas_cabecera fc
-            LEFT JOIN clientes c ON fc.cliente_id = c.id
-            LEFT JOIN usuarios u ON fc.usuario_id = u.id
-            WHERE fc.empresa_id = %s
-        """
-        params = [empresa_id]
-        
-        if search:
-            query += " AND (fc.numero_factura_empresa LIKE %s OR c.nombre LIKE %s)"
-            params.extend([f'%{search}%', f'%{search}%'])
-        if fecha_desde:
-            query += " AND DATE(fc.fecha) >= %s"
-            params.append(fecha_desde)
-        if fecha_hasta:
-            query += " AND DATE(fc.fecha) <= %s"
-            params.append(fecha_hasta)
-        
-        query += " ORDER BY fc.fecha DESC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        
-        cursor.execute(query, params)
-        facturas = cursor.fetchall()
-        
-        for f in facturas:
-            if f['fecha']:
-                f['fecha'] = f['fecha'].strftime('%Y-%m-%d %H:%M:%S')
-            f['tasa_cambio'] = float(f['tasa_cambio'] or 0)
-            f['total_usd'] = float(f['total_usd'] or 0)
-            f['monto_bs'] = float(f['monto_bs'] or 0)
-            f['monto_servicio_usd'] = float(f['monto_servicio_usd'] or 0)
-            f['porcentaje_servicio'] = float(f['porcentaje_servicio'] or 0)
-        
-        safe_close_conn(conn, cursor)
-        return jsonify({
-            'data': facturas,
-            'pagination': {
-                'total': total,
-                'limit': limit,
-                'offset': offset
-            }
-        }), 200
-        
-    except Exception as e:
-        safe_close_conn(conn, cursor)
-        return jsonify({'error': str(e)}), 500
+    query = """
+        SELECT fc.numero AS id, fc.numero_factura_empresa AS numero_factura, 
+               fc.fecha, COALESCE(c.nombre, 'Cliente General') AS cliente_nombre,
+               fc.tasa_cambio, fc.total_usd, fc.monto_bs, fc.metodo_pago, fc.referencia, fc.estado,
+               u.username as cajero,
+               fc.porcentaje_servicio, fc.monto_servicio_usd,
+               CASE WHEN fc.metodo_pago = 'Casa' THEN '🏠 Gasto interno' 
+                    WHEN fc.metodo_pago = 'Credito' THEN '💳 Crédito/Fiado'
+                    ELSE 'Venta' END as tipo_factura,
+               fc.extras
+        FROM facturas_cabecera fc
+        LEFT JOIN clientes c ON fc.cliente_id = c.id
+        LEFT JOIN usuarios u ON fc.usuario_id = u.id
+        WHERE fc.empresa_id = %s
+    """
+    params = [empresa_id]
+    if search:
+        query += " AND (fc.numero_factura_empresa LIKE %s OR c.nombre LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    if fecha_desde:
+        query += " AND DATE(fc.fecha) >= %s"
+        params.append(fecha_desde)
+    if fecha_hasta:
+        query += " AND DATE(fc.fecha) <= %s"
+        params.append(fecha_hasta)
+    query += " ORDER BY fc.fecha DESC"
+    cursor.execute(query, params)
+    facturas = cursor.fetchall()
+    for f in facturas:
+        if f['fecha']:
+            f['fecha'] = f['fecha'].strftime('%Y-%m-%d %H:%M:%S')
+        f['tasa_cambio'] = float(f['tasa_cambio'] or 0)
+        f['total_usd'] = float(f['total_usd'] or 0)
+        f['monto_bs'] = float(f['monto_bs'] or 0)
+        f['monto_servicio_usd'] = float(f['monto_servicio_usd'] or 0)
+        f['porcentaje_servicio'] = float(f['porcentaje_servicio'] or 0)
+    safe_close_conn(conn, cursor)
+    return jsonify(facturas), 200
 
 @app.route('/api/facturas/<int:id>', methods=['GET'])
 @requiere_rol('cajero')
@@ -2653,9 +2580,11 @@ def detalle_factura(id):
         safe_close_conn(conn, cursor)
         return jsonify({'error': 'Factura no encontrada'}), 404
     
+    # Datos de la empresa, para el encabezado de la factura impresa/PDF
     cursor.execute("SELECT nombre, rif, direccion, telefono FROM empresas WHERE id = %s", (empresa_id,))
     factura['empresa'] = cursor.fetchone() or {}
     
+    # Parsear extras para obtener datos de hotel
     if factura.get('extras'):
         try:
             extras = json.loads(factura['extras'])
@@ -2746,7 +2675,6 @@ def anular_factura(id):
                                                    float(prod['existencia']), float(nueva_cantidad), f"Anulación factura #{numero_factura} - Motivo: {motivo}")
         cursor.execute("UPDATE facturas_cabecera SET estado = 'anulada', motivo_anulacion = %s WHERE numero = %s AND empresa_id = %s", (motivo, id, empresa_id))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         return jsonify({'status': 'OK', 'mensaje': 'Factura anulada y stock restaurado'}), 200
     except Exception as e:
         conn.rollback()
@@ -2798,7 +2726,6 @@ def eliminar_factura(id):
         cursor.execute("DELETE FROM facturas_pagos WHERE factura_numero = %s", (id,))
         cursor.execute("DELETE FROM facturas_cabecera WHERE numero = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -2845,6 +2772,13 @@ def marcar_alerta_leida(id):
 @app.route('/api/estadisticas/balance', methods=['GET'])
 @requiere_rol('cajero')
 def estadisticas_balance():
+    """
+    Calcula el total vendido en un período (día/semana/mes/año) y lo compara
+    contra el período anterior equivalente, para saber si las ventas subieron
+    o bajaron. 'offset' permite ir hacia atrás en el tiempo (offset=1 es el
+    período pasado, offset=2 el anterior a ese, etc.), para poder buscar
+    meses/semanas/días/años anteriores específicos.
+    """
     empresa_id = request.empresa_id
     periodo = request.args.get('periodo', 'dia')
     try:
@@ -2859,7 +2793,7 @@ def estadisticas_balance():
             dia = hoy - timedelta(days=offset)
             return dia, dia, dia.strftime('%d/%m/%Y')
         elif periodo == 'semana':
-            inicio_semana_actual = hoy - timedelta(days=hoy.weekday())
+            inicio_semana_actual = hoy - timedelta(days=hoy.weekday())  # lunes de esta semana
             desde = inicio_semana_actual - timedelta(weeks=offset)
             hasta = desde + timedelta(days=6)
             return desde, hasta, f"{desde.strftime('%d/%m')} al {hasta.strftime('%d/%m/%Y')}"
@@ -3549,7 +3483,6 @@ def recibir_orden_compra(id):
         """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'recepcion', f"Orden #{id} recibida correctamente")
         return jsonify({'status': 'OK', 'mensaje': 'Orden recibida correctamente'}), 200
     except Exception as e:
@@ -3694,7 +3627,7 @@ def cambiar_estado_orden(id):
         """, (nuevo_estado, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), estado_actual, nuevo_estado, request.username, id, empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
+        
         crear_alerta(empresa_id, 'orden_estado', f"Orden #{id} cambió de '{estado_actual}' a '{nuevo_estado}'")
         
         return jsonify({'status': 'OK', 'mensaje': f'Estado cambiado a {nuevo_estado}'}), 200
@@ -3745,7 +3678,6 @@ def eliminar_orden_compra(id):
         cursor.execute("DELETE FROM recepciones_ordenes WHERE orden_id = %s", (id,))
         cursor.execute("DELETE FROM ordenes_compra WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         return jsonify({'status': 'OK', 'mensaje': 'Orden eliminada correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -3772,6 +3704,7 @@ def obtener_disponibilidad_habitacion(habitacion_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Verificar si la tabla existe
         cursor.execute("""
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -3794,6 +3727,7 @@ def obtener_disponibilidad_habitacion(habitacion_id):
         
         disponibles = cursor.fetchall()
         
+        # También obtener reservas confirmadas para este período
         cursor.execute("""
             SELECT fecha_entrada as fecha_inicio, fecha_salida as fecha_fin, estado
             FROM reservas
@@ -3806,6 +3740,11 @@ def obtener_disponibilidad_habitacion(habitacion_id):
         
         reservas = cursor.fetchall()
         
+        # ⚠️ IMPORTANTE: sin este formateo explícito, Flask serializa los
+        # objetos date/datetime de MySQL como "Sat, 18 Jul 2026 00:00:00 GMT"
+        # (formato HTTP), que no coincide con las fechas "YYYY-MM-DD" que usa
+        # el calendario en el frontend para comparar — por eso el calendario
+        # nunca reconocía los días bloqueados/reservados como tal.
         for b in disponibles:
             if b.get('fecha') is not None:
                 b['fecha'] = b['fecha'].strftime('%Y-%m-%d') if hasattr(b['fecha'], 'strftime') else str(b['fecha'])
@@ -3839,6 +3778,7 @@ def bloquear_fecha_habitacion(habitacion_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        # Verificar si la tabla existe
         cursor.execute("""
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -3903,6 +3843,7 @@ def verificar_disponibilidad_habitacion(habitacion_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Verificar si la tabla existe
         cursor.execute("""
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -3914,6 +3855,8 @@ def verificar_disponibilidad_habitacion(habitacion_id):
             safe_close_conn(conn, cursor)
             return jsonify({'disponible': True, 'bloqueadas': 0, 'reservas': 0}), 200
         
+        # Verificar si hay fechas bloqueadas en el rango (el día de salida/checkout
+        # NO cuenta como bloqueado: ese día la habitación ya está libre para otro huésped)
         cursor.execute("""
             SELECT COUNT(*) as total
             FROM disponibilidad_habitaciones
@@ -3925,6 +3868,11 @@ def verificar_disponibilidad_habitacion(habitacion_id):
         
         bloqueadas = cursor.fetchone()['total']
         
+        # Verificar si hay reservas que cruzan este rango.
+        # Solapamiento de intervalo semiabierto [entrada, salida): dos estadías
+        # solo chocan si una empieza ANTES de que la otra termine Y termina
+        # DESPUÉS de que la otra empiece. Así, si una reserva sale el día 10 y
+        # otra entra el día 10, no se consideran en conflicto (turnover el mismo día).
         cursor.execute("""
             SELECT COUNT(*) as total
             FROM reservas
@@ -3962,6 +3910,7 @@ def auto_bloquear_reserva():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Verificar si la tabla existe
         cursor.execute("""
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -3982,6 +3931,7 @@ def auto_bloquear_reserva():
             safe_close_conn(conn, cursor)
             return jsonify({'error': 'Reserva no encontrada'}), 404
         
+        # Bloquear todas las fechas entre entrada y salida
         fecha_actual = datetime.strptime(reserva['fecha_entrada'], '%Y-%m-%d')
         fecha_salida = datetime.strptime(reserva['fecha_salida'], '%Y-%m-%d')
         
@@ -4050,6 +4000,7 @@ def listar_habitaciones():
         """, (empresa_id,))
         habitaciones = cursor.fetchall()
         
+        # Convertir valores Decimal a float
         for h in habitaciones:
             if h.get('precio_noche') is not None:
                 h['precio_noche'] = float(h['precio_noche'])
@@ -4096,6 +4047,7 @@ def crear_habitacion():
         ))
         habitacion_id = cursor.lastrowid
         
+        # Crear producto asociado si no existe
         cursor.execute("SELECT codigo FROM productos WHERE codigo = %s AND empresa_id = %s", (codigo_producto, empresa_id))
         if not cursor.fetchone():
             cursor.execute("""
@@ -4104,7 +4056,6 @@ def crear_habitacion():
             """, (codigo_producto, f"Habitación {data['numero']} - {data.get('tipo', 'Estandar')}", data.get('precio_noche', 0), empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'habitacion', f"Habitación {data['numero']} creada con código {codigo_producto}")
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK', 'id': habitacion_id}), 201
@@ -4136,7 +4087,6 @@ def actualizar_habitacion(id):
             id, empresa_id
         ))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
@@ -4157,7 +4107,6 @@ def eliminar_habitacion(id):
         
         cursor.execute("DELETE FROM habitaciones WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
@@ -4190,6 +4139,7 @@ def cambiar_estado_habitacion(id):
         estado_anterior = habitacion['estado']
         codigo_producto = habitacion.get('codigo_producto')
         
+        # Actualizar stock según el estado
         if codigo_producto:
             if nuevo_estado == 'disponible':
                 cursor.execute("""
@@ -4219,7 +4169,6 @@ def cambiar_estado_habitacion(id):
         """, (id, estado_anterior, nuevo_estado, usuario_id, motivo, empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'habitacion_estado', f"Habitación {habitacion['numero']} cambió de '{estado_anterior}' a '{nuevo_estado}'")
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK'}), 200
@@ -4248,6 +4197,7 @@ def limpiar_habitacion(id):
             safe_close_conn(conn, cursor)
             return jsonify({'error': 'La habitación no está en estado SUCIA'}), 400
         
+        # Cambiar a DISPONIBLE
         cursor.execute("""
             UPDATE habitaciones 
             SET estado = 'disponible',
@@ -4255,6 +4205,7 @@ def limpiar_habitacion(id):
             WHERE id = %s AND empresa_id = %s
         """, (ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), id, empresa_id))
         
+        # Restaurar stock a 1
         if habitacion.get('codigo_producto'):
             cursor.execute("""
                 UPDATE productos 
@@ -4263,19 +4214,20 @@ def limpiar_habitacion(id):
             """, (habitacion['codigo_producto'], empresa_id))
             print(f"✅ Stock restaurado para {habitacion['codigo_producto']} → 1")
         
+        # Liberar fechas bloqueadas
         cursor.execute("""
             DELETE FROM disponibilidad_habitaciones
             WHERE habitacion_id = %s AND empresa_id = %s
         """, (id, empresa_id))
         print(f"✅ Fechas liberadas para habitación {habitacion['numero']}")
         
+        # Registrar en historial
         cursor.execute("""
             INSERT INTO historial_habitaciones (habitacion_id, estado_anterior, estado_nuevo, usuario_id, motivo, empresa_id)
             VALUES (%s, 'sucia', 'disponible', %s, 'Limpieza completada', %s)
         """, (id, request.user_id, empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'habitacion_limpia', f"🧹 Habitación {habitacion['numero']} - Limpieza completada - DISPONIBLE (stock=1)")
         
         safe_close_conn(conn, cursor)
@@ -4307,6 +4259,7 @@ def actualizar_stock_habitacion(id):
             safe_close_conn(conn, cursor)
             return jsonify({'error': 'La habitación no tiene código de producto'}), 400
         
+        # Determinar stock según estado
         if habitacion['estado'] == 'disponible':
             nuevo_stock = 1
         else:
@@ -4319,7 +4272,6 @@ def actualizar_stock_habitacion(id):
         """, (nuevo_stock, codigo_producto, empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         
         safe_close_conn(conn, cursor)
         return jsonify({
@@ -4345,6 +4297,7 @@ def listar_reservas():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
+        # Verificar si la tabla reservas existe
         cursor.execute("""
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -4393,6 +4346,7 @@ def listar_reservas():
         
         reservas = cursor.fetchall()
         
+        # Convertir fechas a string para JSON
         for r in reservas:
             for key, value in list(r.items()):
                 if value is None:
@@ -4430,6 +4384,7 @@ def crear_reserva_con_pagos():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Verificar si la tabla reservas existe
         cursor.execute("""
             SELECT COUNT(*) 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -4452,6 +4407,10 @@ def crear_reserva_con_pagos():
         if not habitacion:
             return jsonify({'error': 'Habitación no encontrada'}), 404
         
+        # ===== VALIDAR DISPONIBILIDAD REAL POR FECHAS (evitar doble reserva) =====
+        # El estado general de la habitación (disponible/ocupada) es solo una foto
+        # del día de hoy; lo que de verdad importa aquí es si el RANGO de fechas
+        # pedido choca con un bloqueo o con otra reserva activa.
         bloqueos_en_rango = 0
         if tabla_existe(conn, 'disponibilidad_habitaciones'):
             cursor.execute("""
@@ -4524,6 +4483,7 @@ def crear_reserva_con_pagos():
         ))
         reserva_id = cursor.lastrowid
         
+        # Insertar pagos
         for p in pagos:
             monto = float(p.get('monto', 0))
             moneda = p.get('moneda', 'USD')
@@ -4541,6 +4501,7 @@ def crear_reserva_con_pagos():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (reserva_id, p.get('metodo_pago', 'Efectivo'), monto_usd, monto_bs, moneda, p.get('referencia', ''), usuario_id, empresa_id))
         
+        # Insertar servicios
         for servicio in data.get('servicios', []):
             cursor.execute("""
                 INSERT INTO reservas_servicios (reserva_id, servicio_id, cantidad, precio_unitario, total, fecha_servicio, observaciones, empresa_id)
@@ -4552,6 +4513,15 @@ def crear_reserva_con_pagos():
                 servicio.get('fecha_servicio'), servicio.get('observaciones', ''), empresa_id
             ))
         
+        # ⚠️ IMPORTANTE: el campo habitaciones.estado refleja el día de HOY,
+        # no el futuro. Si la reserva es para una fecha futura (fecha_entrada
+        # > hoy), NO debe tocar el estado actual de la habitación — por
+        # ejemplo, si hoy está "ocupada" por otro huésped, debe SEGUIR
+        # "ocupada" y solo el día reservado debe aparecer como reservado en
+        # el calendario (vía disponibilidad_habitaciones, más abajo).
+        # Solo actualizamos el estado "de hoy" si la reserva efectivamente
+        # incluye la fecha de hoy Y la habitación está actualmente disponible
+        # (para no pisar un estado como 'ocupada', 'sucia', etc.).
         hoy = date.today()
         if estado in ['confirmada', 'abonada'] and fecha_entrada <= hoy < fecha_salida:
             cursor.execute("""
@@ -4560,6 +4530,9 @@ def crear_reserva_con_pagos():
                 WHERE id = %s AND empresa_id = %s AND estado = 'disponible'
             """, (data['habitacion_id'], empresa_id))
         
+        # ============================================================
+        # ✅ BLOQUEAR FECHAS SOLO DESDE fecha_entrada HASTA fecha_salida
+        # ============================================================
         cursor.execute("""
             INSERT INTO disponibilidad_habitaciones (habitacion_id, fecha, estado, motivo, reserva_id, empresa_id)
             SELECT %s, fecha_generada, 'no_disponible', 'Reserva confirmada', %s, %s
@@ -4576,13 +4549,13 @@ def crear_reserva_con_pagos():
             ON DUPLICATE KEY UPDATE
             estado = 'no_disponible', reserva_id = %s
         """, (
-            data['habitacion_id'],
-            reserva_id,
-            empresa_id,
-            fecha_entrada,
-            fecha_entrada,
-            fecha_salida,
-            reserva_id
+            data['habitacion_id'],      # habitacion_id
+            reserva_id,                  # reserva_id
+            empresa_id,                  # empresa_id
+            fecha_entrada,               # START - fecha_entrada (NO hoy)
+            fecha_entrada,               # START - fecha_entrada
+            fecha_salida,                # END - fecha_salida
+            reserva_id                   # reserva_id para ON DUPLICATE
         ))
         
         conn.commit()
@@ -4754,6 +4727,7 @@ def check_in_reserva(id):
             WHERE id = %s AND empresa_id = %s
         """, (reserva['habitacion_id'], empresa_id))
         
+        # Stock a 0
         if reserva.get('codigo_producto'):
             cursor.execute("""
                 UPDATE productos 
@@ -4762,7 +4736,6 @@ def check_in_reserva(id):
             """, (reserva['codigo_producto'], empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'check_in', f"Check-in realizado para reserva #{id}")
         return jsonify({'status': 'OK', 'mensaje': 'Check-in realizado correctamente'}), 200
     except Exception as e:
@@ -4796,6 +4769,7 @@ def check_out_reserva(id):
         if reserva['estado'] not in ['check_in', 'confirmada']:
             return jsonify({'error': 'La reserva no está activa'}), 400
         
+        # Restaurar stock a 1 (vuelve a estar disponible)
         if reserva.get('codigo_producto'):
             cursor.execute("""
                 UPDATE productos 
@@ -4823,7 +4797,6 @@ def check_out_reserva(id):
         """, (reserva['habitacion_id'], request.user_id, empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'check_out', f"Check-out realizado para reserva #{id}")
         return jsonify({'status': 'OK', 'mensaje': 'Check-out realizado correctamente'}), 200
     except Exception as e:
@@ -4859,6 +4832,7 @@ def cambiar_estado_reserva(id):
                 WHERE id = %s AND empresa_id = %s
             """, (reserva['habitacion_id'], empresa_id))
             
+            # Restaurar stock a 1
             if reserva.get('codigo_producto'):
                 cursor.execute("""
                     UPDATE productos 
@@ -4866,6 +4840,7 @@ def cambiar_estado_reserva(id):
                     WHERE codigo = %s AND empresa_id = %s
                 """, (reserva['codigo_producto'], empresa_id))
             
+            # Liberar fechas bloqueadas
             cursor.execute("""
                 DELETE FROM disponibilidad_habitaciones
                 WHERE reserva_id = %s AND empresa_id = %s
@@ -4879,7 +4854,6 @@ def cambiar_estado_reserva(id):
         """, (nuevo_estado, ahora_venezuela().strftime('%Y-%m-%d %H:%M:%S'), nuevo_estado, motivo, id, empresa_id))
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         crear_alerta(empresa_id, 'reserva_estado', f"Reserva #{id} cambió a '{nuevo_estado}'")
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
@@ -5082,6 +5056,7 @@ def verificar_habitaciones_vencidas_manual():
                 """, (hab['codigo_producto'], empresa_id))
                 print(f"✅ Stock de {hab['codigo_producto']} → 0 (habitación sucia)")
             
+            # Liberar fechas bloqueadas
             cursor.execute("""
                 DELETE FROM disponibilidad_habitaciones
                 WHERE habitacion_id = %s AND empresa_id = %s
@@ -5104,7 +5079,6 @@ def verificar_habitaciones_vencidas_manual():
             })
         
         conn.commit()
-        invalidar_cache_productos(empresa_id)
         
         return jsonify({
             'status': 'OK',
@@ -5306,6 +5280,13 @@ def super_eliminar_cierre(id):
 def serve_frontend(filename='login.html'):
     if filename.startswith('api/') or filename.startswith('socket.io/'):
         return jsonify({'error': 'Not found'}), 404
+    # ⚠️ IMPORTANTE: send_from_directory lanza werkzeug.exceptions.NotFound
+    # (NO FileNotFoundError) cuando el archivo no existe. Si solo se atrapa
+    # FileNotFoundError, el primer intento que falle interrumpe todo con un
+    # 404 y el resto de las carpetas de respaldo nunca se llegan a probar.
+    # Por eso probamos varias ubicaciones típicas, en orden de más a menos
+    # probable según cómo esté organizado el repo (todo en la raíz, o
+    # separado en una carpeta 'frontend').
     for carpeta in ('.', 'frontend', '../frontend'):
         try:
             return send_from_directory(carpeta, filename)
@@ -5336,6 +5317,11 @@ def internal_error(error):
     return "Error interno del servidor", 500
 
 # ========== INICIO DE HILOS EN SEGUNDO PLANO ==========
+# ⚠️ IMPORTANTE: esto va a NIVEL DE MÓDULO (no dentro de if __name__=='__main__')
+# porque en producción la app se arranca con gunicorn ('gunicorn app:app'), que
+# IMPORTA este archivo en vez de ejecutarlo directamente. Si este código
+# estuviera solo dentro de if __name__=='__main__', gunicorn nunca lo
+# ejecutaría y estos verificadores automáticos jamás correrían en Render.
 def iniciar_verificador():
     thread = threading.Thread(target=verificar_habitaciones_vencidas, daemon=True)
     thread.start()
