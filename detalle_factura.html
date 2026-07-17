@@ -95,12 +95,34 @@
         if (!token) { window.location.href = 'login.html'; return null; }
         try {
             const res = await fetch(`${API_URL}/check-session`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!res.ok) throw new Error();
+            // ⚠️ Solo cerramos sesión de verdad si el servidor responde 401/403
+            // (sesión realmente inválida). Si la respuesta es otro tipo de
+            // error, o si el fetch falla por la red, NO borramos el token —
+            // antes cualquier fallo (incluso un parpadeo de conexión) mandaba
+            // a login sin necesidad.
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('token');
+                window.location.href = 'login.html';
+                return null;
+            }
+            if (!res.ok) {
+                document.getElementById('detalle').innerHTML = `<p style="color:#ef4444; text-align:center;">❌ No se pudo verificar la sesión (error ${res.status}). <a href="#" onclick="location.reload()">Reintentar</a></p>`;
+                return null;
+            }
             const data = await res.json();
-            if (!data.logged_in) throw new Error();
+            if (!data.logged_in) {
+                localStorage.removeItem('token');
+                window.location.href = 'login.html';
+                return null;
+            }
             if (data.role === 'super_admin') window.location.href = 'super_admin.html';
             return data;
-        } catch(e) { localStorage.removeItem('token'); window.location.href = 'login.html'; return null; }
+        } catch(e) {
+            // Fallo de red real (sin internet, proxy caído, etc.) — no
+            // cerramos sesión, solo avisamos con opción de reintentar.
+            document.getElementById('detalle').innerHTML = `<p style="color:#ef4444; text-align:center;">🔴 No se pudo conectar con el servidor. Verifica tu conexión. <a href="#" onclick="location.reload()">Reintentar</a></p>`;
+            return null;
+        }
     }
 
     async function cargarDetalle() {
