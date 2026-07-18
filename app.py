@@ -3,7 +3,6 @@ import mysql.connector
 from mysql.connector import pooling
 from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
-from flask_caching import Cache
 from datetime import datetime, timedelta, date, timezone
 
 # ⚠️ IMPORTANTE: Render, Clever Cloud y la mayoría de servidores en la nube
@@ -39,38 +38,6 @@ import requests
 
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
-
-# ===== CACHING =====
-# Cache en memoria del propio proceso (SimpleCache) — no requiere Redis ni
-# nada externo, es lo más simple posible para reducir la carga en la base de
-# datos (que tiene el límite de 5 conexiones simultáneas en Clever Cloud).
-# Solo se cachean endpoints de LECTURA que no cambian todo el tiempo
-# (productos, habitaciones, clientes, categorías...). Cada endpoint que
-# modifica esos datos limpia su caché correspondiente al terminar, para que
-# nadie vea información vieja después de un cambio.
-app.config['CACHE_TYPE'] = 'SimpleCache'
-app.config['CACHE_DEFAULT_TIMEOUT'] = 30  # segundos
-cache = Cache(app)
-
-def cache_key_por_empresa(*args, **kwargs):
-    """Genera una key de caché específica por empresa + ruta, para que los
-    datos de una empresa nunca se mezclen con los de otra en el caché."""
-    empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
-    return f"{request.path}:{request.query_string.decode('utf-8')}:empresa_{empresa_id}"
-
-def invalidar_cache_lecturas():
-    """Limpia todo el caché de lecturas (productos, habitaciones, clientes,
-    etc.). Se llama después de CUALQUIER operación que modifique esos datos
-    (crear/editar/eliminar producto, facturar, cambiar estado de habitación,
-    reservar, etc.), para que nadie vea información desactualizada.
-    Se limpia el caché completo (no solo la key afectada) a propósito: con
-    tantos puntos de escritura distintos, es más seguro invalidar de más que
-    arriesgarse a olvidar un caso y dejar datos viejos regados. Como los
-    timeouts ya son cortos (10-60s), el costo de esto es mínimo."""
-    try:
-        cache.clear()
-    except Exception as e:
-        print(f"⚠️ Error invalidando caché: {e}")
 
 # ===== CLAVE JWT =====
 # ⚠️ SEGURIDAD: antes esta línea tenía un valor de respaldo escrito en el
@@ -689,8 +656,6 @@ def verificar_habitaciones_vencidas():
             
             conn.commit()
             safe_close_conn(conn, cursor)
-            if habitaciones_vencidas:
-                invalidar_cache_lecturas()
             
         except Exception as e:
             print(f"❌ Error en verificación de habitaciones: {e}")
@@ -1094,7 +1059,6 @@ def eliminar_usuario(id):
 # ========== CLIENTES ==========
 @app.route('/api/clientes', methods=['GET'])
 @requiere_rol('cajero')
-@cache.cached(timeout=30, make_cache_key=cache_key_por_empresa)
 def obtener_clientes():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1120,7 +1084,6 @@ def agregar_cliente():
                 direccion = VALUES(direccion), email = VALUES(email)
         """, (data['rif'], data['nombre'], data.get('telefono', ''), data.get('direccion', ''), data.get('email', ''), empresa_id))
         conn.commit()
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK'}), 200
     except mysql.connector.Error as err:
         return jsonify({'error': str(err)}), 500
@@ -1141,7 +1104,6 @@ def actualizar_cliente(id):
     """, (data['rif'], data['nombre'], data.get('telefono', ''), data.get('direccion', ''), data.get('email', ''), id, empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
-    invalidar_cache_lecturas()
     return jsonify({'status': 'OK'}), 200
 
 @app.route('/api/clientes/<int:id>', methods=['DELETE'])
@@ -1163,7 +1125,6 @@ def eliminar_cliente(id):
 # ========== PRODUCTOS ==========
 @app.route('/api/productos', methods=['GET'])
 @requiere_rol('cajero')
-@cache.cached(timeout=10, make_cache_key=cache_key_por_empresa)
 def obtener_productos():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1227,7 +1188,6 @@ def agregar_producto():
         conn.commit()
         if nuevo_stock < 5 and tipo_producto not in ['receta', 'kit_hijo']:
             crear_alerta(empresa_id, 'stock_bajo', f"Producto {data['codigo']} stock bajo: {nuevo_stock}")
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK'}), 200
     except mysql.connector.Error as err:
         conn.rollback()
@@ -1316,7 +1276,6 @@ def eliminar_producto(codigo):
         
         crear_alerta(empresa_id, 'producto_eliminado', f"Producto {codigo} - {prod['descripcion']} eliminado por {request.username}")
         
-        invalidar_cache_lecturas()
         return jsonify({
             'status': 'OK', 
             'mensaje': f'Producto {codigo} eliminado exitosamente'
@@ -1375,7 +1334,6 @@ def registrar_movimiento_inventario():
 # ========== CATEGORÍAS ==========
 @app.route('/api/categorias', methods=['GET'])
 @requiere_rol('cajero')
-@cache.cached(timeout=60, make_cache_key=cache_key_por_empresa)
 def listar_categorias():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1411,7 +1369,6 @@ def crear_categoria():
         conn.commit()
         categoria_id = cursor.lastrowid
         crear_alerta(empresa_id, 'categoria', f"Nueva categoría '{nombre}' creada")
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'id': categoria_id, 'nombre': nombre}), 201
     except mysql.connector.IntegrityError:
         return jsonify({'error': 'La categoría ya existe'}), 400
@@ -1477,7 +1434,6 @@ def eliminar_categoria(id):
 # ========== RECETAS ==========
 @app.route('/api/recetas', methods=['GET'])
 @requiere_rol('cajero')
-@cache.cached(timeout=30, make_cache_key=cache_key_por_empresa)
 def listar_recetas():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1508,7 +1464,6 @@ def crear_receta():
                 VALUES (%s, %s, %s, %s)
             """, (receta_id, ing['codigo'], ing['cantidad'], empresa_id))
         conn.commit()
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'id': receta_id}), 201
     except Exception as e:
         conn.rollback()
@@ -2547,7 +2502,6 @@ def guardar_factura():
         conn.commit()
         crear_alerta(empresa_id, 'factura', f"Factura #{numero_factura_empresa} creada por {request.username}" + 
                     (" (Gasto interno)" if es_casa else " (Crédito/Fiado)" if es_credito else ""))
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'factura_id': factura_id, 'numero_factura': numero_factura_empresa}), 200
     except Exception as e:
         conn.rollback()
@@ -3205,7 +3159,6 @@ def exportar_facturas():
 # ========== PROVEEDORES ==========
 @app.route('/api/proveedores', methods=['GET'])
 @requiere_rol('admin')
-@cache.cached(timeout=60, make_cache_key=cache_key_por_empresa)
 def listar_proveedores():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -3228,7 +3181,6 @@ def crear_proveedor():
     """, (data['nombre'], data.get('rif', ''), data.get('telefono', ''), data.get('email', ''), data.get('direccion', ''), empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
-    invalidar_cache_lecturas()
     return jsonify({'status': 'OK'}), 201
 
 @app.route('/api/proveedores/<int:id>', methods=['PUT'])
@@ -4031,7 +3983,6 @@ def auto_liberar_reserva():
 # ---------- HABITACIONES ----------
 @app.route('/api/habitaciones', methods=['GET'])
 @requiere_rol('cajero')
-@cache.cached(timeout=10, make_cache_key=cache_key_por_empresa)
 def listar_habitaciones():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -4107,7 +4058,6 @@ def crear_habitacion():
         conn.commit()
         crear_alerta(empresa_id, 'habitacion', f"Habitación {data['numero']} creada con código {codigo_producto}")
         safe_close_conn(conn, cursor)
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'id': habitacion_id}), 201
     except Exception as e:
         conn.rollback()
@@ -4138,7 +4088,6 @@ def actualizar_habitacion(id):
         ))
         conn.commit()
         safe_close_conn(conn, cursor)
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4222,7 +4171,6 @@ def cambiar_estado_habitacion(id):
         conn.commit()
         crear_alerta(empresa_id, 'habitacion_estado', f"Habitación {habitacion['numero']} cambió de '{estado_anterior}' a '{nuevo_estado}'")
         safe_close_conn(conn, cursor)
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4283,7 +4231,6 @@ def limpiar_habitacion(id):
         crear_alerta(empresa_id, 'habitacion_limpia', f"🧹 Habitación {habitacion['numero']} - Limpieza completada - DISPONIBLE (stock=1)")
         
         safe_close_conn(conn, cursor)
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'mensaje': 'Habitación limpia y disponible'}), 200
         
     except Exception as e:
@@ -4327,7 +4274,6 @@ def actualizar_stock_habitacion(id):
         conn.commit()
         
         safe_close_conn(conn, cursor)
-        invalidar_cache_lecturas()
         return jsonify({
             'status': 'OK',
             'habitacion': habitacion['numero'],
@@ -4615,7 +4561,6 @@ def crear_reserva_con_pagos():
         conn.commit()
         crear_alerta(empresa_id, 'nueva_reserva', f"Nueva reserva #{reserva_id} creada por {request.username}")
         safe_close_conn(conn, cursor)
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'id': reserva_id, 'saldo_pendiente': saldo_pendiente}), 201
     except Exception as e:
         conn.rollback()
@@ -4683,7 +4628,6 @@ def registrar_abono_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'abono', f"Abono de ${monto_usd} registrado para reserva #{id} - Saldo: ${nuevo_saldo}")
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'abono': nuevo_abono, 'saldo': nuevo_saldo}), 200
     except Exception as e:
         conn.rollback()
@@ -4793,7 +4737,6 @@ def check_in_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'check_in', f"Check-in realizado para reserva #{id}")
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'mensaje': 'Check-in realizado correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -4855,7 +4798,6 @@ def check_out_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'check_out', f"Check-out realizado para reserva #{id}")
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'mensaje': 'Check-out realizado correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -4913,7 +4855,6 @@ def cambiar_estado_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'reserva_estado', f"Reserva #{id} cambió a '{nuevo_estado}'")
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4924,7 +4865,6 @@ def cambiar_estado_reserva(id):
 # ---------- SERVICIOS ADICIONALES ----------
 @app.route('/api/servicios', methods=['GET'])
 @requiere_rol('cajero')
-@cache.cached(timeout=60, make_cache_key=cache_key_por_empresa)
 def listar_servicios():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -4951,7 +4891,6 @@ def crear_servicio():
             VALUES (%s, %s, %s, %s, %s)
         """, (data['nombre'], data.get('descripcion', ''), data.get('precio_usd', 0), data.get('tipo', 'servicio'), empresa_id))
         conn.commit()
-        invalidar_cache_lecturas()
         return jsonify({'status': 'OK', 'id': cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
@@ -5140,7 +5079,6 @@ def verificar_habitaciones_vencidas_manual():
             })
         
         conn.commit()
-        invalidar_cache_lecturas()
         
         return jsonify({
             'status': 'OK',
