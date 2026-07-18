@@ -1123,17 +1123,44 @@
     // ============================================================
     // MODO OFFLINE: aviso de conexión (lectura desde caché, escritura bloqueada)
     // ============================================================
+    // ⚠️ IMPORTANTE: antes, cada vez que fallaba la carga (ej: el servidor
+    // realmente caído, no solo "sin internet"), se programaba un reintento
+    // en 1.5s — y si ESE reintento también fallaba, programaba otro, y
+    // otro... sin ningún freno. Si el servidor tardaba minutos en volver,
+    // esto disparaba cientos de peticiones por minuto. Ahora hay un
+    // guardián para que solo haya UN reintento programado a la vez, el
+    // intervalo es más largo, y se detiene tras varios intentos seguidos
+    // fallidos (dejando el botón de recarga manual como salida).
+    let reintentoProgramado = false;
+    let intentosReconexionFallidos = 0;
+    const MAX_INTENTOS_RECONEXION = 5;
+
     function actualizarBannerConexion(datosDesdeCache) {
         if (!navigator.onLine) {
             CoreOffline.actualizarBanner('🔴 Sin conexión — viendo inventario guardado. Agregar/editar productos requiere internet.', '#dc2626');
-        } else if (datosDesdeCache) {
-            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
-            setTimeout(() => cargarInventario(), 1500);
-        } else {
-            CoreOffline.ocultarBanner();
+            return;
         }
+        if (!datosDesdeCache) {
+            CoreOffline.ocultarBanner();
+            intentosReconexionFallidos = 0;
+            return;
+        }
+
+        intentosReconexionFallidos++;
+        if (intentosReconexionFallidos > MAX_INTENTOS_RECONEXION) {
+            CoreOffline.actualizarBanner('🟡 No se pudo reconectar con el servidor — viendo datos guardados. Recarga la página para reintentar.', '#d97706');
+            return;
+        }
+
+        CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+        if (reintentoProgramado) return; // ya hay uno esperando, no apilar más
+        reintentoProgramado = true;
+        setTimeout(() => {
+            reintentoProgramado = false;
+            cargarInventario();
+        }, 8000);
     }
-    window.addEventListener('online', () => { cargarInventario(); cargarCategorias(); });
+    window.addEventListener('online', () => { intentosReconexionFallidos = 0; cargarInventario(); cargarCategorias(); });
     window.addEventListener('offline', () => actualizarBannerConexion(false));
 </script>
 </body>

@@ -3216,18 +3216,41 @@
     // ============================================================
     // MODO OFFLINE: aviso de conexión (lectura desde caché, escritura bloqueada)
     // ============================================================
+    // ⚠️ Ver la nota equivalente en inventario.html: sin guardián, un fallo
+    // persistente del servidor generaba reintentos infinitos apilados cada
+    // 1.5s. Ahora solo hay un reintento programado a la vez, cada 8s, y se
+    // detiene tras varios fallos seguidos.
+    let reintentoProgramadoHoteleria = false;
+    let intentosReconexionFallidosHoteleria = 0;
+    const MAX_INTENTOS_RECONEXION_HOTELERIA = 5;
+
     function actualizarBannerConexion(datosDesdeCache) {
         if (!navigator.onLine) {
             CoreOffline.actualizarBanner('🔴 Sin conexión — viendo datos guardados. Crear/editar reservas, habitaciones y check-in/out requiere internet.', '#dc2626');
-        } else if (datosDesdeCache) {
-            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
-            setTimeout(() => cargarDatos(), 1500);
-        } else {
-            CoreOffline.ocultarBanner();
+            return;
         }
+        if (!datosDesdeCache) {
+            CoreOffline.ocultarBanner();
+            intentosReconexionFallidosHoteleria = 0;
+            return;
+        }
+
+        intentosReconexionFallidosHoteleria++;
+        if (intentosReconexionFallidosHoteleria > MAX_INTENTOS_RECONEXION_HOTELERIA) {
+            CoreOffline.actualizarBanner('🟡 No se pudo reconectar con el servidor — viendo datos guardados. Recarga la página para reintentar.', '#d97706');
+            return;
+        }
+
+        CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+        if (reintentoProgramadoHoteleria) return;
+        reintentoProgramadoHoteleria = true;
+        setTimeout(() => {
+            reintentoProgramadoHoteleria = false;
+            cargarDatos();
+        }, 8000);
     }
 
-    window.addEventListener('online', () => { console.log('🟢 Conexión recuperada'); cargarDatos(); });
+    window.addEventListener('online', () => { console.log('🟢 Conexión recuperada'); intentosReconexionFallidosHoteleria = 0; cargarDatos(); });
     window.addEventListener('offline', () => { console.log('🔴 Se perdió la conexión'); actualizarBannerConexion(false); });
 </script>
 </body>
