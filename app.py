@@ -3,6 +3,7 @@ import mysql.connector
 from mysql.connector import pooling
 from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
+from flask_caching import Cache
 from datetime import datetime, timedelta, date, timezone
 
 # ⚠️ IMPORTANTE: Render, Clever Cloud y la mayoría de servidores en la nube
@@ -38,6 +39,212 @@ import requests
 
 # ========== CONFIGURACIÓN ==========
 app = Flask(__name__)
+
+# ===== CACHING MEJORADO =====
+# Cache en memoria del propio proceso (SimpleCache) — no requiere Redis ni
+# nada externo, es lo más simple posible para reducir la carga en la base de
+# datos (que tiene el límite de 5 conexiones simultáneas en Clever Cloud).
+# Aumentamos el timeout de 30 a 300 segundos (5 minutos) para que el cache
+# sea realmente efectivo. Los datos que cambian frecuentemente (facturas)
+# no se cachean, pero los datos maestros (productos, habitaciones, clientes,
+# categorías, servicios) se benefician enormemente.
+app.config['CACHE_TYPE'] = 'SimpleCache'
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5 minutos (era 30 segundos)
+cache = Cache(app)
+
+# Sistema de versionado de cache para invalidación selectiva
+# Cada tipo de dato tiene su propia versión. Cuando se modifica un tipo,
+# solo se incrementa su versión, dejando los demás intactos.
+_cache_versions = {
+    'productos': 1,
+    'habitaciones': 1,
+    'clientes': 1,
+    'categorias': 1,
+    'servicios': 1,
+    'reservas': 1,
+    'kits': 1,
+    'recetas': 1,
+    'proveedores': 1,
+    'ordenes_compra': 1,
+}
+
+def get_cache_key(tipo, empresa_id, path, query=''):
+    """Genera una key de cache con versionado por tipo de dato"""
+    version = _cache_versions.get(tipo, 1)
+    return f"{tipo}:v{version}:empresa_{empresa_id}:{path}:{query}"
+
+def invalidar_cache(tipo=None):
+    """Invalida el cache de un tipo específico o de todos.
+    
+    Args:
+        tipo: str - 'productos', 'habitaciones', 'clientes', 'categorias', 
+                     'servicios', 'reservas', 'kits', 'recetas', 'proveedores', 
+                     'ordenes_compra' o None para invalidar todo
+    """
+    global _cache_versions
+    try:
+        if tipo and tipo in _cache_versions:
+            _cache_versions[tipo] += 1
+            print(f"🔄 Cache invalidado para: {tipo} (v{_cache_versions[tipo]})")
+        elif tipo:
+            # Si el tipo no existe, lo creamos
+            _cache_versions[tipo] = 1
+            print(f"🔄 Cache creado para nuevo tipo: {tipo}")
+        else:
+            # Invalidar todo (solo cuando es absolutamente necesario)
+            cache.clear()
+            for t in _cache_versions:
+                _cache_versions[t] += 1
+            print("🔄 Cache completo invalidado")
+    except Exception as e:
+        print(f"⚠️ Error invalidando caché: {e}")
+
+def invalidar_cache_lecturas():
+    """Mantiene compatibilidad con código existente.
+    Ahora invalida todos los tipos de cache de lectura."""
+    invalidar_cache(None)
+
+# Decoradores de cache por tipo
+def cache_productos(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('productos', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        # Cachear solo respuestas exitosas
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=120)  # 2 minutos para productos
+        return result
+    return decorated
+
+def cache_habitaciones(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('habitaciones', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=120)  # 2 minutos para habitaciones
+        return result
+    return decorated
+
+def cache_clientes(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('clientes', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=300)  # 5 minutos para clientes
+        return result
+    return decorated
+
+def cache_categorias(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('categorias', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=600)  # 10 minutos para categorías (casi no cambian)
+        return result
+    return decorated
+
+def cache_servicios(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('servicios', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=600)  # 10 minutos para servicios
+        return result
+    return decorated
+
+def cache_reservas(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('reservas', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=60)  # 1 minuto para reservas (cambian más seguido)
+        return result
+    return decorated
+
+def cache_kits(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('kits', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=300)  # 5 minutos para kits
+        return result
+    return decorated
+
+def cache_recetas(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('recetas', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=300)  # 5 minutos para recetas
+        return result
+    return decorated
+
+def cache_proveedores(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('proveedores', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=300)  # 5 minutos para proveedores
+        return result
+    return decorated
+
+def cache_ordenes_compra(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        empresa_id = getattr(request, 'empresa_id', 'sin_empresa')
+        key = get_cache_key('ordenes_compra', empresa_id, request.path, request.query_string.decode('utf-8'))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = f(*args, **kwargs)
+        if result and isinstance(result, tuple) and len(result) >= 2 and result[1] == 200:
+            cache.set(key, result, timeout=120)  # 2 minutos para órdenes de compra
+        return result
+    return decorated
 
 # ===== CLAVE JWT =====
 # ⚠️ SEGURIDAD: antes esta línea tenía un valor de respaldo escrito en el
@@ -656,6 +863,9 @@ def verificar_habitaciones_vencidas():
             
             conn.commit()
             safe_close_conn(conn, cursor)
+            if habitaciones_vencidas:
+                invalidar_cache('habitaciones')
+                invalidar_cache('productos')
             
         except Exception as e:
             print(f"❌ Error en verificación de habitaciones: {e}")
@@ -1059,6 +1269,7 @@ def eliminar_usuario(id):
 # ========== CLIENTES ==========
 @app.route('/api/clientes', methods=['GET'])
 @requiere_rol('cajero')
+@cache_clientes
 def obtener_clientes():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1084,6 +1295,7 @@ def agregar_cliente():
                 direccion = VALUES(direccion), email = VALUES(email)
         """, (data['rif'], data['nombre'], data.get('telefono', ''), data.get('direccion', ''), data.get('email', ''), empresa_id))
         conn.commit()
+        invalidar_cache('clientes')
         return jsonify({'status': 'OK'}), 200
     except mysql.connector.Error as err:
         return jsonify({'error': str(err)}), 500
@@ -1104,6 +1316,7 @@ def actualizar_cliente(id):
     """, (data['rif'], data['nombre'], data.get('telefono', ''), data.get('direccion', ''), data.get('email', ''), id, empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
+    invalidar_cache('clientes')
     return jsonify({'status': 'OK'}), 200
 
 @app.route('/api/clientes/<int:id>', methods=['DELETE'])
@@ -1120,11 +1333,13 @@ def eliminar_cliente(id):
     cursor.execute("DELETE FROM clientes WHERE id = %s AND empresa_id = %s", (id, empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
+    invalidar_cache('clientes')
     return jsonify({'status': 'OK'}), 200
 
 # ========== PRODUCTOS ==========
 @app.route('/api/productos', methods=['GET'])
 @requiere_rol('cajero')
+@cache_productos
 def obtener_productos():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1188,6 +1403,7 @@ def agregar_producto():
         conn.commit()
         if nuevo_stock < 5 and tipo_producto not in ['receta', 'kit_hijo']:
             crear_alerta(empresa_id, 'stock_bajo', f"Producto {data['codigo']} stock bajo: {nuevo_stock}")
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except mysql.connector.Error as err:
         conn.rollback()
@@ -1276,6 +1492,7 @@ def eliminar_producto(codigo):
         
         crear_alerta(empresa_id, 'producto_eliminado', f"Producto {codigo} - {prod['descripcion']} eliminado por {request.username}")
         
+        invalidar_cache('productos')
         return jsonify({
             'status': 'OK', 
             'mensaje': f'Producto {codigo} eliminado exitosamente'
@@ -1329,11 +1546,13 @@ def registrar_movimiento_inventario():
     safe_close_conn(conn, cursor)
     if nuevo_stock < 5:
         crear_alerta(empresa_id, 'stock_bajo', f"Producto {codigo} stock {nuevo_stock}")
+    invalidar_cache('productos')
     return jsonify({'status': 'OK', 'nuevo_stock': nuevo_stock}), 200
 
 # ========== CATEGORÍAS ==========
 @app.route('/api/categorias', methods=['GET'])
 @requiere_rol('cajero')
+@cache_categorias
 def listar_categorias():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1369,6 +1588,7 @@ def crear_categoria():
         conn.commit()
         categoria_id = cursor.lastrowid
         crear_alerta(empresa_id, 'categoria', f"Nueva categoría '{nombre}' creada")
+        invalidar_cache('categorias')
         return jsonify({'status': 'OK', 'id': categoria_id, 'nombre': nombre}), 201
     except mysql.connector.IntegrityError:
         return jsonify({'error': 'La categoría ya existe'}), 400
@@ -1400,6 +1620,7 @@ def actualizar_categoria(id):
             WHERE id = %s AND empresa_id = %s
         """, (nombre, descripcion, activa, id, empresa_id))
         conn.commit()
+        invalidar_cache('categorias')
         return jsonify({'status': 'OK'}), 200
     except mysql.connector.IntegrityError:
         return jsonify({'error': 'La categoría ya existe'}), 400
@@ -1423,10 +1644,12 @@ def eliminar_categoria(id):
         if result and result['total'] > 0:
             cursor.execute("UPDATE categorias SET activa = 0 WHERE id = %s AND empresa_id = %s", (id, empresa_id))
             conn.commit()
+            invalidar_cache('categorias')
             return jsonify({'status': 'OK', 'mensaje': 'Categoría desactivada (tiene productos asociados)'}), 200
         
         cursor.execute("DELETE FROM categorias WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
+        invalidar_cache('categorias')
         return jsonify({'status': 'OK', 'mensaje': 'Categoría eliminada'}), 200
     finally:
         safe_close_conn(conn, cursor)
@@ -1434,6 +1657,7 @@ def eliminar_categoria(id):
 # ========== RECETAS ==========
 @app.route('/api/recetas', methods=['GET'])
 @requiere_rol('cajero')
+@cache_recetas
 def listar_recetas():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1464,6 +1688,8 @@ def crear_receta():
                 VALUES (%s, %s, %s, %s)
             """, (receta_id, ing['codigo'], ing['cantidad'], empresa_id))
         conn.commit()
+        invalidar_cache('recetas')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'id': receta_id}), 201
     except Exception as e:
         conn.rollback()
@@ -1515,6 +1741,8 @@ def actualizar_receta(id):
                 VALUES (%s, %s, %s, %s)
             """, (id, ing['codigo'], ing['cantidad'], empresa_id))
         conn.commit()
+        invalidar_cache('recetas')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -1532,6 +1760,7 @@ def eliminar_receta(id):
         cursor.execute("DELETE FROM recetas_detalle WHERE receta_id = %s AND empresa_id = %s", (id, empresa_id))
         cursor.execute("DELETE FROM recetas WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
+        invalidar_cache('recetas')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -1542,6 +1771,7 @@ def eliminar_receta(id):
 # ========== KITS ==========
 @app.route('/api/kits', methods=['GET'])
 @requiere_rol('admin')
+@cache_kits
 def listar_kits():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -1586,6 +1816,8 @@ def crear_kit():
                 VALUES (%s, %s, %s, %s)
             """, (kit_id, hijo['codigo'], hijo['cantidad'], empresa_id))
         conn.commit()
+        invalidar_cache('kits')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'id': kit_id}), 201
     except Exception as e:
         conn.rollback()
@@ -1613,6 +1845,8 @@ def actualizar_kit(id):
                 VALUES (%s, %s, %s, %s)
             """, (id, hijo['codigo'], hijo['cantidad'], empresa_id))
         conn.commit()
+        invalidar_cache('kits')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -1630,6 +1864,7 @@ def eliminar_kit(id):
         cursor.execute("DELETE FROM kit_detalle WHERE kit_id = %s AND empresa_id = %s", (id, empresa_id))
         cursor.execute("DELETE FROM kits WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
+        invalidar_cache('kits')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -1676,6 +1911,8 @@ def realizar_despiece():
         registrar_historial_inventario(cursor, padre_codigo, padre['descripcion'], 'despiece',
                                        float(padre['existencia']), nuevo_stock_padre, f"Despiece kit {kit_id}")
         conn.commit()
+        invalidar_cache('productos')
+        invalidar_cache('kits')
         return jsonify({'status': 'OK', 'mensaje': f'Despiece realizado. Nuevo stock padre: {nuevo_stock_padre}'}), 200
     except Exception as e:
         conn.rollback()
@@ -1723,6 +1960,8 @@ def realizar_despiece_selectivo():
                 registrar_historial_inventario(cursor, h['codigo'], hijo_actual['descripcion'], 'despiece',
                                                float(hijo_actual['existencia']), nuevo_stock, f"Selectivo desde {padre_codigo}")
         conn.commit()
+        invalidar_cache('productos')
+        invalidar_cache('kits')
         return jsonify({'status': 'OK', 'mensaje': f'Despiece selectivo realizado. Padre descontado: {padre_necesario}'}), 200
     except Exception as e:
         conn.rollback()
@@ -2408,6 +2647,9 @@ def guardar_factura():
                         
                         crear_alerta(empresa_id, 'habitacion_facturada', 
                                    f"🏠 Habitación {habitacion['numero']} - OCUPADA - Entrada: {fecha_entrada or 'N/A'} Salida: {fecha_salida or 'N/A'}")
+                        
+                        invalidar_cache('habitaciones')
+                        invalidar_cache('productos')
                     else:
                         print(f"⚠️ No se encontró habitación con ID: {habitacion_id}")
                 else:
@@ -2481,6 +2723,9 @@ def guardar_factura():
                         
                         crear_alerta(empresa_id, 'habitacion_facturada', 
                                    f"🏠 Habitación {habitacion['numero']} - OCUPADA - Entrada: {fecha_entrada} Salida: {fecha_salida}")
+                        
+                        invalidar_cache('habitaciones')
+                        invalidar_cache('productos')
         
         for p in pagos:
             if p.get('metodo_pago') == 'Casa':
@@ -2502,6 +2747,10 @@ def guardar_factura():
         conn.commit()
         crear_alerta(empresa_id, 'factura', f"Factura #{numero_factura_empresa} creada por {request.username}" + 
                     (" (Gasto interno)" if es_casa else " (Crédito/Fiado)" if es_credito else ""))
+        # Facturas no se cachean por su naturaleza transaccional
+        # Pero invalidamos los productos porque cambiaron stock
+        invalidar_cache('productos')
+        invalidar_cache('habitaciones')
         return jsonify({'status': 'OK', 'factura_id': factura_id, 'numero_factura': numero_factura_empresa}), 200
     except Exception as e:
         conn.rollback()
@@ -2675,6 +2924,7 @@ def anular_factura(id):
                                                    float(prod['existencia']), float(nueva_cantidad), f"Anulación factura #{numero_factura} - Motivo: {motivo}")
         cursor.execute("UPDATE facturas_cabecera SET estado = 'anulada', motivo_anulacion = %s WHERE numero = %s AND empresa_id = %s", (motivo, id, empresa_id))
         conn.commit()
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'mensaje': 'Factura anulada y stock restaurado'}), 200
     except Exception as e:
         conn.rollback()
@@ -2726,6 +2976,7 @@ def eliminar_factura(id):
         cursor.execute("DELETE FROM facturas_pagos WHERE factura_numero = %s", (id,))
         cursor.execute("DELETE FROM facturas_cabecera WHERE numero = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -3159,6 +3410,7 @@ def exportar_facturas():
 # ========== PROVEEDORES ==========
 @app.route('/api/proveedores', methods=['GET'])
 @requiere_rol('admin')
+@cache_proveedores
 def listar_proveedores():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -3181,6 +3433,7 @@ def crear_proveedor():
     """, (data['nombre'], data.get('rif', ''), data.get('telefono', ''), data.get('email', ''), data.get('direccion', ''), empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
+    invalidar_cache('proveedores')
     return jsonify({'status': 'OK'}), 201
 
 @app.route('/api/proveedores/<int:id>', methods=['PUT'])
@@ -3197,6 +3450,7 @@ def actualizar_proveedor(id):
     """, (data['nombre'], data.get('rif', ''), data.get('telefono', ''), data.get('email', ''), data.get('direccion', ''), id, empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
+    invalidar_cache('proveedores')
     return jsonify({'status': 'OK'}), 200
 
 @app.route('/api/proveedores/<int:id>', methods=['DELETE'])
@@ -3208,11 +3462,13 @@ def eliminar_proveedor(id):
     cursor.execute("DELETE FROM proveedores WHERE id = %s AND empresa_id = %s", (id, empresa_id))
     conn.commit()
     safe_close_conn(conn, cursor)
+    invalidar_cache('proveedores')
     return jsonify({'status': 'OK'}), 200
 
 # ========== ÓRDENES DE COMPRA ==========
 @app.route('/api/ordenes-compra', methods=['GET'])
 @requiere_rol('admin')
+@cache_ordenes_compra
 def listar_ordenes_compra():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -3390,6 +3646,8 @@ def crear_orden_compra():
 
         conn.commit()
         crear_alerta(empresa_id, 'orden_compra', f"Orden de compra #{orden_id} creada.")
+        invalidar_cache('ordenes_compra')
+        invalidar_cache('proveedores')
         return jsonify({'status': 'OK', 'id': orden_id}), 201
     except Exception as e:
         conn.rollback()
@@ -3457,6 +3715,7 @@ def recibir_orden_compra(id):
                         cursor, codigo_nuevo, nombre, 'ingreso_compra', 
                         0, cantidad_recibida, f"Creación desde orden #{id}"
                     )
+                    invalidar_cache('productos')
             
             elif not detalle['es_producto_nuevo'] and cantidad_recibida > 0:
                 codigo = detalle['producto_codigo']
@@ -3470,6 +3729,7 @@ def recibir_orden_compra(id):
                         cursor, codigo, prod['descripcion'], 'ingreso_compra',
                         stock_anterior, nuevo_stock, f"Recepción orden #{id}"
                     )
+                    invalidar_cache('productos')
 
         cursor.execute("""
             INSERT INTO recepciones_ordenes (orden_id, usuario_id, observaciones, empresa_id)
@@ -3484,6 +3744,7 @@ def recibir_orden_compra(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'recepcion', f"Orden #{id} recibida correctamente")
+        invalidar_cache('ordenes_compra')
         return jsonify({'status': 'OK', 'mensaje': 'Orden recibida correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -3537,6 +3798,7 @@ def cambiar_estado_orden(id):
                             WHERE codigo = %s AND empresa_id = %s
                         """, (det['producto_codigo'], empresa_id))
                         print(f"✅ Producto nuevo {det['producto_codigo']} eliminado por cancelación de orden")
+                        invalidar_cache('productos')
                     else:
                         cursor.execute("""
                             SELECT existencia, descripcion 
@@ -3567,6 +3829,7 @@ def cambiar_estado_orden(id):
                                 f"Cancelación de orden #{id} - Stock revertido"
                             )
                             print(f"✅ Stock revertido para {det['producto_codigo']}: {stock_actual} → {nuevo_stock}")
+                            invalidar_cache('productos')
             
             cursor.execute("""
                 UPDATE ordenes_detalle 
@@ -3603,6 +3866,7 @@ def cambiar_estado_orden(id):
                                     INSERT INTO productos (codigo, descripcion, categoria, precio_compra, precio_venta, existencia, iva, unidad_medida, tipo_producto, empresa_id)
                                     VALUES (%s, %s, %s, %s, %s, %s, 16, %s, 'normal', %s)
                                 """, (codigo_nuevo, nombre, categoria, precio, precio * 1.3, cantidad_pendiente, unidad, empresa_id))
+                                invalidar_cache('productos')
                         else:
                             codigo = det['producto_codigo']
                             cursor.execute("SELECT existencia, descripcion FROM productos WHERE codigo = %s AND empresa_id = %s", (codigo, empresa_id))
@@ -3611,6 +3875,7 @@ def cambiar_estado_orden(id):
                                 stock_actual = float(prod['existencia'] or 0)
                                 nuevo_stock = stock_actual + cantidad_pendiente
                                 cursor.execute("UPDATE productos SET existencia = %s WHERE codigo = %s AND empresa_id = %s", (nuevo_stock, codigo, empresa_id))
+                                invalidar_cache('productos')
                         
                         cursor.execute("""
                             UPDATE ordenes_detalle 
@@ -3629,6 +3894,7 @@ def cambiar_estado_orden(id):
         conn.commit()
         
         crear_alerta(empresa_id, 'orden_estado', f"Orden #{id} cambió de '{estado_actual}' a '{nuevo_estado}'")
+        invalidar_cache('ordenes_compra')
         
         return jsonify({'status': 'OK', 'mensaje': f'Estado cambiado a {nuevo_estado}'}), 200
     except Exception as e:
@@ -3663,6 +3929,7 @@ def eliminar_orden_compra(id):
             for det in detalles:
                 if det['es_producto_nuevo']:
                     cursor.execute("DELETE FROM productos WHERE codigo = %s AND empresa_id = %s", (det['producto_codigo'], empresa_id))
+                    invalidar_cache('productos')
                 else:
                     cursor.execute("SELECT existencia, descripcion FROM productos WHERE codigo = %s AND empresa_id = %s", (det['producto_codigo'], empresa_id))
                     prod = cursor.fetchone()
@@ -3673,11 +3940,13 @@ def eliminar_orden_compra(id):
                             cursor, det['producto_codigo'], prod['descripcion'], 'eliminacion_factura',
                             float(prod['existencia']), nuevo_stock, f"Eliminación orden #{id} - Motivo: {motivo}"
                         )
+                        invalidar_cache('productos')
         
         cursor.execute("DELETE FROM ordenes_detalle WHERE orden_id = %s", (id,))
         cursor.execute("DELETE FROM recepciones_ordenes WHERE orden_id = %s", (id,))
         cursor.execute("DELETE FROM ordenes_compra WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
+        invalidar_cache('ordenes_compra')
         return jsonify({'status': 'OK', 'mensaje': 'Orden eliminada correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -3795,6 +4064,7 @@ def bloquear_fecha_habitacion(habitacion_id):
             estado = 'no_disponible', motivo = %s
         """, (habitacion_id, fecha, motivo, empresa_id, motivo))
         conn.commit()
+        invalidar_cache('habitaciones')
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK', 'mensaje': f'Fecha {fecha} bloqueada'}), 200
     except Exception as e:
@@ -3821,6 +4091,7 @@ def liberar_fecha_habitacion(habitacion_id):
             WHERE habitacion_id = %s AND fecha = %s AND empresa_id = %s
         """, (habitacion_id, fecha, empresa_id))
         conn.commit()
+        invalidar_cache('habitaciones')
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK', 'mensaje': f'Fecha {fecha} liberada'}), 200
     except Exception as e:
@@ -3945,6 +4216,7 @@ def auto_bloquear_reserva():
             fecha_actual += timedelta(days=1)
         
         conn.commit()
+        invalidar_cache('habitaciones')
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK', 'mensaje': 'Fechas bloqueadas automáticamente'}), 200
     except Exception as e:
@@ -3971,6 +4243,7 @@ def auto_liberar_reserva():
             WHERE reserva_id = %s AND empresa_id = %s
         """, (reserva_id, empresa_id))
         conn.commit()
+        invalidar_cache('habitaciones')
         safe_close_conn(conn, cursor)
         return jsonify({'status': 'OK', 'mensaje': 'Fechas liberadas'}), 200
     except Exception as e:
@@ -3983,6 +4256,7 @@ def auto_liberar_reserva():
 # ---------- HABITACIONES ----------
 @app.route('/api/habitaciones', methods=['GET'])
 @requiere_rol('cajero')
+@cache_habitaciones
 def listar_habitaciones():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -4058,6 +4332,8 @@ def crear_habitacion():
         conn.commit()
         crear_alerta(empresa_id, 'habitacion', f"Habitación {data['numero']} creada con código {codigo_producto}")
         safe_close_conn(conn, cursor)
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'id': habitacion_id}), 201
     except Exception as e:
         conn.rollback()
@@ -4088,6 +4364,8 @@ def actualizar_habitacion(id):
         ))
         conn.commit()
         safe_close_conn(conn, cursor)
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4108,6 +4386,7 @@ def eliminar_habitacion(id):
         cursor.execute("DELETE FROM habitaciones WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
         safe_close_conn(conn, cursor)
+        invalidar_cache('habitaciones')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4171,6 +4450,8 @@ def cambiar_estado_habitacion(id):
         conn.commit()
         crear_alerta(empresa_id, 'habitacion_estado', f"Habitación {habitacion['numero']} cambió de '{estado_anterior}' a '{nuevo_estado}'")
         safe_close_conn(conn, cursor)
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4231,6 +4512,8 @@ def limpiar_habitacion(id):
         crear_alerta(empresa_id, 'habitacion_limpia', f"🧹 Habitación {habitacion['numero']} - Limpieza completada - DISPONIBLE (stock=1)")
         
         safe_close_conn(conn, cursor)
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'mensaje': 'Habitación limpia y disponible'}), 200
         
     except Exception as e:
@@ -4274,6 +4557,7 @@ def actualizar_stock_habitacion(id):
         conn.commit()
         
         safe_close_conn(conn, cursor)
+        invalidar_cache('productos')
         return jsonify({
             'status': 'OK',
             'habitacion': habitacion['numero'],
@@ -4289,6 +4573,7 @@ def actualizar_stock_habitacion(id):
 # ---------- RESERVAS ----------
 @app.route('/api/reservas', methods=['GET'])
 @requiere_rol('cajero')
+@cache_reservas
 def listar_reservas():
     empresa_id = request.empresa_id
     conn = None
@@ -4561,6 +4846,8 @@ def crear_reserva_con_pagos():
         conn.commit()
         crear_alerta(empresa_id, 'nueva_reserva', f"Nueva reserva #{reserva_id} creada por {request.username}")
         safe_close_conn(conn, cursor)
+        invalidar_cache('reservas')
+        invalidar_cache('habitaciones')
         return jsonify({'status': 'OK', 'id': reserva_id, 'saldo_pendiente': saldo_pendiente}), 201
     except Exception as e:
         conn.rollback()
@@ -4628,6 +4915,7 @@ def registrar_abono_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'abono', f"Abono de ${monto_usd} registrado para reserva #{id} - Saldo: ${nuevo_saldo}")
+        invalidar_cache('reservas')
         return jsonify({'status': 'OK', 'abono': nuevo_abono, 'saldo': nuevo_saldo}), 200
     except Exception as e:
         conn.rollback()
@@ -4737,6 +5025,9 @@ def check_in_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'check_in', f"Check-in realizado para reserva #{id}")
+        invalidar_cache('reservas')
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'mensaje': 'Check-in realizado correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -4798,6 +5089,9 @@ def check_out_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'check_out', f"Check-out realizado para reserva #{id}")
+        invalidar_cache('reservas')
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK', 'mensaje': 'Check-out realizado correctamente'}), 200
     except Exception as e:
         conn.rollback()
@@ -4855,6 +5149,9 @@ def cambiar_estado_reserva(id):
         
         conn.commit()
         crear_alerta(empresa_id, 'reserva_estado', f"Reserva #{id} cambió a '{nuevo_estado}'")
+        invalidar_cache('reservas')
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4865,6 +5162,7 @@ def cambiar_estado_reserva(id):
 # ---------- SERVICIOS ADICIONALES ----------
 @app.route('/api/servicios', methods=['GET'])
 @requiere_rol('cajero')
+@cache_servicios
 def listar_servicios():
     empresa_id = request.empresa_id
     conn = get_db_connection()
@@ -4891,6 +5189,7 @@ def crear_servicio():
             VALUES (%s, %s, %s, %s, %s)
         """, (data['nombre'], data.get('descripcion', ''), data.get('precio_usd', 0), data.get('tipo', 'servicio'), empresa_id))
         conn.commit()
+        invalidar_cache('servicios')
         return jsonify({'status': 'OK', 'id': cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
@@ -4916,6 +5215,7 @@ def actualizar_servicio(id):
             data.get('activo', True), id, empresa_id
         ))
         conn.commit()
+        invalidar_cache('servicios')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -4936,6 +5236,7 @@ def eliminar_servicio(id):
         
         cursor.execute("DELETE FROM servicios_adicionales WHERE id = %s AND empresa_id = %s", (id, empresa_id))
         conn.commit()
+        invalidar_cache('servicios')
         return jsonify({'status': 'OK'}), 200
     except Exception as e:
         conn.rollback()
@@ -5079,6 +5380,8 @@ def verificar_habitaciones_vencidas_manual():
             })
         
         conn.commit()
+        invalidar_cache('habitaciones')
+        invalidar_cache('productos')
         
         return jsonify({
             'status': 'OK',
