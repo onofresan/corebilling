@@ -1,10 +1,15 @@
 /*
- * offline-core.js — Sistema compartido de modo offline para CoreBilling.
+ * offline-core.js — Sistema compartido de caché + modo offline para CoreBilling.
  *
  * Qué hace:
- * 1. Guarda en IndexedDB la última respuesta buena de cada endpoint GET
- *    (productos, clientes, habitaciones, reportes, etc.) para poder
- *    mostrarla si se cae el internet.
+ * 1. CACHÉ EN 2 NIVELES para que la app se sienta rápida:
+ *    a) Memoria (variable JS): lecturas repetidas dentro de la ventana de
+ *       frescura (por defecto 15s) son instantáneas, sin red.
+ *    b) IndexedDB: persiste entre recargas de página y permite seguir
+ *       viendo datos aunque no haya internet.
+ *    (Estos se suman al caché del propio backend en Flask, que evita golpear
+ *    la base de datos en cada petición — juntos dan la mejora de velocidad
+ *    completa: servidor + navegador.)
  * 2. Permite encolar facturas creadas en "Nueva Factura" mientras no hay
  *    conexión, y las sincroniza solas con el servidor apenas vuelve.
  * 3. Muestra un aviso fijo arriba de la pantalla indicando el estado
@@ -23,6 +28,28 @@
     const STORE_FACTURAS_FALLIDAS = 'facturas_fallidas';
 
     let dbPromise = null;
+
+    // ===== CAPA DE MEMORIA (nivel "navegador") =====
+    // Además de guardar en IndexedDB (persiste entre sesiones/recargas), se
+    // guarda también una copia en una variable de JS normal (memoriaCache).
+    // Leer de esta variable es prácticamente instantáneo (microsegundos),
+    // muchísimo más rápido que leer de IndexedDB (que es asíncrono y tiene
+    // overhead de E/S en disco) — es lo que permite los tiempos de
+    // "< 0.1 seg" en navegaciones repetidas dentro de la misma pestaña.
+    // Se pierde al recargar la página (por diseño: al recargar se vuelve a
+    // pedir del servidor una vez, y de ahí en adelante vuelve a ser instantáneo).
+    const memoriaCache = new Map(); // key -> { data, timestamp }
+
+    function guardarEnMemoria(key, data) {
+        memoriaCache.set(key, { data, timestamp: Date.now() });
+    }
+
+    function leerDeMemoria(key, maxAgeMs) {
+        const entrada = memoriaCache.get(key);
+        if (!entrada) return null;
+        if (Date.now() - entrada.timestamp > maxAgeMs) return null; // ya no está "fresco"
+        return entrada.data;
+    }
 
     function abrirDB() {
         if (dbPromise) return dbPromise;
@@ -71,17 +98,45 @@
     }
 
     /**
-     * Hace un fetch normal (GET) y guarda el resultado en caché.
-     * Si falla por falta de conexión, devuelve el último dato bueno guardado.
-     * Devuelve: { ok, data, offline, fecha }
+     * Hace un fetch normal (GET), con 3 niveles de velocidad (de más a
+     * menos rápido):
+     *
+     *   1. MEMORIA (nivel "navegador"): si ya se pidió este mismo dato hace
+     *      menos de `maxAgeMs`, se devuelve AL INSTANTE desde una variable
+     *      en JS, sin tocar red ni IndexedDB. Esto es lo que da los tiempos
+     *      de "< 0.1 seg" en navegaciones repetidas (ej: entrar y salir de
+     *      Inventario varias veces seguidas).
+     *   2. RED: si no hay nada fresco en memoria, se pide al servidor (que
+     *      a su vez puede responder desde SU propio caché — el de
+     *      flask-caching en el backend). Al llegar, se guarda en memoria e
+     *      IndexedDB para la próxima vez.
+     *   3. INDEXEDDB (modo offline): si la red falla o no hay conexión, se
+     *      devuelve lo último guardado en IndexedDB (persiste entre
+     *      recargas de página), aunque ya no esté "fresco".
+     *
+     * maxAgeMs: cuánto tiempo se considera "fresco" un dato en memoria
+     * antes de volver a pedirlo a la red. Por defecto 15 segundos — un buen
+     * equilibrio entre velocidad y no mostrar datos demasiado viejos en
+     * pantallas donde el stock/estado cambia seguido.
+     *
+     * Devuelve: { ok, data, offline, fecha, desdeMemoria }
      */
-    async function fetchConCache(url, opciones, cacheKey) {
+    async function fetchConCache(url, opciones, cacheKey, maxAgeMs = 15000) {
+        // Nivel 1: memoria — instantáneo, sin red, sin IndexedDB.
+        const enMemoria = leerDeMemoria(cacheKey, maxAgeMs);
+        if (enMemoria !== null) {
+            return { ok: true, data: enMemoria, offline: false, desdeMemoria: true };
+        }
+
         // Si el navegador ya sabe que no hay conexión, ni intentamos la red:
-        // vamos directo a la caché, para que se sienta instantáneo en vez de
+        // vamos directo a IndexedDB, para que se sienta instantáneo en vez de
         // esperar a que el fetch falle solo.
         if (!navigator.onLine) {
             const cacheado = await leerCache(cacheKey);
-            if (cacheado) return { ok: true, data: cacheado.data, offline: true, fecha: cacheado.fecha };
+            if (cacheado) {
+                guardarEnMemoria(cacheKey, cacheado.data); // para que la próxima lectura sea instantánea
+                return { ok: true, data: cacheado.data, offline: true, fecha: cacheado.fecha };
+            }
             return { ok: false, offline: true, error: 'Sin conexión y sin datos guardados' };
         }
 
@@ -89,7 +144,7 @@
             // Límite de 4 segundos: si el navegador dice que hay conexión pero
             // en realidad no responde (ej: proxy caído, wifi sin internet real),
             // no queremos esperar el timeout lento por defecto del navegador
-            // (puede tardar 20-30+ segundos) — a los 4s caemos a la caché.
+            // (puede tardar 20-30+ segundos) — a los 4s caemos a IndexedDB.
             const controlador = new AbortController();
             const timeoutId = setTimeout(() => controlador.abort(), 4000);
             const res = await fetch(url, { ...opciones, signal: controlador.signal });
@@ -97,7 +152,8 @@
 
             if (res.ok) {
                 const data = await res.clone().json();
-                guardarCache(cacheKey, data);
+                guardarEnMemoria(cacheKey, data);
+                guardarCache(cacheKey, data); // IndexedDB, en segundo plano, no bloquea la respuesta
                 return { ok: true, data, offline: false };
             }
 
@@ -115,6 +171,7 @@
         } catch (err) {
             const cacheado = await leerCache(cacheKey);
             if (cacheado) {
+                guardarEnMemoria(cacheKey, cacheado.data);
                 return { ok: true, data: cacheado.data, offline: true, fecha: cacheado.fecha };
             }
             return { ok: false, offline: true, error: err.message };
@@ -131,6 +188,17 @@
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
         });
+    }
+
+    /**
+     * Borra una key específica del caché de memoria (nivel "navegador").
+     * Se usa justo después de que el propio usuario haga un cambio (crear
+     * producto, editar cliente, etc.) para que la siguiente lectura de esa
+     * pantalla no muestre el dato viejo durante la ventana de frescura —
+     * en vez de eso, vuelve a pedirlo al servidor una vez más.
+     */
+    function invalidarMemoria(cacheKey) {
+        memoriaCache.delete(cacheKey);
     }
 
     async function obtenerColaFacturas() {
@@ -300,7 +368,8 @@
         reintentarFacturaFallida,
         actualizarBanner,
         ocultarBanner,
-        manejarSesionInvalida
+        manejarSesionInvalida,
+        invalidarMemoria
     };
 
     if ('serviceWorker' in navigator) {
