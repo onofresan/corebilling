@@ -134,15 +134,7 @@
         if (!navigator.onLine) {
             const cacheado = await leerCache(cacheKey);
             if (cacheado) {
-                // ⚠️ IMPORTANTE: NO se guarda en la caché de memoria "fresca"
-                // aquí. Si lo hiciéramos, la próxima lectura (hasta maxAgeMs
-                // después) devolvería este dato viejo SIN intentar la red de
-                // nuevo — y si justo en ese momento la conexión ya volvió,
-                // la app se quedaría mostrando datos desactualizados sin
-                // enterarse de que ya podía refrescar. Al no guardarlo en
-                // memoria, cada lectura nueva vuelve a intentar la red
-                // (rápido, gracias al timeout de 4s) y detecta la
-                // reconexión apenas ocurra.
+                guardarEnMemoria(cacheKey, cacheado.data); // para que la próxima lectura sea instantánea
                 return { ok: true, data: cacheado.data, offline: true, fecha: cacheado.fecha };
             }
             return { ok: false, offline: true, error: 'Sin conexión y sin datos guardados' };
@@ -179,8 +171,7 @@
         } catch (err) {
             const cacheado = await leerCache(cacheKey);
             if (cacheado) {
-                // Mismo motivo que arriba: no se marca como "fresco en
-                // memoria" para no bloquear el próximo intento de red real.
+                guardarEnMemoria(cacheKey, cacheado.data);
                 return { ok: true, data: cacheado.data, offline: true, fecha: cacheado.fecha };
             }
             return { ok: false, offline: true, error: err.message };
