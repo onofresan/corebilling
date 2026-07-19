@@ -62,6 +62,7 @@
         }
     </style>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="offline-core.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -153,6 +154,26 @@
         return isNaN(n) ? d : n;
     }
 
+    function requiereConexion() {
+        if (!navigator.onLine) {
+            alert('❌ Necesitas conexión a internet para hacer esto.');
+            return false;
+        }
+        return true;
+    }
+
+    function actualizarBannerConexion(datosDesdeCache) {
+        if (!navigator.onLine) {
+            CoreOffline.actualizarBanner('🔴 Sin conexión — viendo los últimos cierres guardados.', '#dc2626');
+        } else if (datosDesdeCache) {
+            CoreOffline.actualizarBanner('🟡 Reconectando...', '#d97706');
+        } else {
+            CoreOffline.ocultarBanner();
+        }
+    }
+    window.addEventListener('online', () => { actualizarBannerConexion(false); cargarHistorial(); });
+    window.addEventListener('offline', () => actualizarBannerConexion(false));
+
     async function verificarSesion() {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -163,11 +184,17 @@
             const res = await fetch(`${API_URL}/check-session`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!res.ok) throw new Error();
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('token');
+                window.location.href = 'login.html';
+                return null;
+            }
+            if (!res.ok) throw new Error('Error de servidor');
             const data = await res.json();
             if (!data.logged_in) throw new Error();
             empresaId = data.empresa_id;
             userRole = data.role;
+            CoreOffline.guardarCache('ultima_sesion', data);
 
             if (data.role === 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
@@ -183,6 +210,21 @@
             conectarWebSocket();
             return data;
         } catch (e) {
+            // Fallo de red real (no un 401 de sesión inválida) — intentamos
+            // seguir con la última sesión guardada en vez de cerrar sesión
+            // de golpe, para no interrumpir al usuario por un simple corte
+            // de conexión momentáneo.
+            const sesionCache = await CoreOffline.leerCache('ultima_sesion');
+            if (sesionCache && sesionCache.data) {
+                empresaId = sesionCache.data.empresa_id;
+                userRole = sesionCache.data.role;
+                if (userRole === 'admin') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+                    document.getElementById('filtroUsuario').style.display = 'flex';
+                }
+                actualizarBannerConexion(true);
+                return sesionCache.data;
+            }
             localStorage.removeItem('token');
             window.location.href = 'login.html';
             return null;
@@ -191,11 +233,10 @@
 
     async function cargarEmpresa() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/empresa`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const emp = await res.json();
-        empresaLogo = emp.logo_url ? emp.logo_url : null;
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/empresa`, { headers: { 'Authorization': `Bearer ${token}` } }, 'empresa', 60000);
+        if (resultado.ok) {
+            empresaLogo = resultado.data.logo_url ? resultado.data.logo_url : null;
+        }
     }
 
     function conectarWebSocket() {
@@ -217,10 +258,9 @@
 
     async function cargarUsuarios() {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/usuarios`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const usuarios = await res.json();
+        const resultado = await CoreOffline.fetchConCache(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } }, 'usuarios', 60000);
+        if (!resultado.ok) return;
+        const usuarios = resultado.data;
         const select = document.getElementById('selectUsuario');
         select.innerHTML = '<option value="">Todos los usuarios</option>';
         usuarios.forEach(u => {
@@ -233,38 +273,44 @@
         const usuarioId = document.getElementById('selectUsuario')?.value || '';
         let url = `${API_URL}/historial-cierres`;
         if (usuarioId && userRole === 'admin') url += `?usuario_id=${usuarioId}`;
+        const cacheKey = usuarioId ? `historial_cierres_usuario_${usuarioId}` : 'historial_cierres';
 
         const tbody = document.getElementById('tabla-cierres');
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Cargando...</td></tr>';
 
-        try {
-            const res = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (!Array.isArray(data)) throw new Error('Respuesta inválida');
+        const resultado = await CoreOffline.fetchConCache(url, { headers: { 'Authorization': `Bearer ${token}` } }, cacheKey);
+        if (CoreOffline.manejarSesionInvalida(resultado)) return;
 
-            if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No hay cierres registrados</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = '';
-            data.forEach(c => {
-                const datosStr = JSON.stringify(c.datos).replace(/'/g, "&#39;");
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${escapeHtml(c.fecha_cierre)}</td>
-                        <td>${escapeHtml(c.username)}</td>
-                        <td>$${toNum(c.total_usd).toFixed(2)}</td>
-                        <td>Bs ${toNum(c.total_bs).toFixed(2)}</td>
-                        <td><button class="btn-ver" onclick='verDetalle(${datosStr})'>Ver Detalle</button></td>
-                    </tr>
-                `;
-            });
-        } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;">Error: ${escapeHtml(e.message)}</td></tr>`;
+        if (!resultado.ok) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">🔴 Sin conexión y sin cierres guardados todavía. Visita esta página una vez con internet.</td></tr>`;
+            return;
         }
+        const data = resultado.data;
+        if (resultado.offline) actualizarBannerConexion(true);
+
+        if (!Array.isArray(data)) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;">Respuesta inválida del servidor</td></tr>`;
+            return;
+        }
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No hay cierres registrados</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        data.forEach(c => {
+            const datosStr = JSON.stringify(c.datos).replace(/'/g, "&#39;");
+            tbody.innerHTML += `
+                <tr>
+                    <td>${escapeHtml(c.fecha_cierre)}</td>
+                    <td>${escapeHtml(c.username)}</td>
+                    <td>$${toNum(c.total_usd).toFixed(2)}</td>
+                    <td>Bs ${toNum(c.total_bs).toFixed(2)}</td>
+                    <td><button class="btn-ver" onclick='verDetalle(${datosStr})'>Ver Detalle</button></td>
+                </tr>
+            `;
+        });
     }
 
     window.verDetalle = function(datos) {
