@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
 from flask_caching import Cache
 from datetime import datetime, timedelta, date, timezone
+from flask import Flask, request, jsonify, send_from_directory, make_response, g
 
 # ⚠️ IMPORTANTE: Render, Clever Cloud y la mayoría de servidores en la nube
 # corren en UTC, no en la hora de Venezuela (UTC-4). Si se usa datetime.now()
@@ -168,6 +169,36 @@ def safe_close_conn(conn, cursor=None):
     except:
         pass
 
+    # ===== GESTIÓN CENTRALIZADA DE CONEXIONES (cierre automático al final de cada request) =====
+# Guardamos la función original para parchearla
+_original_get_db_connection = get_db_connection
+
+def get_db_connection():
+    """Versión parcheada que registra la conexión para cierre automático."""
+    conn = _original_get_db_connection()
+    # Almacenar en el contexto global de la request
+    if not hasattr(g, '_db_connections'):
+        g._db_connections = []
+    g._db_connections.append(conn)
+    return conn
+
+@app.teardown_request
+def close_db_resources(exception=None):
+    """Cierra TODAS las conexiones y cursores registrados al final de cada request."""
+    # Cerrar cursores si los registramos (opcional, pero seguro)
+    if hasattr(g, '_db_cursors'):
+        for c in g._db_cursors:
+            try:
+                c.close()
+            except Exception:
+                pass
+    # Cerrar conexiones
+    if hasattr(g, '_db_connections'):
+        for conn in g._db_connections:
+            try:
+                conn.close()
+            except Exception:
+                pass
 # ========== DECORADORES ==========
 def token_required(f):
     @wraps(f)
