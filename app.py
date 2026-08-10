@@ -1,11 +1,10 @@
 import os
 import mysql.connector
 from mysql.connector import pooling
-from flask import Flask, request, jsonify, send_from_directory, make_response
+from flask import Flask, request, jsonify, send_from_directory, make_response, g
 from flask_cors import CORS
 from flask_caching import Cache
 from datetime import datetime, timedelta, date, timezone
-from flask import Flask, request, jsonify, send_from_directory, make_response, g
 
 # ⚠️ IMPORTANTE: Render, Clever Cloud y la mayoría de servidores en la nube
 # corren en UTC, no en la hora de Venezuela (UTC-4). Si se usa datetime.now()
@@ -135,7 +134,7 @@ DB_CONFIG = {
 try:
     connection_pool = pooling.MySQLConnectionPool(
         pool_name="mypool",
-        pool_size=5,
+        pool_size=3,
         pool_reset_session=True,
         **DB_CONFIG
     )
@@ -146,15 +145,49 @@ except Exception as e:
     connection_pool = None
 
 def get_db_connection():
-    """Obtiene una conexión del pool o directa si el pool falló"""
+    """Obtiene una conexión del pool o directa si el pool falló.
+
+    ⚠️ IMPORTANTE (fuga de conexiones): la conexión también se registra en
+    flask.g para que SIEMPRE se cierre al terminar la petición HTTP (ver
+    teardown_db_connections más abajo), sin importar si el código del
+    endpoint llega a llamar a safe_close_conn() o no. Antes, si un
+    cursor.execute() lanzaba una excepción a mitad de camino (por ejemplo,
+    un error de MySQL, un deadlock, o la base de datos ocupada un
+    instante), la función terminaba abruptamente SIN cerrar la conexión —
+    y como la base de datos de Clever Cloud solo permite 5 conexiones
+    simultáneas, unas pocas fugas de este tipo bastan para agotarlas y
+    dejar la app "trabada" hasta hacer un redeploy manual. Esta red de
+    seguridad cierra cualquier conexión abandonada al final de cada
+    petición, pase lo que pase.
+    """
     if connection_pool:
         try:
-            return connection_pool.get_connection()
+            conn = connection_pool.get_connection()
         except Exception as e:
             print(f"❌ Error obteniendo conexión del pool: {e}")
-            return mysql.connector.connect(**DB_CONFIG)
+            conn = mysql.connector.connect(**DB_CONFIG)
     else:
-        return mysql.connector.connect(**DB_CONFIG)
+        conn = mysql.connector.connect(**DB_CONFIG)
+
+    if not hasattr(g, '_db_connections'):
+        g._db_connections = []
+    g._db_connections.append(conn)
+    return conn
+
+@app.teardown_appcontext
+def teardown_db_connections(exception=None):
+    """Red de seguridad final: cierra CUALQUIER conexión que haya quedado
+    abierta al terminar la petición (incluso si el endpoint ya la cerró
+    explícitamente antes — cerrar una conexión ya cerrada es inofensivo).
+    Esto es lo que evita que las conexiones se acumulen y agoten el
+    límite de la base de datos con el paso del tiempo."""
+    conexiones = getattr(g, '_db_connections', [])
+    for conn in conexiones:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    g._db_connections = []
 
 def safe_close_conn(conn, cursor=None):
     """Cierra conexiones de manera segura"""
@@ -169,36 +202,6 @@ def safe_close_conn(conn, cursor=None):
     except:
         pass
 
-    # ===== GESTIÓN CENTRALIZADA DE CONEXIONES (cierre automático al final de cada request) =====
-# Guardamos la función original para parchearla
-_original_get_db_connection = get_db_connection
-
-def get_db_connection():
-    """Versión parcheada que registra la conexión para cierre automático."""
-    conn = _original_get_db_connection()
-    # Almacenar en el contexto global de la request
-    if not hasattr(g, '_db_connections'):
-        g._db_connections = []
-    g._db_connections.append(conn)
-    return conn
-
-@app.teardown_request
-def close_db_resources(exception=None):
-    """Cierra TODAS las conexiones y cursores registrados al final de cada request."""
-    # Cerrar cursores si los registramos (opcional, pero seguro)
-    if hasattr(g, '_db_cursors'):
-        for c in g._db_cursors:
-            try:
-                c.close()
-            except Exception:
-                pass
-    # Cerrar conexiones
-    if hasattr(g, '_db_connections'):
-        for conn in g._db_connections:
-            try:
-                conn.close()
-            except Exception:
-                pass
 # ========== DECORADORES ==========
 def token_required(f):
     @wraps(f)
