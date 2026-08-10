@@ -62,8 +62,21 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
         fetch(event.request)
             .then((respuestaRed) => {
-                const copia = respuestaRed.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+                // Solo guardamos en caché respuestas realmente buenas (200 OK).
+                // Guardar una respuesta de error (404, 500) o dañada dejaría
+                // ese error "atrapado" en el modo offline, sirviéndolo de
+                // nuevo más tarde en vez de la página real.
+                if (respuestaRed && respuestaRed.ok) {
+                    const copia = respuestaRed.clone();
+                    caches.open(CACHE_NAME)
+                        .then((cache) => cache.put(event.request, copia))
+                        .catch(() => {
+                            // Guardar en caché es solo una optimización para
+                            // el modo offline — si falla (ej: respuesta
+                            // dañada por un proxy/extensión intermedia), no
+                            // debe romper nada ni generar errores sin atrapar.
+                        });
+                }
                 return respuestaRed;
             })
             .catch(() => {
